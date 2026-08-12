@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
+export 'top_navigation_bar.dart';
+
 /// Top Logo Header for Splash/Onboarding Screen
 class SportVerseLogoHeader extends StatelessWidget {
   final bool isDark;
@@ -114,61 +116,6 @@ class SportVerseInlineHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Uniform Top Navbar Component with Menu, Inline Logo Header, and Notification Bell
-class SportVerseTopBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback? onMenuPressed;
-  final VoidCallback? onNotificationPressed;
-
-  const SportVerseTopBar({
-    super.key,
-    this.onMenuPressed,
-    this.onNotificationPressed,
-  });
-
-  @override
-  Size get preferredSize => const Size.fromHeight(60);
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.menu, size: 24, color: AppColors.primaryBlack),
-              onPressed: onMenuPressed ?? () {},
-            ),
-            const SportVerseInlineHeader(),
-            Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined,
-                      size: 24, color: AppColors.primaryBlack),
-                  onPressed: onNotificationPressed ?? () {},
-                ),
-                Positioned(
-                  right: 10,
-                  top: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.warmAccent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

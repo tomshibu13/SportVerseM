@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ground_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/shop_provider.dart';
 import 'screens/splash_screen.dart';
+import 'firebase_options.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase before starting the application
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const SportVerseApp());
 }
 
@@ -19,10 +28,18 @@ class SportVerseApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => GroundProvider()),
-        ChangeNotifierProvider(create: (_) => BookingProvider()),
-        ChangeNotifierProvider(create: (_) => ShopProvider()),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => GroundProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => BookingProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => ShopProvider(),
+        ),
       ],
       child: MaterialApp(
         title: 'SportVerse AI',

@@ -5,6 +5,8 @@ const {
   loginUser,
   getCurrentUser,
   logoutUser,
+  googleAuthUser,
+  updateUserProfile,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -64,7 +66,9 @@ const loginValidation = [
 // Auth Endpoints
 router.post('/register', registerValidation, registerUser);
 router.post('/login', loginValidation, loginUser);
+router.post('/google', googleAuthUser);
 router.post('/logout', logoutUser);
 router.get('/me', protect, getCurrentUser);
+router.put('/me', protect, updateUserProfile);
 
 module.exports = router;

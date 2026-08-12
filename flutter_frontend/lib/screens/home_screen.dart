@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
+import '../widgets/top_navigation_bar.dart';
 import 'bookings_screen.dart';
 import 'shop_screen.dart';
-import 'community_screen.dart';
+import 'find_nearby_screen.dart';
 import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -18,7 +19,19 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentBottomTab = 0;
   int _selectedSportIndex = 0;
-  final String _selectedLocation = 'Calicut, Kerala';
+  String _selectedLocation = 'Calicut, Kerala';
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  final List<String> _availableLocations = const [
+    'Calicut, Kerala',
+    'Kochi, Kerala',
+    'Trivandrum, Kerala',
+    'Wayanad, Kerala',
+    'Kannur, Kerala',
+    'Bangalore, KA',
+    'Chennai, TN',
+  ];
 
   final List<Map<String, dynamic>> _sportsCategories = [
     {'name': 'Football', 'icon': Icons.sports_soccer},
@@ -59,6 +72,17 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   ];
 
+  List<Map<String, dynamic>> get _filteredVenues {
+    return _popularVenues.where((venue) {
+      final query = _searchQuery.toLowerCase().trim();
+      if (query.isEmpty) return true;
+      final title = (venue['title'] as String).toLowerCase();
+      final sport = (venue['sport'] as String).toLowerCase();
+      final loc = (venue['location'] as String).toLowerCase();
+      return title.contains(query) || sport.contains(query) || loc.contains(query);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -70,6 +94,133 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _showLocationPickerModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Select Location',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryBlack,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warmAccent.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.my_location,
+                      color: AppColors.warmAccent, size: 20),
+                ),
+                title: const Text(
+                  'Use Current Location (GPS)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.warmAccent,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Auto-detect nearby grounds & arenas',
+                  style: TextStyle(fontSize: 11, color: AppColors.mutedText),
+                ),
+                onTap: () {
+                  setState(() => _selectedLocation = 'Calicut, Kerala');
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Location updated to Calicut, Kerala via GPS'),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 20),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _availableLocations.length,
+                  itemBuilder: (context, index) {
+                    final loc = _availableLocations[index];
+                    final isSelected = loc == _selectedLocation;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.location_on_outlined,
+                        color: isSelected
+                            ? AppColors.warmAccent
+                            : AppColors.secondaryText,
+                      ),
+                      title: Text(
+                        loc,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected
+                              ? AppColors.warmAccent
+                              : AppColors.primaryBlack,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle,
+                              color: AppColors.warmAccent, size: 20)
+                          : null,
+                      onTap: () {
+                        setState(() => _selectedLocation = loc);
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Location updated to $loc'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _openAIAssistant() {
@@ -143,6 +294,11 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Home',
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.location_on_outlined),
+              activeIcon: Icon(Icons.location_on, color: AppColors.warmAccent),
+              label: 'Explore',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(Icons.calendar_today_outlined),
               activeIcon: Icon(Icons.calendar_today, color: AppColors.warmAccent),
               label: 'Bookings',
@@ -151,11 +307,6 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.shopping_bag_outlined),
               activeIcon: Icon(Icons.shopping_bag, color: AppColors.warmAccent),
               label: 'Shop',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people, color: AppColors.warmAccent),
-              label: 'Community',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -173,11 +324,15 @@ class _HomeScreenState extends State<HomeScreen> {
       case 0:
         return _buildHomeContent();
       case 1:
-        return const BookingsScreen();
+        return FindNearbyScreen(
+          onBack: () => setState(() => _currentBottomTab = 0),
+        );
       case 2:
-        return const ShopScreen();
+        return const BookingsScreen();
       case 3:
-        return const CommunityScreen();
+        return ShopScreen(
+          onBack: () => setState(() => _currentBottomTab = 0),
+        );
       case 4:
         return const ProfileScreen();
       default:
@@ -192,68 +347,48 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Top Header Row (Menu Icon, Logo Header, Notification Bell) ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Icon(Icons.menu, size: 24, color: AppColors.primaryBlack),
-                const SportVerseInlineHeader(),
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined,
-                          size: 24, color: AppColors.primaryBlack),
-                      onPressed: () {},
-                    ),
-                    Positioned(
-                      right: 10,
-                      top: 10,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.warmAccent,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          const TopNavigationBar(),
 
           // ── Location & Search Bar Row ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Row(
               children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined,
-                          size: 16, color: AppColors.primaryBlack),
-                      const SizedBox(width: 4),
-                      Text(
-                        _selectedLocation,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.primaryBlack,
+                GestureDetector(
+                  onTap: _showLocationPickerModal,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.keyboard_arrow_down,
-                          size: 16, color: AppColors.secondaryText),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 16, color: AppColors.primaryBlack),
+                        const SizedBox(width: 4),
+                        Text(
+                          _selectedLocation,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryBlack,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.keyboard_arrow_down,
+                            size: 16, color: AppColors.secondaryText),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -265,23 +400,48 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(color: AppColors.border),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.search,
+                        const Icon(Icons.search,
                             size: 18, color: AppColors.mutedText),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
+                            controller: _searchController,
+                            onChanged: (val) => setState(() => _searchQuery = val),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primaryBlack,
+                            ),
                             decoration: InputDecoration(
                               hintText: 'Search for grounds, sports...',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.mutedText,
                               ),
                               border: InputBorder.none,
                               isDense: true,
                               contentPadding: EdgeInsets.zero,
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _searchController.clear();
+                                          _searchQuery = '';
+                                        });
+                                      },
+                                      child: const Icon(Icons.close,
+                                          size: 16, color: AppColors.mutedText),
+                                    )
+                                  : null,
                             ),
                           ),
                         ),
@@ -482,17 +642,41 @@ class _HomeScreenState extends State<HomeScreen> {
           // Horizontal Venues List
           SizedBox(
             height: 245,
-            child: ListView.separated(
-              physics: const BouncingScrollPhysics(),
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _popularVenues.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 14),
-              itemBuilder: (context, index) {
-                final venue = _popularVenues[index];
-                return _buildVenueCard(venue);
-              },
-            ),
+            child: _filteredVenues.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.search_off, size: 36, color: AppColors.mutedText),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No venues match "$_searchQuery"',
+                          style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                          child: const Text('Reset Search',
+                              style: TextStyle(color: AppColors.warmAccent)),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.separated(
+                    physics: const BouncingScrollPhysics(),
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: _filteredVenues.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 14),
+                    itemBuilder: (context, index) {
+                      final venue = _filteredVenues[index];
+                      return _buildVenueCard(venue);
+                    },
+                  ),
           ),
 
           const SizedBox(height: 24),
@@ -780,6 +964,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     venue['title'] as String,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -789,10 +975,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(
-                        '${venue['sport']} • ',
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.secondaryText),
+                      Flexible(
+                        child: Text(
+                          '${venue['sport']} • ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.secondaryText),
+                        ),
                       ),
                       const Icon(Icons.star, size: 12, color: Colors.amber),
                       Text(

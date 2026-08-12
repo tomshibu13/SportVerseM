@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
+import '../widgets/top_navigation_bar.dart';
 
 class CommunityScreen extends StatelessWidget {
   const CommunityScreen({super.key});
@@ -33,7 +34,7 @@ class CommunityScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const SportVerseTopBar(),
+      appBar: const TopNavigationBar(),
       body: ListView.separated(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
@@ -105,12 +106,15 @@ class CommunityScreen extends StatelessWidget {
                     const Icon(Icons.access_time,
                         size: 12, color: AppColors.warmAccent),
                     const SizedBox(width: 4),
-                    Text(
-                      item['time'] as String,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.secondaryText),
+                    Expanded(
+                      child: Text(
+                        item['time'] as String,
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.secondaryText),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: () {},
                       style: ElevatedButton.styleFrom(

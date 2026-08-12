@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
+import '../widgets/top_navigation_bar.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -64,7 +65,7 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const SportVerseTopBar(),
+      appBar: const TopNavigationBar(),
       body: Column(
         children: [
           Container(
@@ -174,16 +175,22 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
                 children: [
                   const Icon(Icons.calendar_today, size: 14, color: AppColors.warmAccent),
                   const SizedBox(width: 6),
-                  Text(
-                    b['date'] as String,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  Flexible(
+                    child: Text(
+                      b['date'] as String,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 12),
                   const Icon(Icons.access_time, size: 14, color: AppColors.warmAccent),
                   const SizedBox(width: 6),
-                  Text(
-                    b['time'] as String,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  Flexible(
+                    child: Text(
+                      b['time'] as String,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -192,11 +199,14 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
                 children: [
                   const Icon(Icons.location_on_outlined, size: 14, color: AppColors.mutedText),
                   const SizedBox(width: 6),
-                  Text(
-                    b['location'] as String,
-                    style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                  Expanded(
+                    child: Text(
+                      b['location'] as String,
+                      style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Text(
                     b['price'] as String,
                     style: const TextStyle(

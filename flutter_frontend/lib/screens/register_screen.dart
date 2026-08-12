@@ -173,7 +173,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
+                        child: IntrinsicHeight(
+                          child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -380,7 +381,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                   ),
-                );
+                ),
+              );
               },
             ),
           ),

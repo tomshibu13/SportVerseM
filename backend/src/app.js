@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('../routes/authRoutes');
+const apiRoutes = require('../routes/api');
 const { errorHandler, notFound } = require('../middleware/errorMiddleware');
 
 const app = express();
@@ -48,6 +49,7 @@ app.use('/api/auth/login', authLimiter);
 
 // Mount API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api', apiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

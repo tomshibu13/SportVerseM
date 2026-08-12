@@ -1,14 +1,18 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../widgets/social_login_button.dart';
 import '../services/auth_service.dart';
+import '../providers/auth_provider.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
+import 'profile_completion_screen.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -100,7 +104,25 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
+  void _handleGoogleSignIn() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.signInWithGoogle();
+
+    if (mounted) {
+      if (success) {
+        _showSnackBar('Welcome ${authProvider.currentUser?.fullName ?? "Back"}!');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileCompletionScreen()),
+        );
+      } else {
+        _showSnackBar('Google Sign-In failed or was canceled.');
+      }
+    }
+  }
+
   void _showSnackBar(String message) {
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -145,13 +167,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: FadeTransition(
-                          opacity: _fadeAnim,
-                          child: SlideTransition(
-                            position: _slideAnim,
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
+                        child: IntrinsicHeight(
+                          child: FadeTransition(
+                            opacity: _fadeAnim,
+                            child: SlideTransition(
+                              position: _slideAnim,
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -179,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Welcome Back! 👋',
+                                          'Welcome Back!',
                                           style: TextStyle(
                                             fontSize: 28,
                                             fontWeight: FontWeight.w800,
@@ -292,24 +315,11 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         color: Color(0xFF4285F4),
                                       ),
                                     ),
-                                    onPressed: () => _showSnackBar(
-                                        'Google login will be available soon.'),
+                                    onPressed: _handleGoogleSignIn,
                                   ),
+
 
                                   const SizedBox(height: 10),
-
-                                  // ── Social Login Option 2: Apple ──
-                                  SocialLoginButton(
-                                    text: 'Continue with Apple',
-                                    assetName: 'assets/images/apple_logo.png',
-                                    fallbackIcon: const Icon(
-                                      Icons.apple,
-                                      size: 20,
-                                      color: Colors.black,
-                                    ),
-                                    onPressed: () => _showSnackBar(
-                                        'Apple login will be available soon.'),
-                                  ),
 
                                   const SizedBox(height: 22),
 
@@ -351,7 +361,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     ),
                   ),
-                );
+                ),
+              );
               },
             ),
           ),

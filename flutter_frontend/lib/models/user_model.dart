@@ -18,14 +18,17 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
+    final rawId = json['userId'] ?? json['user_id'] ?? json['id'] ?? 0;
+    final parsedId = rawId is int ? rawId : (int.tryParse(rawId.toString()) ?? rawId.hashCode);
+
     return UserModel(
-      userId: json['user_id'] is int ? json['user_id'] : int.tryParse(json['user_id'].toString()) ?? 0,
-      fullName: json['full_name'] ?? '',
+      userId: parsedId,
+      fullName: json['fullName'] ?? json['full_name'] ?? json['name'] ?? '',
       email: json['email'] ?? '',
       role: json['role'] ?? 'User',
       phone: json['phone'] ?? '',
-      profileImage: json['profile_image'] ?? '',
-      createdAt: json['created_at'] != null ? json['created_at'].toString() : '',
+      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['photoURL'] ?? '',
+      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
     );
   }
 
@@ -41,3 +44,4 @@ class UserModel {
     };
   }
 }
+

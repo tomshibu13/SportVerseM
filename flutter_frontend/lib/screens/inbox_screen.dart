@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../widgets/custom_graphics.dart';
+import '../widgets/top_navigation_bar.dart';
 
 class InboxScreen extends StatefulWidget {
   const InboxScreen({super.key});
@@ -37,19 +39,7 @@ class _InboxScreenState extends State<InboxScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Inbox & Notifications',
-          style: TextStyle(
-            color: AppColors.primaryBlack,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-      ),
+      appBar: const TopNavigationBar(),
       body: ListView.separated(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),
@@ -88,14 +78,19 @@ class _InboxScreenState extends State<InboxScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            item['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryBlack,
+                          Expanded(
+                            child: Text(
+                              item['title'] as String,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryBlack,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Text(
                             item['time'] as String,
                             style: const TextStyle(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
+import '../widgets/top_navigation_bar.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 
@@ -30,19 +31,103 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showEditProfileDialog() {
+    final user = AuthService.currentUser;
+    final nameController = TextEditingController(
+      text: user?['fullName'] as String? ?? user?['full_name'] as String? ?? '',
+    );
+    final phoneController = TextEditingController(
+      text: user?['phone'] as String? ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Edit Personal Information',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  prefixIcon: Icon(Icons.person_outline, size: 18),
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: 'Phone Number',
+                  prefixIcon: Icon(Icons.phone_outlined, size: 18),
+                  border: OutlineInputBorder(),
+                  hintText: 'Enter your mobile number',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryBlack,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () async {
+                final newName = nameController.text.trim();
+                final newPhone = phoneController.text.trim();
+                final res = await AuthService.updateProfile(
+                  fullName: newName,
+                  phone: newPhone,
+                );
+                if (context.mounted) {
+                  setState(() {});
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(res['message'] as String),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = AuthService.currentUser;
-    final fullName = user?['fullName'] as String? ?? 'Tom Shibu';
-    final email = user?['email'] as String? ?? 'tomshibu49@gmail.com';
+    final fullName = (user?['fullName'] as String?)?.isNotEmpty == true
+        ? user!['fullName'] as String
+        : (user?['full_name'] as String?)?.isNotEmpty == true
+            ? user!['full_name'] as String
+            : 'User';
+    final email = (user?['email'] as String?)?.isNotEmpty == true
+        ? user!['email'] as String
+        : '';
     final phone = (user?['phone'] as String?)?.isNotEmpty == true
         ? user!['phone'] as String
-        : '+91 98765 43210';
+        : 'Not provided';
     final role = user?['role'] as String? ?? 'User';
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const SportVerseTopBar(),
+      appBar: const TopNavigationBar(),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.warmAccent),
@@ -207,23 +292,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStatColumn(
-                            '12', 'Bookings', Icons.calendar_today_outlined),
-                        _buildStatDivider(),
-                        _buildStatColumn(
-                            '5', 'Tournaments', Icons.emoji_events_outlined),
-                        _buildStatDivider(),
-                        _buildStatColumn('4.8', 'Rating', Icons.star_outline),
-                        _buildStatDivider(),
-                        _buildStatColumn(
-                            '28', 'Badges', Icons.local_fire_department_outlined),
-                        _buildStatDivider(),
-                        _buildStatColumn('₹1,250', 'Wallet',
-                            Icons.account_balance_wallet_outlined),
-                      ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 8),
+                          _buildStatColumn(
+                              '12', 'Bookings', Icons.calendar_today_outlined),
+                          const SizedBox(width: 12),
+                          _buildStatDivider(),
+                          const SizedBox(width: 12),
+                          _buildStatColumn(
+                              '5', 'Tournaments', Icons.emoji_events_outlined),
+                          const SizedBox(width: 12),
+                          _buildStatDivider(),
+                          const SizedBox(width: 12),
+                          _buildStatColumn('4.8', 'Rating', Icons.star_outline),
+                          const SizedBox(width: 12),
+                          _buildStatDivider(),
+                          const SizedBox(width: 12),
+                          _buildStatColumn('28', 'Badges',
+                              Icons.local_fire_department_outlined),
+                          const SizedBox(width: 12),
+                          _buildStatDivider(),
+                          const SizedBox(width: 12),
+                          _buildStatColumn('₹1,250', 'Wallet',
+                              Icons.account_balance_wallet_outlined),
+                          const SizedBox(width: 8),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -404,176 +502,191 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 20),
 
-                  // ── 2-Column Options Grid ──
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Column: Navigation Options
-                      Expanded(
-                        flex: 6,
-                        child: Column(
-                          children: [
-                            _buildMenuTile(Icons.person_outline,
-                                'Personal Information', 'Update your details', null),
-                            _buildMenuTile(Icons.calendar_today_outlined,
-                                'My Bookings', 'View and manage bookings', null),
-                            _buildMenuTile(Icons.favorite_border, 'Favorites',
-                                'Saved venues and sports', null),
-                            _buildMenuTile(Icons.bar_chart, 'Fitness & Health',
-                                'Track activity & progress', 'New'),
-                            _buildMenuTile(Icons.track_changes,
-                                'Goals & Challenges', 'Set goals & achieve more', null),
-                            _buildMenuTile(
-                                Icons.account_balance_wallet_outlined,
-                                'Wallet & Payments',
-                                'Manage transactions',
-                                null),
-                            const SizedBox(height: 12),
+                  // ── Responsive Options Section (1 Column on Mobile, 2 Columns on Tablet/Desktop) ──
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth > 580;
 
-                            // Logout Button
-                            SizedBox(
-                              width: double.infinity,
-                              height: 44,
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  AuthService.logout();
-                                  Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => const LoginScreen()),
-                                    (route) => false,
-                                  );
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(
-                                      color: Colors.redAccent, width: 1.2),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
+                      final leftColumn = Column(
+                        children: [
+                          _buildMenuTile(
+                            Icons.person_outline,
+                            'Personal Information',
+                            'Update your details',
+                            null,
+                            onTap: _showEditProfileDialog,
+                          ),
+                          _buildMenuTile(Icons.calendar_today_outlined,
+                              'My Bookings', 'View and manage bookings', null),
+                          _buildMenuTile(Icons.favorite_border, 'Favorites',
+                              'Saved venues and sports', null),
+                          _buildMenuTile(Icons.bar_chart, 'Fitness & Health',
+                              'Track activity & progress', 'New'),
+                          _buildMenuTile(Icons.track_changes,
+                              'Goals & Challenges', 'Set goals & achieve more', null),
+                          _buildMenuTile(
+                              Icons.account_balance_wallet_outlined,
+                              'Wallet & Payments',
+                              'Manage transactions',
+                              null),
+                          const SizedBox(height: 12),
+
+                          // Logout Button
+                          SizedBox(
+                            width: double.infinity,
+                            height: 44,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                AuthService.logout();
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const LoginScreen()),
+                                  (route) => false,
+                                );
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                    color: Colors.redAccent, width: 1.2),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                icon: const Icon(Icons.logout,
-                                    color: Colors.redAccent, size: 16),
-                                label: const Text(
-                                  'Log Out',
-                                  style: TextStyle(
-                                    color: Colors.redAccent,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
+                              ),
+                              icon: const Icon(Icons.logout,
+                                  color: Colors.redAccent, size: 16),
+                              label: const Text(
+                                'Log Out',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        ],
+                      );
 
-                      const SizedBox(width: 14),
+                      final rightColumn = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Recent Activities',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryBlack,
+                                      ),
+                                    ),
+                                    Text(
+                                      'View All',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.warmAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                _buildActivityItem('Badminton', '1h 12m • 420 kcal',
+                                    'Today, 7:30 PM', Icons.sports_tennis, Colors.green),
+                                const SizedBox(height: 8),
+                                _buildActivityItem('Running', '35 min • 280 kcal',
+                                    'Today, 6:15 AM', Icons.directions_run, Colors.orange),
+                                const SizedBox(height: 8),
+                                _buildActivityItem('Football', '1h 30m • 650 kcal',
+                                    'Yesterday, 6:00 PM', Icons.sports_soccer, Colors.purple),
+                              ],
+                            ),
+                          ),
 
-                      // Right Column: Recent Activities & Achievements
-                      Expanded(
-                        flex: 5,
-                        child: Column(
+                          const SizedBox(height: 14),
+
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Achievements',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryBlack,
+                                      ),
+                                    ),
+                                    Text(
+                                      'View All',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.warmAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _buildMedalBadge(
+                                        '10K Steps', Icons.directions_walk),
+                                    _buildMedalBadge('Calories Burner',
+                                        Icons.local_fire_department),
+                                    _buildMedalBadge(
+                                        'Weekend Warrior', Icons.emoji_events),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+
+                      if (isWide) {
+                        return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Recent Activities',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primaryBlack,
-                                        ),
-                                      ),
-                                      Text(
-                                        'View All',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.warmAccent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  _buildActivityItem('Badminton', '1h 12m • 420 kcal',
-                                      'Today, 7:30 PM', Icons.sports_tennis, Colors.green),
-                                  const SizedBox(height: 8),
-                                  _buildActivityItem('Running', '35 min • 280 kcal',
-                                      'Today, 6:15 AM', Icons.directions_run, Colors.orange),
-                                  const SizedBox(height: 8),
-                                  _buildActivityItem('Football', '1h 30m • 650 kcal',
-                                      'Yesterday, 6:00 PM', Icons.sports_soccer, Colors.purple),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 14),
-
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        'Achievements',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.primaryBlack,
-                                        ),
-                                      ),
-                                      Text(
-                                        'View All',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.warmAccent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceAround,
-                                    children: [
-                                      _buildMedalBadge(
-                                          '10K Steps', Icons.directions_walk),
-                                      _buildMedalBadge('Calories Burner',
-                                          Icons.local_fire_department),
-                                      _buildMedalBadge(
-                                          'Weekend Warrior', Icons.emoji_events),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
+                            Expanded(flex: 6, child: leftColumn),
+                            const SizedBox(width: 14),
+                            Expanded(flex: 5, child: rightColumn),
                           ],
-                        ),
-                      ),
-                    ],
+                        );
+                      } else {
+                        return Column(
+                          children: [
+                            leftColumn,
+                            const SizedBox(height: 14),
+                            rightColumn,
+                          ],
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
@@ -614,95 +727,105 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       children: [
         Icon(icon, size: 14, color: AppColors.warmAccent),
-        const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Row(
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      unit,
+                      style: const TextStyle(fontSize: 9, color: Colors.white54),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 2),
-                Text(
-                  unit,
-                  style: const TextStyle(fontSize: 9, color: Colors.white54),
-                ),
-              ],
-            ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 8, color: Colors.white38),
-            ),
-          ],
+              ),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 8, color: Colors.white38),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMenuTile(IconData icon, String title, String subtitle, String? badge) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.primaryBlack),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryBlack,
-                      ),
-                    ),
-                    if (badge != null) ...[
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.warmAccent,
-                          borderRadius: BorderRadius.circular(8),
+  Widget _buildMenuTile(IconData icon, String title, String subtitle, String? badge, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppColors.primaryBlack),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryBlack,
                         ),
-                        child: Text(
-                          badge,
-                          style: const TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.warmAccent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            badge,
+                            style: const TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 9, color: AppColors.mutedText),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 9, color: AppColors.mutedText),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.mutedText),
-        ],
+            const Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.mutedText),
+          ],
+        ),
       ),
     );
   }

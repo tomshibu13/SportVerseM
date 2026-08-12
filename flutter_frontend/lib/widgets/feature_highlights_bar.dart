@@ -135,30 +135,37 @@ class FeatureHighlightsBar extends StatelessWidget {
         ],
         border: Border.all(color: AppColors.borderSubtle, width: 1),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildItem(
-            icon: Icons.location_on_outlined,
-            line1: 'Find Nearby',
-            line2: 'Sports Grounds',
-          ),
-          _buildItem(
-            icon: Icons.calendar_today_outlined,
-            line1: 'Book Instantly',
-            line2: 'in Few Clicks',
-          ),
-          _buildItem(
-            icon: Icons.verified_user_outlined,
-            line1: 'Secure & Easy',
-            line2: 'Payments',
-          ),
-          _buildItem(
-            icon: Icons.people_outline_rounded,
-            line1: 'Community',
-            line2: '& Tournaments',
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildItem(
+              icon: Icons.location_on_outlined,
+              line1: 'Find Nearby',
+              line2: 'Sports Grounds',
+            ),
+            const SizedBox(width: 12),
+            _buildItem(
+              icon: Icons.calendar_today_outlined,
+              line1: 'Book Instantly',
+              line2: 'in Few Clicks',
+            ),
+            const SizedBox(width: 12),
+            _buildItem(
+              icon: Icons.verified_user_outlined,
+              line1: 'Secure & Easy',
+              line2: 'Payments',
+            ),
+            const SizedBox(width: 12),
+            _buildItem(
+              icon: Icons.people_outline_rounded,
+              line1: 'Community',
+              line2: '& Tournaments',
+            ),
+          ],
+        ),
       ),
     );
   }

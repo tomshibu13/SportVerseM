@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "476540604651",
+    "project_id": "sportverse-ai",
+    "storage_bucket": "sportverse-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:476540604651:android:e7feb16feccff0d387eeae",
+        "android_client_info": {
+          "package_name": "com.example.sportverse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "476540604651-g3n2051unc5cq4ols1d8dcp1gn45082c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3fZHh2vtA-EfoQ5MgIYewXdiOkMLv9v4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "476540604651-g3n2051unc5cq4ols1d8dcp1gn45082c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "476540604651-2ue95e0034os637mmco7a2ohapn02l64.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sportverse"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:476540604651:android:2ad18faf86ae5b6987eeae",
+        "android_client_info": {
+          "package_name": "com.sportverse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "476540604651-kd45r04vhotk1lc39sdnls3khhu75o98.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sportverse",
+            "certificate_hash": "ca9d1721bb1318946f0b6b2e80473e2ae47afa8e"
+          }
+        },
+        {
+          "client_id": "476540604651-g3n2051unc5cq4ols1d8dcp1gn45082c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3fZHh2vtA-EfoQ5MgIYewXdiOkMLv9v4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "476540604651-g3n2051unc5cq4ols1d8dcp1gn45082c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "476540604651-2ue95e0034os637mmco7a2ohapn02l64.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.sportverse"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
