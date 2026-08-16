@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter Web (Port 8080 - Fixed for Google OAuth)",
+      "cwd": "flutter_frontend",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "chrome",
+        "--web-port=8080",
+        "--web-hostname=localhost"
+      ]
+    },
+    {
+      "name": "Flutter Mobile (Android/iOS)",
+      "cwd": "flutter_frontend",
+      "request": "launch",
+      "type": "dart"
+    }
+  ]
+}

@@ -5,6 +5,8 @@ class UserModel {
   final String role; // User, GroundOwner, ShopOwner, Admin
   final String phone;
   final String profileImage;
+  final String approvalStatus;
+  final bool isApproved;
   final String createdAt;
 
   UserModel({
@@ -14,12 +16,16 @@ class UserModel {
     required this.role,
     this.phone = '',
     this.profileImage = '',
+    this.approvalStatus = 'Approved',
+    this.isApproved = true,
     required this.createdAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawId = json['userId'] ?? json['user_id'] ?? json['id'] ?? 0;
     final parsedId = rawId is int ? rawId : (int.tryParse(rawId.toString()) ?? rawId.hashCode);
+    final status = json['approvalStatus'] ?? (json['isApproved'] == false ? 'Pending' : 'Approved');
+    final approved = json['isApproved'] ?? (status == 'Approved');
 
     return UserModel(
       userId: parsedId,
@@ -28,6 +34,8 @@ class UserModel {
       role: json['role'] ?? 'User',
       phone: json['phone'] ?? '',
       profileImage: json['profileImage'] ?? json['profile_image'] ?? json['photoURL'] ?? '',
+      approvalStatus: status,
+      isApproved: approved,
       createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
     );
   }
@@ -40,8 +48,11 @@ class UserModel {
       'role': role,
       'phone': phone,
       'profile_image': profileImage,
+      'approvalStatus': approvalStatus,
+      'isApproved': isApproved,
       'created_at': createdAt,
     };
   }
 }
+
 

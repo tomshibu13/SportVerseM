@@ -1,19 +1,21 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
-import '../widgets/social_login_button.dart';
 import '../services/auth_service.dart';
-import '../providers/auth_provider.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
-import 'profile_completion_screen.dart';
+import 'role_selection_screen.dart';
 
-
+// Web-only import for GIS SDK renderButton()
+// ignore: uri_does_not_exist
+import 'package:google_sign_in_web/web_only.dart' as google_sign_in_web
+    // This import is only valid on web; non-web platforms skip it.
+    if (dart.library.io) 'package:sportverse_ai/services/stub_google_sign_in_web.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -45,6 +47,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       );
     }
 
+    // Initialize Google Sign-In once. Safe to call multiple times.
+    AuthService.initGoogleSignIn().then((_) {
+      if (kIsWeb && mounted) {
+        // On web, listen to GIS SDK authentication events (triggered by renderButton)
+        GoogleSignIn.instance.authenticationEvents
+            .listen(_handleWebGoogleSignIn)
+            .onError((Object e) {
+          debugPrint('Google authenticationEvents error: $e');
+        });
+      }
+    });
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -64,6 +77,28 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _passwordController.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  /// Called by the GIS SDK authenticationEvents stream on Web after
+  /// the user completes the Google Sign-In button flow.
+  Future<void> _handleWebGoogleSignIn(GoogleSignInAuthenticationEvent event) async {
+    if (event is GoogleSignInAuthenticationEventSignIn) {
+      setState(() => _isLoading = true);
+      final result = await AuthService.handleWebGoogleSignIn(account: event.user);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar(result['message'] as String);
+        if (result['success'] == true) {
+          final isNewUser = result['data']?['isNewUser'] == true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _handleLogin() async {
@@ -104,22 +139,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
-  void _handleGoogleSignIn() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.signInWithGoogle();
-
-    if (mounted) {
-      if (success) {
-        _showSnackBar('Welcome ${authProvider.currentUser?.fullName ?? "Back"}!');
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ProfileCompletionScreen()),
-        );
-      } else {
-        _showSnackBar('Google Sign-In failed or was canceled.');
-      }
-    }
-  }
 
   void _showSnackBar(String message) {
 
@@ -289,39 +308,57 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
                                   const SizedBox(height: 18),
 
-                                  // ── Divider Text ──
-                                  const Center(
-                                    child: Text(
-                                      'or continue with',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Color(0xFF777777),
-                                        fontWeight: FontWeight.w400,
+                                  // ── Google Sign-In ──────────────────────
+                                  // Web:     GIS SDK renderButton() — required by google_sign_in_web 1.1.3
+                                  //          authenticate() is NOT supported on web and will throw.
+                                  // Android: our custom button calling signInWithGoogle()
+                                  if (kIsWeb)
+                                    SizedBox(
+                                      height: 52,
+                                      width: double.infinity,
+                                      child: google_sign_in_web.renderButton(),
+                                    )
+                                  else
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 52,
+                                      child: OutlinedButton.icon(
+                                        onPressed: _isLoading ? null : () async {
+                                          setState(() => _isLoading = true);
+                                          final result = await AuthService.signInWithGoogle();
+                                          if (mounted) {
+                                            setState(() => _isLoading = false);
+                                            _showSnackBar(result['message'] as String);
+                                            if (result['success'] == true) {
+                                              final isNewUser = result['data']?['isNewUser'] == true;
+                                              Navigator.pushReplacement(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                                ),
+                                              );
+                                            }
+                                          }
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          side: const BorderSide(color: AppColors.border),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        icon: Image.asset('assets/images/google_logo.png', height: 24),
+                                        label: const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            color: AppColors.primaryBlack,
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 15,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
 
                                   const SizedBox(height: 16),
-
-                                  // ── Social Login Option 1: Google ──
-                                  SocialLoginButton(
-                                    text: 'Continue with Google',
-                                    assetName: 'assets/images/google_logo.png',
-                                    fallbackIcon: const Text(
-                                      'G',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF4285F4),
-                                      ),
-                                    ),
-                                    onPressed: _handleGoogleSignIn,
-                                  ),
-
-
-                                  const SizedBox(height: 10),
-
-                                  const SizedBox(height: 22),
 
                                   // ── Create Account Navigation Link ──
                                   Center(

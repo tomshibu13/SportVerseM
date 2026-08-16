@@ -9,20 +9,48 @@ import {
   Users,
   Settings, 
   Sparkles,
-  LogOut
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
-export default function Sidebar({ activeTab, setActiveTab, onLogout, onOpenAddGround }) {
-  const navItems = [
+export default function Sidebar({ 
+  activeTab, 
+  setActiveTab, 
+  onLogout, 
+  onOpenAddGround, 
+  currentUser,
+  pendingOwnersCount = 0,
+  pendingBookingsCount = 0
+}) {
+  const userName = currentUser?.fullName || currentUser?.name || 'System Admin';
+  const roleTitle = currentUser?.role || 'Super Admin';
+  const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
+
+  const allNavItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'users', label: 'User & Admin DB', icon: Users, badge: 'Live DB' },
+    { 
+      id: 'users', 
+      label: 'User & Owner DB', 
+      icon: Users, 
+      badge: pendingOwnersCount > 0 ? `${pendingOwnersCount} Pending` : null, 
+      badgeColor: '#f59e0b',
+      adminOnly: true 
+    },
     { id: 'grounds', label: 'Venues & Courts', icon: MapPin },
-    { id: 'slots', label: 'Slots & Pricing', icon: Clock, badge: 'AI Dynamic' },
-    { id: 'bookings', label: 'Bookings & Check-In', icon: CalendarCheck },
+    { id: 'slots', label: 'Slots & Dynamic Pricing', icon: Clock, badge: 'AI Surge' },
+    { 
+      id: 'bookings', 
+      label: 'Bookings & Check-In', 
+      icon: CalendarCheck, 
+      badge: pendingBookingsCount > 0 ? `${pendingBookingsCount} Pending` : null,
+      badgeColor: '#3b82f6'
+    },
     { id: 'shop', label: 'Pro-Shop Inventory', icon: ShoppingBag },
     { id: 'analytics', label: 'Revenue Analytics', icon: BarChart3 },
-    { id: 'settings', label: 'Station Settings', icon: Settings },
+    { id: 'settings', label: 'Platform Settings', icon: Settings },
   ];
+
+  const navItems = allNavItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <aside style={styles.sidebar}>
@@ -33,24 +61,26 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout, onOpenAddGr
         </div>
         <div>
           <h2 style={styles.brandTitle}>SportVerse</h2>
-          <span style={styles.brandSubtitle}>Station Owner Hub</span>
+          <span style={styles.brandSubtitle}>Admin & Control Portal</span>
         </div>
       </div>
 
-      {/* Station Status Banner */}
+      {/* Admin Status Banner */}
       <div style={styles.stationBadgeCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={styles.statusDot}></span>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e5ba93' }}>Station Live & Active</span>
+          <ShieldCheck size={14} color="#10b981" />
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>
+            {isAdmin ? 'Superadmin Mode' : 'Station Control'}
+          </span>
         </div>
         <div style={{ fontSize: '0.725rem', color: '#a39c93', marginTop: '0.25rem' }}>
-          Downtown Hub • 3 Arenas
+          MongoDB Synced • REST API Active
         </div>
       </div>
 
       {/* Navigation Menu */}
       <nav style={styles.navMenu}>
-        <div style={styles.menuGroupHeader}>MAIN MANAGEMENT</div>
+        <div style={styles.menuGroupHeader}>CONTROL CONSOLE</div>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -66,41 +96,49 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout, onOpenAddGr
               <Icon size={19} color={isActive ? '#c8895b' : '#a39c93'} />
               <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
               {item.badge && (
-                <span style={styles.navItemBadge}>{item.badge}</span>
+                <span style={{
+                  ...styles.navItemBadge,
+                  background: item.badgeColor ? item.badgeColor : 'var(--gold-gradient)',
+                  color: '#ffffff',
+                }}>
+                  {item.badge}
+                </span>
               )}
             </button>
           );
         })}
       </nav>
 
-      {/* CTA Button to open Become Ground Owner Form */}
+      {/* CTA Button */}
       <div style={{ padding: '0.5rem 0' }}>
         <button
           className="btn btn-primary"
-          style={{ width: '100%', fontSize: '0.8rem', gap: '0.4rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)' }}
+          style={{ width: '100%', fontSize: '0.8rem', gap: '0.4rem' }}
           onClick={onOpenAddGround}
         >
           <Sparkles size={15} />
-          <span>Become a Ground Owner</span>
+          <span>+ Add Ground / Arena</span>
         </button>
       </div>
 
       {/* Owner Profile Quick Card */}
       <div style={styles.ownerFooter}>
-        <img 
-          src="https://www.pngall.com/wp-content/uploads/5/Profile.png" 
-          alt="Station Owner" 
-          style={styles.avatar} 
-        />
+        <div style={styles.avatarCircle}>
+          {userName.charAt(0).toUpperCase()}
+        </div>
         <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div style={{ fontWeight: 600, fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-            Tom Shibu
+          <div style={{ fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', color: '#ffffff' }}>
+            {userName}
           </div>
-          <div style={{ fontSize: '0.725rem', color: '#a39c93' }}>
-            Station ID: #ST-409
+          <div style={{ fontSize: '0.725rem', color: '#c8895b', fontWeight: 600 }}>
+            {roleTitle}
           </div>
         </div>
-        <button style={styles.logoutBtn} title="Logout" onClick={onLogout}>
+        <button 
+          style={styles.logoutBtn} 
+          title="Sign Out" 
+          onClick={onLogout}
+        >
           <LogOut size={16} color="#a39c93" />
         </button>
       </div>
@@ -110,7 +148,7 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout, onOpenAddGr
 
 const styles = {
   sidebar: {
-    width: '260px',
+    width: '265px',
     backgroundColor: 'var(--bg-sidebar)',
     borderRight: '1px solid var(--border-color)',
     display: 'flex',
@@ -157,13 +195,6 @@ const styles = {
     background: 'rgba(15, 13, 11, 0.9)',
     border: '1px solid var(--border-color)',
   },
-  statusDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    backgroundColor: '#c8895b',
-    boxShadow: '0 0 8px #c8895b',
-  },
   navMenu: {
     display: 'flex',
     flexDirection: 'column',
@@ -196,17 +227,14 @@ const styles = {
   navButtonActive: {
     background: 'rgba(200, 137, 91, 0.15)',
     color: '#ffffff',
-    fontWeight: 600,
+    fontWeight: 700,
     borderLeft: '3px solid var(--primary)',
   },
   navItemBadge: {
     fontSize: '0.65rem',
     fontWeight: 700,
-    background: 'var(--gold-gradient)',
-    color: '#ffffff',
-    padding: '0.15rem 0.4rem',
+    padding: '0.15rem 0.45rem',
     borderRadius: '6px',
-    textTransform: 'uppercase',
   },
   ownerFooter: {
     display: 'flex',
@@ -218,20 +246,27 @@ const styles = {
     border: '1px solid var(--border-color)',
     marginTop: 'auto',
   },
-  avatar: {
+  avatarCircle: {
     width: '36px',
     height: '36px',
     borderRadius: '50%',
-    objectFit: 'cover',
-    border: '1px solid var(--primary)',
+    background: 'linear-gradient(135deg, #c8895b 0%, #a86c43 100%)',
+    color: '#ffffff',
+    fontWeight: 800,
+    fontSize: '0.95rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutBtn: {
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
-    padding: '0.25rem',
+    padding: '0.35rem',
+    borderRadius: '6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'background 0.15s ease',
   }
 };

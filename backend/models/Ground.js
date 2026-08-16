@@ -12,8 +12,8 @@ const groundSchema = new mongoose.Schema({
   review_count: { type: Number, default: 120 },
   images: [{ type: String }],
   facilities: [{ type: String }], // e.g. Lighting, Parking, Changing Room, Turf
-  owner_id: { type: Number, required: true },
-  status: { type: String, enum: ['Approved', 'Pending', 'Rejected'], default: 'Approved' },
+  owner_id: { type: mongoose.Schema.Types.Mixed, required: true },
+  status: { type: String, enum: ['Approved', 'Pending', 'Rejected', 'Active', 'Inactive'], default: 'Approved' },
   ai_score: { type: Number, default: 95 },
   available_slots: [{
     slot_id: String,

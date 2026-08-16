@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
 import '../widgets/top_navigation_bar.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'ground_owner_dashboard_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -124,6 +126,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? user!['phone'] as String
         : 'Not provided';
     final role = user?['role'] as String? ?? 'User';
+    final rawApprovalStatus = user?['approvalStatus'] as String?;
+    final isApprovedBool = user?['isApproved'] as bool?;
+    final approvalStatus = rawApprovalStatus ?? (isApprovedBool == true ? 'Approved' : 'Pending');
+    final isApproved = (role == 'Admin' || role == 'User')
+        ? true
+        : (isApprovedBool == true || approvalStatus == 'Approved') && approvalStatus != 'Pending' && approvalStatus != 'Rejected';
+
+
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -274,9 +284,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+
+                  // ── Ground Owner Admin Panel / Approval Status Card ──
+                  if (role == 'GroundOwner' || role == 'ShopOwner') ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: isApproved
+                            ? const LinearGradient(
+                                colors: [Color(0xFF1E1B18), Color(0xFF2C241E)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : const LinearGradient(
+                                colors: [Color(0xFF241D17), Color(0xFF1A1410)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isApproved
+                              ? AppColors.warmAccent.withValues(alpha: 0.5)
+                              : Colors.orange.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                isApproved ? Icons.verified_user : Icons.hourglass_top_rounded,
+                                color: isApproved ? AppColors.warmAccent : Colors.orangeAccent,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                isApproved
+                                    ? 'Owner Control Center'
+                                    : 'Ground Owner Approval Pending',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: isApproved ? Colors.white : Colors.orangeAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            isApproved
+                                ? 'Your Ground Owner registration is approved! Click the button below to manage your grounds, time slots, customer bookings, and view earnings insights:'
+                                : 'Your Ground Owner account has been registered and is currently under review by System Admin. The owner control dashboard will be activated upon approval.',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFFD4C7BC), height: 1.4),
+                          ),
+                          if (isApproved) ...[
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 44,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.warmAccent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const GroundOwnerDashboardScreen(),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.dashboard_customize_outlined, size: 16, color: Colors.white),
+                                label: const Text(
+                                  'Enter Owner Dashboard',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // ── 5 Quick Stat Metrics Row Cards ──
+
                   Container(
                     padding:
                         const EdgeInsets.symmetric(vertical: 14, horizontal: 8),

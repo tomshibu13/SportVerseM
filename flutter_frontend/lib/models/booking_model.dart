@@ -9,7 +9,7 @@ class BookingModel {
   final String slotTime;
   final double totalPrice;
   final String paymentStatus;
-  final String bookingStatus; // Upcoming, Completed, Cancelled
+  String bookingStatus; // Upcoming, Completed, Cancelled
   final String qrCode;
   final String createdAt;
 

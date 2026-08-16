@@ -1,5 +1,8 @@
 # Miscellaneous
 *.class
+
+# Environment / secrets — never commit real .env
+.env
 *.log
 *.pyc
 *.swp

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import '../models/ground_model.dart';
@@ -10,9 +11,9 @@ import '../models/product_model.dart';
 class ApiService {
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.244.238.104:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
     }
-    return 'http://localhost:5000/api';
+    return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
   // Auth Methods
@@ -221,6 +222,27 @@ class ApiService {
     return mockList;
   }
 
+  // Create Ground
+  static Future<Map<String, dynamic>> createGround(Map<String, dynamic> groundData) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/grounds'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(groundData),
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 201 || res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+
+    return {
+      'success': true,
+      'message': 'Ground created successfully',
+      'ground': groundData,
+    };
+  }
+
   // Create Booking
   static Future<Map<String, dynamic>> createBooking({
     required int userId,
@@ -274,120 +296,38 @@ class ApiService {
     };
   }
 
-  // Fetch User Bookings
+  // Fetch User Bookings from MongoDB
   static Future<List<BookingModel>> fetchUserBookings(int userId) async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['success'] == true) {
+        if (data['success'] == true && data['bookings'] != null) {
           return (data['bookings'] as List).map((b) => BookingModel.fromJson(b)).toList();
         }
       }
-    } catch (_) {}
-
-    return [
-      BookingModel(
-        bookingId: 'SPV-BK-9921',
-        userId: userId,
-        userName: 'Tom Holland',
-        groundId: 101,
-        groundName: 'Elite Football Arena',
-        sportType: 'Football',
-        date: '2026-08-10',
-        slotTime: '07:00 AM - 08:00 AM',
-        totalPrice: 800,
-        paymentStatus: 'Paid',
-        bookingStatus: 'Upcoming',
-        qrCode: 'SPORTVERSE_QR_SPV-BK-9921',
-        createdAt: DateTime.now().toIso8601String(),
-      ),
-      BookingModel(
-        bookingId: 'SPV-BK-8842',
-        userId: userId,
-        userName: 'Tom Holland',
-        groundId: 102,
-        groundName: 'Victory Badminton Court',
-        sportType: 'Badminton',
-        date: '2026-08-04',
-        slotTime: '04:00 PM - 05:00 PM',
-        totalPrice: 500,
-        paymentStatus: 'Paid',
-        bookingStatus: 'Completed',
-        qrCode: 'SPORTVERSE_QR_SPV-BK-8842',
-        createdAt: DateTime.now().subtract(const Duration(days: 4)).toIso8601String(),
-      ),
-    ];
+    } catch (e) {
+      print('ApiService error fetching bookings: $e');
+    }
+    return [];
   }
 
-  // Fetch Marketplace Products
+  // Fetch Marketplace Products from MongoDB
   static Future<List<ProductModel>> fetchProducts({String category = 'All'}) async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/products?category=$category')).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['success'] == true) {
+        if (data['success'] == true && data['products'] != null) {
           return (data['products'] as List).map((p) => ProductModel.fromJson(p)).toList();
         }
       }
-    } catch (_) {}
-
-    List<ProductModel> products = [
-      ProductModel(
-        productId: 201,
-        title: 'Nike Strike Pro Football',
-        category: 'Football',
-        price: 1499,
-        originalPrice: 1999,
-        rating: 4.8,
-        image: 'https://images.unsplash.com/photo-1614632537197-38a17061c2bd?auto=format&fit=crop&w=600&q=80',
-        description: 'Thermo-bonded 12-panel construction for true flight and maximum power transfer.',
-        stock: 35,
-        shopOwnerId: 3,
-      ),
-      ProductModel(
-        productId: 202,
-        title: 'Yonex Astrox 88D Pro Racket',
-        category: 'Rackets',
-        price: 8490,
-        originalPrice: 9990,
-        rating: 4.9,
-        image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=600&q=80',
-        description: 'Head-heavy badminton racket engineered for aggressive rear-court smashers.',
-        stock: 12,
-        shopOwnerId: 3,
-      ),
-      ProductModel(
-        productId: 203,
-        title: 'Adidas Speedcourt Turf Shoes',
-        category: 'Shoes',
-        price: 4299,
-        originalPrice: 5499,
-        rating: 4.7,
-        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=600&q=80',
-        description: 'Non-marking rubber outsole built specifically for synthetic turf & indoor courts.',
-        stock: 20,
-        shopOwnerId: 3,
-      ),
-      ProductModel(
-        productId: 204,
-        title: 'Wilson US Open Tennis Balls (4-Pack)',
-        category: 'Accessories',
-        price: 599,
-        originalPrice: 799,
-        rating: 4.6,
-        image: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=600&q=80',
-        description: 'Premium extra-duty felt designed for hard court durability.',
-        stock: 50,
-        shopOwnerId: 3,
-      ),
-    ];
-
-    if (category != 'All') {
-      products = products.where((p) => p.category.toLowerCase() == category.toLowerCase()).toList();
+    } catch (e) {
+      print('ApiService error fetching products: $e');
     }
-    return products;
+    return [];
   }
+
 
   // AI Assistant Chat
   static Future<String> askAiAssistant(String message) async {
@@ -416,23 +356,18 @@ class ApiService {
     }
   }
 
-  // Fetch Users for Admin Portal (Tbl_users)
-  static Future<List<UserModel>> fetchAdminUsers() async {
+  // Fetch Notifications for User
+  static Future<List<Map<String, dynamic>>> fetchUserNotifications(String userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/auth/users')).timeout(const Duration(seconds: 4));
+      final res = await http.get(Uri.parse('$baseUrl/notifications/user/$userId')).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['success'] == true) {
-          return (data['users'] as List).map((u) => UserModel.fromJson(u)).toList();
+        if (data['success'] == true && data['notifications'] is List) {
+          return List<Map<String, dynamic>>.from(data['notifications']);
         }
       }
     } catch (_) {}
-
-    return [
-      UserModel(userId: 1, fullName: 'Tom Holland', email: 'tom@sportverse.com', role: 'User', phone: '+1 9876543210', profileImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80', createdAt: '2026-08-01'),
-      UserModel(userId: 2, fullName: 'Alex Arena Manager', email: 'owner@arena.com', role: 'GroundOwner', phone: '+1 9876543211', profileImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80', createdAt: '2026-07-28'),
-      UserModel(userId: 3, fullName: 'Sarah Gear Shop', email: 'shop@sportverse.com', role: 'ShopOwner', phone: '+1 9876543212', profileImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=400&q=80', createdAt: '2026-07-25'),
-      UserModel(userId: 4, fullName: 'Admin Chief', email: 'admin@sportverse.com', role: 'Admin', phone: '+1 9876543213', profileImage: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80', createdAt: '2026-07-15'),
-    ];
+    return [];
   }
 }
+

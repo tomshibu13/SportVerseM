@@ -6,6 +6,7 @@ const groundController = require('../controllers/groundController');
 const bookingController = require('../controllers/bookingController');
 const shopController = require('../controllers/shopController');
 const aiController = require('../controllers/aiController');
+const notificationController = require('../controllers/notificationController');
 
 // Health Check
 router.get('/health', (req, res) => {
@@ -16,15 +17,28 @@ router.get('/health', (req, res) => {
 router.post('/auth/register', authController.registerUser);
 router.post('/auth/login', authController.loginUser);
 router.get('/auth/users', authController.getAllUsers);
+router.put('/auth/users/:id/approve', authController.approveUser);
+
+// Notification Routes
+router.get('/notifications', notificationController.getUserNotifications);
+router.get('/notifications/user/:userId', notificationController.getUserNotifications);
+router.put('/notifications/:id/read', notificationController.markAsRead);
 
 // Ground Routes
 router.get('/grounds', groundController.getAllGrounds);
 router.get('/grounds/:id', groundController.getGroundById);
 router.post('/grounds', groundController.createGround);
+router.put('/grounds/:id/approve', groundController.approveGround);
+router.put('/grounds/:id/status', groundController.approveGround);
+router.delete('/grounds/:id', groundController.deleteGround);
 
 // Booking Routes
+router.get('/bookings', bookingController.getAllBookings);
 router.post('/bookings', bookingController.createBooking);
 router.get('/bookings/user/:userId', bookingController.getUserBookings);
+router.put('/bookings/:bookingId/approve', bookingController.approveBooking);
+router.put('/bookings/:bookingId/checkin', bookingController.checkInBooking);
+router.post('/bookings/checkin', bookingController.checkInBooking);
 router.put('/bookings/cancel/:bookingId', bookingController.cancelBooking);
 
 // Shop Routes

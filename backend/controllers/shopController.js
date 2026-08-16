@@ -1,6 +1,6 @@
 const Product = require('../models/Product');
 
-const mockProducts = [
+const initialProducts = [
   {
     product_id: 201,
     title: 'Nike Strike Pro Football',
@@ -51,13 +51,23 @@ const mockProducts = [
   }
 ];
 
+const seedProductsIfEmpty = async () => {
+  // Disabled mock products seeding as requested
+};
+
+exports.seedProductsIfEmpty = seedProductsIfEmpty;
+
 exports.getAllProducts = async (req, res) => {
   try {
     const { category } = req.query;
-    let products = [...mockProducts];
+    await seedProductsIfEmpty();
+
+    let query = {};
     if (category && category !== 'All') {
-      products = products.filter(p => p.category.toLowerCase() === category.toLowerCase());
+      query.category = { $regex: new RegExp(`^${category}$`, 'i') };
     }
+
+    const products = await Product.find(query).sort({ created_at: -1 });
     return res.json({ success: true, products });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -66,21 +76,31 @@ exports.getAllProducts = async (req, res) => {
 
 exports.createProduct = async (req, res) => {
   try {
+    const productTitle = req.body.title || req.body.name || 'New Sports Gear';
+    const productCategory = req.body.category || req.body.sport || 'Gear';
+    const productPrice = Number(req.body.price) || 999;
+    const originalPrice = Number(req.body.original_price || req.body.originalPrice) || Math.round(productPrice * 1.25);
+    const stockQty = Number(req.body.stock) || 10;
+
     const newProd = {
       product_id: Date.now(),
-      title: req.body.title || 'New Sports Gear',
-      category: req.body.category || 'Accessories',
-      price: Number(req.body.price) || 999,
-      original_price: Number(req.body.original_price) || 1299,
+      title: productTitle,
+      category: productCategory,
+      price: productPrice,
+      original_price: originalPrice,
       rating: 4.8,
       image: req.body.image || 'https://images.unsplash.com/photo-1614632537197-38a17061c2bd?auto=format&fit=crop&w=600&q=80',
-      description: req.body.description || 'High performance sports equipment.',
-      stock: Number(req.body.stock) || 10,
-      shop_owner_id: 3
+      description: req.body.description || `High performance ${productCategory} sports equipment.`,
+      stock: stockQty,
+      shop_owner_id: req.body.shop_owner_id || 3
     };
-    mockProducts.push(newProd);
-    return res.status(201).json({ success: true, message: 'Product added to marketplace', product: newProd });
+
+    const product = new Product(newProd);
+    await product.save();
+
+    return res.status(201).json({ success: true, message: 'Product added to MongoDB marketplace', product });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+

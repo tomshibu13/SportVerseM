@@ -2,7 +2,7 @@ class GroundSlot {
   final String slotId;
   final String time;
   final bool isBooked;
-  final double price;
+  double price;
 
   GroundSlot({
     required this.slotId,

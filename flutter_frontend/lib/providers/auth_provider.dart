@@ -76,24 +76,7 @@ class AuthProvider with ChangeNotifier {
     return false;
   }
 
-  Future<bool> signInWithGoogle() async {
-    _isLoading = true;
-    notifyListeners();
 
-    final res = await AuthService.signInWithGoogle();
-
-    _isLoading = false;
-    if (res['success'] == true && res['user'] != null) {
-      _token = res['token'];
-      _currentUser = UserModel.fromJson(res['user']);
-      _selectedRole = _currentUser!.role;
-      notifyListeners();
-      return true;
-    }
-
-    notifyListeners();
-    return false;
-  }
 
   void logout() {
     _currentUser = null;

@@ -1,11 +1,19 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../services/auth_service.dart';
+import 'role_selection_screen.dart';
 import 'login_screen.dart';
+import 'home_screen.dart';
+
+// Web-only import for GIS SDK renderButton()
+// ignore: uri_does_not_exist
+import 'package:google_sign_in_web/web_only.dart' as google_sign_in_web
+    if (dart.library.io) 'package:sportverse_ai/services/stub_google_sign_in_web.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -37,6 +45,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+
+    AuthService.initGoogleSignIn().then((_) {
+      if (kIsWeb && mounted) {
+        GoogleSignIn.instance.authenticationEvents
+            .listen(_handleWebGoogleSignIn)
+            .onError((Object e) {
+          debugPrint('Google authenticationEvents error: $e');
+        });
+      }
+    });
   }
 
   @override
@@ -47,6 +65,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleWebGoogleSignIn(GoogleSignInAuthenticationEvent event) async {
+    if (event is GoogleSignInAuthenticationEventSignIn) {
+      if (!_agreedToTerms) {
+        _showSnackBar('Please accept the Terms & Conditions');
+        return;
+      }
+      setState(() => _isLoading = true);
+      final result = await AuthService.handleWebGoogleSignIn(account: event.user);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar(result['message'] as String);
+        if (result['success'] == true) {
+          final isNewUser = result['data']?['isNewUser'] == true;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+            ),
+          );
+        }
+      }
+    }
   }
 
   String? _validatePassword(String password) {
@@ -122,7 +164,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (result['success'] == true) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const RoleSelectionScreen()),
         );
       }
     }
@@ -346,6 +388,58 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
 
                             const SizedBox(height: 18),
+
+                            // ── Google Sign-In ──────────────────────
+                            if (kIsWeb)
+                              SizedBox(
+                                height: 52,
+                                width: double.infinity,
+                                child: google_sign_in_web.renderButton(),
+                              )
+                            else
+                              SizedBox(
+                                width: double.infinity,
+                                height: 52,
+                                child: OutlinedButton.icon(
+                                  onPressed: _isLoading ? null : () async {
+                                    if (!_agreedToTerms) {
+                                      _showSnackBar('Please accept the Terms & Conditions');
+                                      return;
+                                    }
+                                    setState(() => _isLoading = true);
+                                    final result = await AuthService.signInWithGoogle();
+                                    if (mounted) {
+                                      setState(() => _isLoading = false);
+                                      _showSnackBar(result['message'] as String);
+                                      if (result['success'] == true) {
+                                        final isNewUser = result['data']?['isNewUser'] == true;
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: AppColors.border),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  icon: Image.asset('assets/images/google_logo.png', height: 24),
+                                  label: const Text(
+                                    'Continue with Google',
+                                    style: TextStyle(
+                                      color: AppColors.primaryBlack,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                            const SizedBox(height: 16),
 
                             // ── Log In Link ──
                             Center(

@@ -276,6 +276,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
     final result = await AuthService.updateProfile(
       fullName: name,
       phone: phone,
+      role: _selectedRole,
     );
 
     if (_selectedRole == 'GroundOwner') {

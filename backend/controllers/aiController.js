@@ -1,9 +1,9 @@
-const { getMockGrounds } = require('./groundController');
+const Ground = require('../models/Ground');
 
 exports.getRecommendations = async (req, res) => {
   try {
     const { sport, user_lat, user_lng, preferred_time } = req.query;
-    const grounds = getMockGrounds();
+    const grounds = await Ground.find({});
 
     // AI recommendation score algorithm based on proximity, rating, slot availability & user preference
     const scoredGrounds = grounds.map(g => {

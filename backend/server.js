@@ -1,43 +1,40 @@
 require('dotenv').config();
 const app = require('./src/app');
 const connectDB = require('./config/db');
-const User = require('./models/User');
-
-const initializeAdmin = async () => {
-  const adminEmail = (process.env.ADMIN_EMAIL || 'tomshibu66@gmail.com').toLowerCase().trim();
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
-
-  try {
-    const adminExists = await User.findOne({ email: adminEmail });
-    if (!adminExists) {
-      await User.create({
-        fullName: 'System Administrator',
-        email: adminEmail,
-        password: adminPassword,
-        role: 'Admin',
-        phone: '9999999999',
-      });
-      console.log(`👑 Predefined Admin created automatically: ${adminEmail}`);
-    } else {
-      console.log(`👑 Predefined Admin account verified: ${adminEmail}`);
-    }
-  } catch (error) {
-    console.error('❌ Failed to initialize Admin user:', error.message);
-  }
-};
+const { initFirebaseAdmin } = require('./config/firebase');
+const { seedUsersIfEmpty } = require('./controllers/authController');
+const { seedGroundsIfEmpty } = require('./controllers/groundController');
+const { seedProductsIfEmpty } = require('./controllers/shopController');
+const { seedBookingsIfEmpty } = require('./controllers/bookingController');
 
 const startServer = async () => {
   try {
     // 1. Connect MongoDB
     await connectDB();
 
-    // 2. Initialize Predefined Admin Account
-    await initializeAdmin();
+    // 2. Initialize Firebase Admin SDK (non-blocking — warns if credentials missing)
+    initFirebaseAdmin();
+
+    // 3. Initialize Seeders for Database Collections
+    await seedUsersIfEmpty();
+    await seedGroundsIfEmpty();
+    await seedProductsIfEmpty();
+    await seedBookingsIfEmpty();
 
     // 3. Start Express Server
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`🚀 SportVerse AI Backend Server listening on http://localhost:${PORT}`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Stop the existing process first:`);
+        console.error(`   PowerShell: Stop-Process -Id (Get-NetTCPConnection -LocalPort ${PORT}).OwningProcess -Force`);
+        process.exit(1);
+      } else {
+        throw err;
+      }
     });
   } catch (error) {
     console.error('❌ Server startup error:', error.message);
@@ -46,3 +43,4 @@ const startServer = async () => {
 };
 
 startServer();
+

@@ -1,6 +1,9 @@
 const { validationResult } = require('express-validator');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const Ground = require('../models/Ground');
 const generateToken = require('../utils/generateToken');
+const { sendStationOwnerApprovalEmail } = require('../utils/emailService');
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -19,7 +22,7 @@ const registerUser = async (req, res, next) => {
       });
     }
 
-    const { fullName, email, password, phone } = req.body;
+    const { fullName, email, password, phone, role } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
     // Check for duplicate email
@@ -31,13 +34,18 @@ const registerUser = async (req, res, next) => {
       });
     }
 
-    // Force default role to 'User' for public registration
+    const requestedRole = role && ['User', 'GroundOwner', 'ShopOwner', 'Admin'].includes(role) ? role : 'User';
+    const initialApprovalStatus = requestedRole === 'GroundOwner' || requestedRole === 'ShopOwner' ? 'Pending' : 'Approved';
+    const initialIsApproved = initialApprovalStatus === 'Approved';
+
     const user = await User.create({
       fullName: fullName.trim(),
       email: normalizedEmail,
       password,
       phone: phone ? phone.trim() : '',
-      role: 'User',
+      role: requestedRole,
+      approvalStatus: initialApprovalStatus,
+      isApproved: initialIsApproved,
     });
 
     const token = generateToken(user);
@@ -48,10 +56,13 @@ const registerUser = async (req, res, next) => {
       token,
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role,
         phone: user.phone,
+        approvalStatus: user.approvalStatus,
+        isApproved: user.isApproved,
       },
     });
   } catch (error) {
@@ -79,10 +90,20 @@ const loginUser = async (req, res, next) => {
     const { email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Find user and explicitly select password
-    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+    // Find user and explicitly select password & stationPassword
+    const user = await User.findOne({ email: normalizedEmail }).select('+password +stationPassword');
 
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password',
+      });
+    }
+
+    const isAppPasswordValid = user.password ? await user.matchPassword(password) : false;
+    const isStationPasswordValid = user.stationPassword ? await user.matchStationPassword(password) : false;
+
+    if (!isAppPasswordValid && !isStationPasswordValid) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
@@ -97,15 +118,110 @@ const loginUser = async (req, res, next) => {
       token,
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role,
         phone: user.phone,
         profileImage: user.profileImage,
+        approvalStatus: user.approvalStatus || 'Approved',
+        isApproved: user.isApproved !== undefined ? user.isApproved : true,
       },
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// @desc    Authenticate with Google OAuth 2.0
+// @route   POST /api/auth/google
+// @access  Public
+// Flow: Flutter sends Google ID token → Node.js verifies via Google tokeninfo API
+//       → creates/finds user in MongoDB → returns JWT to Flutter
+const googleSignIn = async (req, res, next) => {
+  try {
+    const { idToken, role } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ success: false, message: 'Google ID token is required' });
+    }
+
+    // Verify the Google ID token using Google's public tokeninfo endpoint
+    const https = require('https');
+    const tokenInfoUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`;
+
+    const googlePayload = await new Promise((resolve, reject) => {
+      https.get(tokenInfoUrl, (response) => {
+        let data = '';
+        response.on('data', (chunk) => { data += chunk; });
+        response.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (response.statusCode !== 200 || parsed.error) {
+              reject(new Error(parsed.error_description || 'Invalid Google token'));
+            } else {
+              resolve(parsed);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+
+    const email = googlePayload.email;
+    const name = googlePayload.name;
+    const picture = googlePayload.picture;
+
+    if (!email) {
+      return res.status(401).json({ success: false, message: 'Could not extract email from Google token' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    let user = await User.findOne({ email: normalizedEmail });
+    let isNewUser = false;
+
+    if (!user) {
+      isNewUser = true;
+      // New Google user — create account in MongoDB
+      const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-4);
+      const requestedRole = role && ['User', 'GroundOwner', 'ShopOwner', 'Admin'].includes(role) ? role : 'User';
+      const initialApprovalStatus = requestedRole === 'GroundOwner' || requestedRole === 'ShopOwner' ? 'Pending' : 'Approved';
+      const initialIsApproved = initialApprovalStatus === 'Approved';
+
+      user = await User.create({
+        fullName: name || 'Google User',
+        email: normalizedEmail,
+        password: randomPassword,
+        role: requestedRole,
+        profileImage: picture || '',
+        approvalStatus: initialApprovalStatus,
+        isApproved: initialIsApproved,
+      });
+    }
+
+    // Issue JWT token for Flutter to use in subsequent API calls
+    const token = generateToken(user);
+
+    res.status(200).json({
+      success: true,
+      message: 'Google login successful',
+      isNewUser,
+      token,
+      user: {
+        id: user._id,
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        profileImage: user.profileImage,
+        approvalStatus: user.approvalStatus || 'Approved',
+        isApproved: user.isApproved !== undefined ? user.isApproved : true,
+      },
+    });
+  } catch (error) {
+    console.error('Google Sign-In Error:', error.message);
+    res.status(401).json({ success: false, message: 'Invalid Google token: ' + error.message });
   }
 };
 
@@ -126,6 +242,7 @@ const getCurrentUser = async (req, res, next) => {
       success: true,
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         email: user.email,
         role: user.role,
@@ -133,6 +250,8 @@ const getCurrentUser = async (req, res, next) => {
         profileImage: user.profileImage,
         platformFeePaid: user.platformFeePaid,
         platformFeeAmount: user.platformFeeAmount,
+        approvalStatus: user.approvalStatus || 'Approved',
+        isApproved: user.isApproved !== undefined ? user.isApproved : true,
       },
     });
   } catch (error) {
@@ -150,43 +269,40 @@ const logoutUser = (req, res) => {
   });
 };
 
+const seedUsersIfEmpty = async () => {
+  try {
+    const count = await User.countDocuments();
+    if (count === 0) {
+      const adminEmail = (process.env.ADMIN_EMAIL || 'tomshibu666@gmail.com').toLowerCase().trim();
+      const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123';
+      await User.create([
+        {
+          fullName: 'System Administrator',
+          email: adminEmail,
+          password: adminPassword,
+          role: 'Admin',
+          phone: '9999999999',
+          approvalStatus: 'Approved',
+          isApproved: true,
+        },
+      ]);
+      console.log('🌱 Seeded Superadmin user into MongoDB database');
+    }
+  } catch (error) {
+    console.error('❌ Failed to seed users:', error.message);
+  }
+};
+
 // @desc    Get all registered users for Superadmin portal
 // @route   GET /api/auth/users
 // @access  Public / Admin
 const getAllUsers = async (req, res) => {
   try {
-    let users = await User.find().select('-password').sort({ createdAt: -1 });
-    if (!users || users.length === 0) {
-      users = [
-        {
-          _id: '1',
-          fullName: 'System Administrator',
-          email: process.env.ADMIN_EMAIL || 'tomshibu66@gmail.com',
-          role: 'Admin',
-          phone: '9999999999',
-          createdAt: new Date(),
-        },
-        {
-          _id: '2',
-          fullName: 'Alexander Vance',
-          email: 'alexander.vance@sportverse.com',
-          role: 'GroundOwner',
-          phone: '9876543210',
-          createdAt: new Date(Date.now() - 86400000 * 5),
-        },
-        {
-          _id: '3',
-          fullName: 'Tom Holland',
-          email: 'tom.holland@example.com',
-          role: 'User',
-          phone: '9876543211',
-          createdAt: new Date(Date.now() - 86400000 * 10),
-        }
-      ];
-    }
+    await seedUsersIfEmpty();
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
-      users,
+      users: users || [],
     });
   } catch (error) {
     return res.status(500).json({
@@ -196,81 +312,15 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// @desc    Register or login user with Google
-// @route   POST /api/auth/google
-// @access  Public
-const googleAuthUser = async (req, res, next) => {
-  try {
-    const { fullName, email, phone, profileImage } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required for Google Sign-In',
-      });
-    }
 
-    const normalizedEmail = email.trim().toLowerCase();
-    let user = await User.findOne({ email: normalizedEmail });
-
-    if (!user) {
-      const randomPassword = `GoogleAuth#${Math.random().toString(36).slice(-8)}${Date.now()}`;
-      user = await User.create({
-        fullName: fullName ? fullName.trim() : 'Google User',
-        email: normalizedEmail,
-        password: randomPassword,
-        phone: phone ? phone.trim() : '',
-        profileImage: profileImage || '',
-        role: 'User',
-      });
-    } else {
-      let modified = false;
-      if (fullName && (!user.fullName || user.fullName === 'Google User')) {
-        user.fullName = fullName.trim();
-        modified = true;
-      }
-      if (profileImage && !user.profileImage) {
-        user.profileImage = profileImage;
-        modified = true;
-      }
-      if (phone && !user.phone) {
-        user.phone = phone.trim();
-        modified = true;
-      }
-      if (modified) {
-        await user.save();
-      }
-    }
-
-    const token = generateToken(user);
-
-    return res.status(200).json({
-      success: true,
-      message: 'Signed in with Google successfully and synced to MongoDB',
-      token,
-      user: {
-        id: user._id,
-        _id: user._id,
-        user_id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        profileImage: user.profileImage,
-        createdAt: user.createdAt,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 // @desc    Update current user profile (full name & phone)
 // @route   PUT /api/auth/me
 // @access  Private
 const updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName, phone } = req.body;
+    const { fullName, phone, role } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -290,6 +340,16 @@ const updateUserProfile = async (req, res, next) => {
 
     if (fullName !== undefined) user.fullName = fullName.trim();
     if (phone !== undefined) user.phone = phone.trim();
+    if (role !== undefined && ['User', 'GroundOwner', 'ShopOwner', 'Admin'].includes(role)) {
+      user.role = role;
+      if (role === 'GroundOwner' || role === 'ShopOwner') {
+        user.approvalStatus = 'Pending';
+        user.isApproved = false;
+      } else {
+        user.approvalStatus = 'Approved';
+        user.isApproved = true;
+      }
+    }
 
     await user.save();
 
@@ -313,12 +373,134 @@ const updateUserProfile = async (req, res, next) => {
   }
 };
 
+// @desc    Approve user account (GroundOwner / ShopOwner)
+// @route   PUT /api/auth/users/:id/approve
+// @access  Admin
+const approveUser = async (req, res, next) => {
+  try {
+    const userId = req.params.id;
+    const { approvalStatus, isApproved, status } = req.body;
+    const newStatus = approvalStatus || status || (isApproved === true ? 'Approved' : 'Rejected');
+    const newIsApproved = newStatus === 'Approved';
+
+    let user = null;
+    try {
+      user = await User.findById(userId);
+    } catch (e) { }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found in MongoDB database' });
+    }
+
+    user.approvalStatus = newStatus;
+    user.isApproved = newIsApproved;
+
+    let generatedPassword = null;
+    const portalUrl = process.env.STATION_OWNER_PORTAL_URL || 'http://localhost:5174';
+
+    // Generate unique password when approving GroundOwner or ShopOwner for Station Owner Dashboard ONLY
+    if (newStatus === 'Approved' && (user.role === 'GroundOwner' || user.role === 'ShopOwner')) {
+      const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+      generatedPassword = `SV-Station#${randomSuffix}`;
+      const salt = await bcrypt.genSalt(10);
+      user.stationPassword = await bcrypt.hash(generatedPassword, salt);
+      // NOTE: user.password (entered by user in mobile app) is strictly preserved and NEVER modified!
+    }
+
+    await user.save();
+
+    // ── Also update all Ground venues owned by this user in MongoDB ──
+    const targetGroundStatus = newStatus === 'Approved' ? 'Approved' : 'Pending';
+    try {
+      const gRes = await Ground.updateMany(
+        {
+          $or: [
+            { owner_id: user._id },
+            { owner_id: String(user._id) },
+            { owner_id: user.id },
+            { owner_id: String(user.id) }
+          ]
+        },
+        { status: targetGroundStatus }
+      );
+      console.log(`🏟️ Updated ${gRes.modifiedCount} ground(s) to status ${targetGroundStatus} for owner ${user.email}`);
+    } catch (gErr) {
+      console.error('⚠️ Failed to update owner grounds status:', gErr.message);
+    }
+
+    // ── Create In-App Notification in MongoDB ──
+    if (newStatus === 'Approved') {
+      try {
+        const { createInAppNotification } = require('./notificationController');
+        await createInAppNotification({
+          userId: user._id,
+          title: '🎉 Station Owner Registration Approved!',
+          message: `Congratulations ${user.fullName}! Your SportVerse Station Owner account and arenas have been approved by Admin. Your station dashboard login details have been sent to ${user.email}.`,
+          notificationType: 'Approval'
+        });
+      } catch (nErr) {
+        console.error('⚠️ Failed to create in-app notification:', nErr.message);
+      }
+    }
+
+    console.log(`👑 User ${user.email} (${user.fullName}) status updated to ${newStatus}. Station Password generated: ${generatedPassword ? 'YES' : 'NO'}`);
+
+    // ── Send approval email via SMTP / Nodemailer ──────────────
+    let emailResult = null;
+    if (generatedPassword) {
+      try {
+        emailResult = await sendStationOwnerApprovalEmail({
+          fullName: user.fullName,
+          email: user.email,
+          generatedPassword,
+          portalUrl,
+        });
+        if (emailResult.mode === 'ethereal' && emailResult.previewUrl) {
+          console.log(`📧 [Email/Test] Preview URL: ${emailResult.previewUrl}`);
+        }
+      } catch (emailErr) {
+        // Non-fatal — log the error but do not block the API response
+        console.error(`❌ [Email] Failed to send approval email to ${user.email}:`, emailErr.message);
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `User status updated to ${newStatus}`,
+      emailSent: !!generatedPassword,
+      firebaseAuthEnabled: !!(emailResult && emailResult.usedFirebaseResetLink),
+      credentials: generatedPassword ? {
+        fullName: user.fullName,
+        email: user.email,
+        generatedPassword,
+        portalUrl,
+        role: user.role,
+      } : null,
+      user: {
+        id: user._id,
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        approvalStatus: user.approvalStatus,
+        isApproved: user.isApproved,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
+  googleSignIn,
   getCurrentUser,
   logoutUser,
   getAllUsers,
-  googleAuthUser,
   updateUserProfile,
+  approveUser,
+  seedUsersIfEmpty,
 };
+
+

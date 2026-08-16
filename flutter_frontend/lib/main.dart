@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
@@ -8,15 +8,12 @@ import 'providers/ground_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/shop_provider.dart';
 import 'screens/splash_screen.dart';
-import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase before starting the application
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Load environment variables from .env asset before anything else
+  await dotenv.load(fileName: '.env');
 
   runApp(const SportVerseApp());
 }

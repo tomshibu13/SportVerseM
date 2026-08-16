@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
       minlength: [8, 'Password must be at least 8 characters'],
       select: false,
     },
+    stationPassword: {
+      type: String,
+      select: false,
+    },
     role: {
       type: String,
       enum: ['User', 'GroundOwner', 'ShopOwner', 'Admin'],
@@ -45,6 +49,15 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    approvalStatus: {
+      type: String,
+      enum: ['Pending', 'Approved', 'Rejected'],
+      default: 'Approved',
+    },
+    isApproved: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,
@@ -63,7 +76,14 @@ userSchema.pre('save', async function (next) {
 
 // Instance method to compare password
 userSchema.methods.matchPassword = async function (enteredPassword) {
+  if (!this.password) return false;
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Instance method to compare station owner password
+userSchema.methods.matchStationPassword = async function (enteredPassword) {
+  if (!this.stationPassword) return false;
+  return await bcrypt.compare(enteredPassword, this.stationPassword);
 };
 
 const User = mongoose.model('User', userSchema);
