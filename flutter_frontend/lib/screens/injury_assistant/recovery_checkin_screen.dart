@@ -104,13 +104,31 @@ class _RecoveryCheckInScreenState extends State<RecoveryCheckInScreen> {
             const Text('Current Mobility', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ...['Full', 'Partial', 'Minimal', 'None'].map((status) {
-              return RadioListTile<String>(
-                title: Text(status),
-                value: status,
-                groupValue: _mobilityStatus,
-                activeColor: AppColors.warmAccent,
-                onChanged: (val) => setState(() => _mobilityStatus = val!),
-                contentPadding: EdgeInsets.zero,
+              final isSelected = _mobilityStatus == status;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: InkWell(
+                  onTap: () => setState(() => _mobilityStatus = status),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.warmAccent.withValues(alpha: 0.1) : Colors.white,
+                      border: Border.all(color: isSelected ? AppColors.warmAccent : AppColors.border),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: isSelected ? AppColors.warmAccent : AppColors.mutedText,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(status, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                      ],
+                    ),
+                  ),
+                ),
               );
             }),
             const SizedBox(height: 24),

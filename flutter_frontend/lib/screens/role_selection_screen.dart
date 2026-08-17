@@ -115,7 +115,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.black.withOpacity(0.08)),
+                            border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
                           ),
                           child: const Icon(
                             Icons.arrow_back_ios_new,
@@ -199,9 +199,9 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                                     strokeWidth: 2.5,
                                   ),
                                 )
-                              : Row(
+                              : const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
+                                  children: [
                                     Text(
                                       'Continue',
                                       style: TextStyle(
@@ -259,14 +259,14 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: accentColor.withOpacity(0.12),
+                    color: accentColor.withValues(alpha: 0.12),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -282,8 +282,8 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
                   height: 56,
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? accentColor.withOpacity(0.1)
-                        : Colors.black.withOpacity(0.04),
+                        ? accentColor.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(

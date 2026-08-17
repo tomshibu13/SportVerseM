@@ -47,16 +47,17 @@ export default function OwnerDashboardPage({
   const [actioningId, setActioningId] = useState(null);
 
   const ownerName = currentUser?.fullName || currentUser?.name || 'Station Owner';
-  const currentUserId = String(currentUser?._id || currentUser?.id || currentUser?.user_id || '').toLowerCase();
-  const currentUserEmail = String(currentUser?.email || '').toLowerCase();
+  const currentUserId = String(currentUser?._id || currentUser?.id || currentUser?.user_id || '').trim().toLowerCase();
+  const currentUserEmail = String(currentUser?.email || '').trim().toLowerCase();
 
   // Filter ONLY grounds registered by this logged-in Ground Owner
   const myGrounds = grounds.filter((g) => {
-    const gOwnerId = String(g.owner_id || g.ownerId || g.owner || '').toLowerCase();
-    const gOwnerEmail = String(g.owner_email || g.ownerEmail || '').toLowerCase();
+    const gOwnerId = String(g.owner_id || g.ownerId || (g.owner && (g.owner._id || g.owner.id)) || '').trim().toLowerCase();
+    const gOwnerEmail = String(g.owner_email || g.ownerEmail || (g.owner && g.owner.email) || '').trim().toLowerCase();
     return (
-      (currentUserId && (gOwnerId === currentUserId || gOwnerId === '1' || gOwnerId === '2')) ||
-      (currentUserEmail && (gOwnerId === currentUserEmail || gOwnerEmail === currentUserEmail))
+      (currentUserId && gOwnerId === currentUserId) ||
+      (currentUserEmail && (gOwnerEmail === currentUserEmail || gOwnerId === currentUserEmail)) ||
+      (!gOwnerId && !gOwnerEmail) // Newly added ground in session
     );
   });
 
@@ -67,13 +68,13 @@ export default function OwnerDashboardPage({
     if (g._id) myGroundIds.add(String(g._id).toLowerCase());
     if (g.id) myGroundIds.add(String(g.id).toLowerCase());
     if (g.ground_id) myGroundIds.add(String(g.ground_id).toLowerCase());
-    if (g.title) myGroundNames.add(String(g.title).toLowerCase());
+    if (g.title) myGroundNames.add(String(g.title).trim().toLowerCase());
   });
 
   // Filter bookings that belong to this owner's registered grounds
   const myBookings = bookings.filter((b) => {
     const bGroundId = String(b.ground_id || (b.ground && (b.ground._id || b.ground.ground_id)) || '').toLowerCase();
-    const bGroundName = String(b.ground_name || (b.ground && b.ground.title) || '').toLowerCase();
+    const bGroundName = String(b.ground_name || (b.ground && b.ground.title) || '').trim().toLowerCase();
     return myGroundIds.has(bGroundId) || myGroundNames.has(bGroundName);
   });
 
@@ -408,10 +409,37 @@ export default function OwnerDashboardPage({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {myGrounds.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#a39c93' }}>
-                <p>No courts registered yet.</p>
-                <button className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem' }} onClick={onOpenAddGround}>
-                  + Register Your First Court
+              <div style={{
+                textAlign: 'center',
+                padding: '2.5rem 1.5rem',
+                color: '#a39c93',
+                background: 'rgba(10, 9, 8, 0.6)',
+                borderRadius: '12px',
+                border: '1px dashed rgba(200, 137, 91, 0.3)',
+              }}>
+                <div style={{
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '14px',
+                  background: 'rgba(200, 137, 91, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1rem auto',
+                }}>
+                  <Building2 size={26} color="#c8895b" />
+                </div>
+                <h4 style={{ color: '#ffffff', fontSize: '1.05rem', fontWeight: 800 }}>No Venues Registered Yet</h4>
+                <p style={{ fontSize: '0.8rem', color: '#a39c93', marginTop: '0.4rem', maxWidth: '320px', margin: '0.4rem auto 0 auto', lineHeight: 1.5 }}>
+                  Register your sports arena or turf to start receiving online player bookings and instant check-ins.
+                </p>
+                <button
+                  className="btn btn-primary"
+                  style={{ marginTop: '1.25rem', padding: '0.5rem 1.25rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                  onClick={onOpenAddGround}
+                >
+                  <Plus size={16} />
+                  <span>Register First Arena</span>
                 </button>
               </div>
             ) : (

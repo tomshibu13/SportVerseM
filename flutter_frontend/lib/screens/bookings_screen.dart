@@ -145,130 +145,171 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.88,
+        ),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '🎟️ Digital Entry Pass',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Show this QR ticket at the court entry gate for automated check-in',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F1116),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.4)),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
               ),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        QrImageView(
-                          data: qrString,
-                          version: QrVersions.auto,
-                          size: 160.0,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: Color(0xFF0F1116),
-                          ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.square,
-                            color: Color(0xFF0F1116),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF3F4F6),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            qrString,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2937),
+              const SizedBox(height: 16),
+              const Text(
+                '🎟️ Digital Entry Pass',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Show this QR ticket at the court entry gate for automated check-in',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F1116),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Opacity(
+                            opacity: booking.bookingStatus == 'Completed' ? 0.35 : 1.0,
+                            child: Column(
+                              children: [
+                                QrImageView(
+                                  data: qrString,
+                                  version: QrVersions.auto,
+                                  size: 160.0,
+                                  backgroundColor: Colors.white,
+                                  eyeStyle: const QrEyeStyle(
+                                    eyeShape: QrEyeShape.square,
+                                    color: Color(0xFF0F1116),
+                                  ),
+                                  dataModuleStyle: const QrDataModuleStyle(
+                                    dataModuleShape: QrDataModuleShape.square,
+                                    color: Color(0xFF0F1116),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    qrString,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1F2937),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
+                          if (booking.bookingStatus == 'Completed')
+                            Transform.rotate(
+                              angle: -0.2,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.white, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  'QR EXPIRED / USED',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      booking.groundName,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${booking.date} • ${booking.slotTime}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.warmAccent),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.border),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Close'),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    booking.groundName,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${booking.date} • ${booking.slotTime}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.warmAccent),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ticket saved to gallery / wallet!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.warmAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Save Ticket'),
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.border),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Close'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Ticket saved to gallery / wallet!'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.warmAccent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Save Ticket'),
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -307,6 +348,14 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: const TopNavigationBar(),
+        body: _buildSignedOutState(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const TopNavigationBar(),
@@ -340,6 +389,67 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSignedOutState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: AppColors.warmAccent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.confirmation_number_outlined, size: 54, color: AppColors.warmAccent),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Sign In to View Bookings',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: AppColors.primaryBlack,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please sign in to access your booked court slots, view digital match entry tickets, and navigate to arenas.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.mutedText,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final authenticated = await AuthService.requireAuth(context);
+                  if (authenticated && mounted) {
+                    setState(() {});
+                    _loadBookings();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlack,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text('Sign In Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

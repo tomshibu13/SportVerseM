@@ -8,10 +8,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 class InjuryHistoryScreen extends StatefulWidget {
-  const InjuryHistoryScreen({Key? key}) : super(key: key);
+  const InjuryHistoryScreen({super.key});
 
   @override
-  _InjuryHistoryScreenState createState() => _InjuryHistoryScreenState();
+  State<InjuryHistoryScreen> createState() => _InjuryHistoryScreenState();
 }
 
 class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
@@ -28,11 +28,13 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
     setState(() => _isLoading = true);
     try {
       final history = await InjuryService.getInjuryHistory();
+      if (!mounted) return;
       setState(() {
         _history = history;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load history: $e')));
     }
@@ -43,6 +45,7 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
       await InjuryService.deleteReport(id);
       _loadHistory();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
     }
   }
@@ -79,7 +82,7 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
         isCurved: false,
         color: colors[colorIndex % colors.length],
         barWidth: 3,
-        dotData: FlDotData(show: true),
+        dotData: const FlDotData(show: true),
       ));
       colorIndex++;
     }
@@ -131,10 +134,10 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
                       },
                     ),
                   ),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(show: true, drawVerticalLine: false),
+                gridData: const FlGridData(show: true, drawVerticalLine: false),
                 borderData: FlBorderData(show: false),
               ),
             ),
@@ -161,7 +164,7 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.history, size: 80, color: AppColors.mutedText.withOpacity(0.5)),
+                      Icon(Icons.history, size: 80, color: AppColors.mutedText.withValues(alpha: 0.5)),
                       const SizedBox(height: 16),
                       const Text('No injury assessments yet.', style: TextStyle(color: AppColors.secondaryText, fontSize: 16)),
                       const SizedBox(height: 24),
@@ -249,7 +252,7 @@ class _InjuryHistoryScreenState extends State<InjuryHistoryScreen> {
                             ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ],
                   ),
                 ),

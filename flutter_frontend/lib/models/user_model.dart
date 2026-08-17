@@ -23,7 +23,7 @@ class UserModel {
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawId = json['userId'] ?? json['user_id'] ?? json['id'] ?? 0;
-    final parsedId = rawId is int ? rawId : (int.tryParse(rawId.toString()) ?? rawId.hashCode);
+    final parsedId = rawId is int ? rawId : (int.tryParse(rawId?.toString() ?? '') ?? (rawId?.hashCode ?? 0));
     final status = json['approvalStatus'] ?? (json['isApproved'] == false ? 'Pending' : 'Approved');
     final approved = json['isApproved'] ?? (status == 'Approved');
 

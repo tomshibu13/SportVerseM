@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
     },
+    stationPasswordDisplay: {
+      type: String,
+      default: '',
+    },
     authProvider: {
       type: String,
       enum: ['local', 'google', 'station'],

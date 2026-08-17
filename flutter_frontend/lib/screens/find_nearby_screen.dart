@@ -157,7 +157,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
       });
 
       final currentPos = position;
-      if (mounted && currentPos != null) {
+      if (mounted) {
         setState(() {
           _userLocation = LatLng(currentPos.latitude, currentPos.longitude);
           _isFetchingLocation = false;

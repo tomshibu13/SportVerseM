@@ -579,6 +579,26 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (!AuthService.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0.5,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.primaryBlack),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'Ground Control Center',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.primaryBlack),
+          ),
+          centerTitle: true,
+        ),
+        body: _buildSignedOutState(),
+      );
+    }
+
     final user = AuthService.currentUser;
     final ownerName = user?['full_name'] ?? user?['name'] ?? 'Ground Partner';
 
@@ -1244,6 +1264,67 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
         Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
         Text(label, style: const TextStyle(fontSize: 9.5, color: Colors.grey)),
       ],
+    );
+  }
+
+  Widget _buildSignedOutState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.shield_outlined, size: 54, color: Color(0xFF16A34A)),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Station Access Restricted',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: AppColors.primaryBlack,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Please sign in with your approved Station Owner account to access arena controls, pricing schedules, and live check-in gate.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.mutedText,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final authenticated = await AuthService.requireAuth(context);
+                  if (authenticated && mounted) {
+                    setState(() {});
+                    _loadDashboardData();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlack,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text('Sign In to Station', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

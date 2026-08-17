@@ -649,30 +649,33 @@ STRICT SAFETY RULES:
     }
 
     // ─────────────────────────────────────────────────────────────
-    // INTENT 11: GENERAL_UNRELATED (Polite SportVerse Capability Redirect)
+    // INTENT 11: GENERAL_UNRELATED (AI Injury Assistant Fallback)
     // ─────────────────────────────────────────────────────────────
-    const standardRedirect = "I’m SportVerse AI, your sports assistant. I can help with sports venues, bookings, equipment, tournaments, teammates, training, performance, and sports-injury guidance.";
+    const injuryGreeting = "👋 Hello! I am your **SportVerse AI Injury Assistant** 🏥.\n\n" +
+      "I can help evaluate athletic injuries, guide you through immediate first-aid protocols (**R.I.C.E**), check recovery timelines, and assess pain levels.\n\n" +
+      "How can I help you today? You can tell me:\n" +
+      "• **Which body part is affected?** (e.g., Knee, Ankle, Hamstring, Shoulder, Elbow)\n" +
+      "• **What happened?** (e.g., Twisting, falling, sudden pull during a sprint)\n" +
+      "• **What is your pain level?** (Scale 1–10, mild, moderate, or severe)";
 
     return res.json({
       success: true,
-      intent: 'GENERAL_UNRELATED',
-      reply: standardRedirect,
-      message: standardRedirect,
+      intent: 'INJURY_HEALTH',
+      reply: injuryGreeting,
+      message: injuryGreeting,
       action: null,
       data: null,
       riskLevel: null,
-      isInjury: false,
+      isInjury: true,
       responseType: 'NORMAL',
       sources: [],
       requiresConfirmation: false,
       suggested_actions: [
-        '🏟️ Find Courts',
-        '⚡ Book a Turf',
-        '👟 Sports Gear',
-        '🏆 Tournaments',
-        '👥 Find Players',
-        '🏋️ Training',
-        '🏥 Injury Assistant'
+        '🦵 Twisted Ankle & Swelling',
+        '🩹 Knee Pain & Clicking',
+        '🏃 Hamstring Pull / Strain',
+        '🧊 Ice vs Heat Guide',
+        '🩺 Start Full 1-on-1 Assessment'
       ]
     });
 

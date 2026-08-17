@@ -11,9 +11,9 @@ import 'login_screen.dart';
 import 'home_screen.dart';
 
 // Web-only import for GIS SDK renderButton()
-// ignore: uri_does_not_exist
-import 'package:google_sign_in_web/web_only.dart' as google_sign_in_web
-    if (dart.library.io) 'package:sportverse_ai/services/stub_google_sign_in_web.dart';
+import '../services/stub_google_sign_in_web.dart'
+    if (dart.library.js_interop) 'package:google_sign_in_web/web_only.dart'
+    as google_sign_in_web;
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -410,6 +410,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         _showSnackBar('Please accept the Terms & Conditions');
                                         return;
                                       }
+                                      final navigator = Navigator.of(context);
                                       setState(() => _isLoading = true);
                                       final result = await AuthService.signInWithGoogle();
                                       if (!mounted) return;
@@ -417,8 +418,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       _showSnackBar(result['message'] as String);
                                       if (result['success'] == true) {
                                         final isNewUser = result['data']?['isNewUser'] == true;
-                                        Navigator.pushReplacement(
-                                          context,
+                                        navigator.pushReplacement(
                                           MaterialPageRoute(
                                             builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
                                           ),

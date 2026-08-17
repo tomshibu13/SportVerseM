@@ -79,11 +79,11 @@ export default function App() {
     try {
       const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
       const isGroundOwner = currentUser?.role === 'GroundOwner';
-      const userId = isAdmin ? null : (currentUser?.id || currentUser?._id);
 
+      // Load live grounds and all live bookings from MongoDB
       const [gData, bData, pData, uData] = await Promise.all([
         fetchGrounds(),
-        fetchBookings(userId),
+        fetchBookings(),
         isGroundOwner ? Promise.resolve([]) : fetchProducts(),
         isAdmin ? fetchUsers() : Promise.resolve([])
       ]);
@@ -129,10 +129,20 @@ export default function App() {
 
   const handleAddGround = async (newGroundData) => {
     try {
-      const res = await createGroundApi(newGroundData);
+      const ownerId = currentUser?._id || currentUser?.id || currentUser?.user_id;
+      const payload = {
+        ...newGroundData,
+        owner_id: ownerId,
+        ownerId: ownerId,
+        owner_email: currentUser?.email,
+        ownerEmail: currentUser?.email,
+        owner_name: currentUser?.fullName || currentUser?.name || 'Station Owner',
+      };
+      const res = await createGroundApi(payload);
       if (res.ground) {
         setGrounds((prev) => [res.ground, ...prev]);
         showToast(`Venue "${res.ground.title}" registered successfully!`);
+        await loadDashboardData(true);
       }
     } catch (err) {
       console.error('Failed to create ground:', err);
@@ -304,13 +314,42 @@ export default function App() {
 
   const isGroundOwner = currentUser?.role === 'GroundOwner';
   const pendingOwnersCount = users.filter((u) => u.role === 'GroundOwner' && u.approvalStatus === 'Pending').length;
-  const pendingBookingsCount = bookings.filter((b) => b.admin_approval === 'Pending').length;
 
-  const currentUserId = String(currentUser?.id || currentUser?._id || '');
+  const currentUserId = String(currentUser?._id || currentUser?.id || currentUser?.user_id || '').trim().toLowerCase();
+  const currentUserEmail = String(currentUser?.email || '').trim().toLowerCase();
+
+  // Strictly filter grounds registered by this logged-in Ground Owner
   const displayGrounds = isGroundOwner
-    ? grounds.filter((g) => String(g.owner_id) === currentUserId || String(g.owner_id) === '1' || String(g.owner_id) === '2')
+    ? grounds.filter((g) => {
+        const gOwnerId = String(g.owner_id || g.ownerId || (g.owner && (g.owner._id || g.owner.id)) || '').trim().toLowerCase();
+        const gOwnerEmail = String(g.owner_email || g.ownerEmail || (g.owner && g.owner.email) || '').trim().toLowerCase();
+        return (
+          (currentUserId && gOwnerId === currentUserId) ||
+          (currentUserEmail && (gOwnerEmail === currentUserEmail || gOwnerId === currentUserEmail))
+        );
+      })
     : grounds;
-  const displayBookings = bookings;
+
+  // Extract set of ground IDs, aliases, and titles owned by this owner
+  const ownerGroundIdSet = new Set(
+    displayGrounds.flatMap((g) => [
+      String(g._id || '').toLowerCase(),
+      String(g.id || '').toLowerCase(),
+      String(g.ground_id || '').toLowerCase(),
+      String(g.title || '').trim().toLowerCase(),
+    ]).filter(Boolean)
+  );
+
+  // Strictly filter bookings made for this ground owner's venues
+  const displayBookings = isGroundOwner
+    ? bookings.filter((b) => {
+        const bGroundId = String(b.ground_id || (b.ground && (b.ground._id || b.ground.ground_id)) || '').toLowerCase();
+        const bGroundName = String(b.ground_name || (b.ground && b.ground.title) || '').trim().toLowerCase();
+        return (bGroundId && ownerGroundIdSet.has(bGroundId)) || (bGroundName && ownerGroundIdSet.has(bGroundName));
+      })
+    : bookings;
+
+  const pendingBookingsCount = displayBookings.filter((b) => b.admin_approval === 'Pending').length;
 
   return (
     <div className="app-layout">

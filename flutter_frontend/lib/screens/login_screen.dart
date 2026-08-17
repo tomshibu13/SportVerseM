@@ -12,10 +12,9 @@ import 'home_screen.dart';
 import 'role_selection_screen.dart';
 
 // Web-only import for GIS SDK renderButton()
-// ignore: uri_does_not_exist
-import 'package:google_sign_in_web/web_only.dart' as google_sign_in_web
-    // This import is only valid on web; non-web platforms skip it.
-    if (dart.library.io) 'package:sportverse_ai/services/stub_google_sign_in_web.dart';
+import '../services/stub_google_sign_in_web.dart'
+    if (dart.library.js_interop) 'package:google_sign_in_web/web_only.dart'
+    as google_sign_in_web;
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -325,6 +324,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         height: 52,
                                         child: OutlinedButton.icon(
                                           onPressed: _isLoading ? null : () async {
+                                            final navigator = Navigator.of(context);
                                             setState(() => _isLoading = true);
                                             final result = await AuthService.signInWithGoogle();
                                             if (!mounted) return;
@@ -332,8 +332,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                             _showSnackBar(result['message'] as String);
                                             if (result['success'] == true) {
                                               final isNewUser = result['data']?['isNewUser'] == true;
-                                              Navigator.pushReplacement(
-                                                context,
+                                              navigator.pushReplacement(
                                                 MaterialPageRoute(
                                                   builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
                                                 ),

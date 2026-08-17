@@ -181,8 +181,8 @@ class GroundModel {
       reviewCount: json['review_count'] is num
           ? (json['review_count'] as num).toInt()
           : (int.tryParse(json['review_count']?.toString() ?? '') ?? 0),
-      images: (json['images'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      facilities: (json['facilities'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      images: (json['images'] as List<dynamic>?)?.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList() ?? [],
+      facilities: (json['facilities'] as List<dynamic>?)?.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList() ?? [],
       ownerId: json['owner_id'] ?? json['ownerId'] ?? '2',
       status: json['status']?.toString() ?? 'Approved',
       aiScore: json['ai_score'] is num

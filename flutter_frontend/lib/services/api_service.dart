@@ -11,7 +11,7 @@ import 'auth_service.dart';
 class ApiService {
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return dotenv.env['ANDROID_API_URL'] ?? 'http://192.168.57.228:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
     }
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
@@ -306,10 +306,37 @@ class ApiService {
     return [];
   }
 
-  // Fetch Marketplace Products from MongoDB
-  static Future<List<ProductModel>> fetchProducts({String category = 'All'}) async {
+  // Fetch Booked Slots for Ground and Date from MongoDB
+  static Future<List<String>> fetchBookedSlotsForGround(dynamic groundId, {String? date}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/products?category=$category')).timeout(const Duration(seconds: 4));
+      final queryParams = <String, String>{};
+      if (date != null && date.isNotEmpty) queryParams['date'] = date;
+
+      final uri = Uri.parse('$baseUrl/bookings/ground/$groundId')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['bookedSlotTimes'] is List) {
+          return (data['bookedSlotTimes'] as List).map((s) => s.toString().trim()).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching booked slots for ground $groundId: $e');
+    }
+    return [];
+  }
+
+  // Fetch Marketplace Products from MongoDB
+  static Future<List<ProductModel>> fetchProducts({String category = 'All', String search = ''}) async {
+    try {
+      final queryParams = <String, String>{};
+      if (category != 'All' && category.isNotEmpty) queryParams['category'] = category;
+      if (search.trim().isNotEmpty) queryParams['search'] = search.trim();
+      
+      final uri = Uri.parse('$baseUrl/products').replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['products'] != null) {
@@ -318,6 +345,141 @@ class ApiService {
       }
     } catch (_) {}
     return [];
+  }
+
+  // Create Order in MongoDB
+  static Future<Map<String, dynamic>> createOrder({
+    required dynamic userId,
+    String? customerName,
+    String? customerPhone,
+    required List<Map<String, dynamic>> items,
+    required double totalAmount,
+    required String deliveryAddress,
+    String paymentMethod = 'UPI / Online Payment',
+  }) async {
+    try {
+      final body = {
+        'userId': userId,
+        if (customerName != null) 'customerName': customerName,
+        if (customerPhone != null) 'customerPhone': customerPhone,
+        'items': items,
+        'totalAmount': totalAmount,
+        'deliveryAddress': deliveryAddress,
+        'paymentMethod': paymentMethod,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        return {'success': true, 'order': data['order'], 'message': data['message'] ?? 'Order placed successfully!'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+    return {'success': false, 'message': 'Failed to place order'};
+  }
+
+  // Fetch User Orders from MongoDB
+  static Future<List<Map<String, dynamic>>> fetchUserOrders(dynamic userId) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/orders/user/$userId')).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['orders'] is List) {
+          return (data['orders'] as List)
+              .whereType<Map>()
+              .map((o) => Map<String, dynamic>.from(o))
+              .toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // ── Razorpay Payment API ──
+  static Future<Map<String, dynamic>> createRazorpayOrder({
+    required double amount,
+    String currency = 'INR',
+    String purpose = 'general_payment',
+    String? receipt,
+    Map<String, dynamic>? notes,
+  }) async {
+    try {
+      final body = {
+        'amount': amount,
+        'currency': currency,
+        'purpose': purpose,
+        if (receipt != null) 'receipt': receipt,
+        if (notes != null) 'notes': notes,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/payment/create-order'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('Error creating Razorpay order: $e');
+    }
+    return {'success': false, 'message': 'Failed to initialize payment gateway'};
+  }
+
+  static Future<Map<String, dynamic>> verifyRazorpayPayment({
+    required String razorpayOrderId,
+    required String razorpayPaymentId,
+    required String razorpaySignature,
+    required String purpose,
+    String? bookingId,
+    dynamic orderId,
+    dynamic groundId,
+    dynamic userId,
+    required double amount,
+    String? customerName,
+    String? customerEmail,
+    String? customerPhone,
+    String paymentMethod = 'Razorpay / UPI',
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final body = {
+        'razorpay_order_id': razorpayOrderId,
+        'razorpay_payment_id': razorpayPaymentId,
+        'razorpay_signature': razorpaySignature,
+        'purpose': purpose,
+        if (bookingId != null) 'booking_id': bookingId,
+        if (orderId != null) 'order_id': orderId,
+        if (groundId != null) 'ground_id': groundId,
+        if (userId != null) 'user_id': userId,
+        'amount': amount,
+        if (customerName != null) 'customer_name': customerName,
+        if (customerEmail != null) 'customer_email': customerEmail,
+        if (customerPhone != null) 'customer_phone': customerPhone,
+        'payment_method': paymentMethod,
+        if (metadata != null) 'metadata': metadata,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/payment/verify-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('Error verifying Razorpay payment: $e');
+    }
+    return {'success': false, 'message': 'Payment verification failed'};
   }
 
 

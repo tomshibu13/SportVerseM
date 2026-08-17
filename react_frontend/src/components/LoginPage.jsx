@@ -44,8 +44,8 @@ export default function LoginPage({ onLoginSuccess }) {
           <div style={styles.logoBadge}>
             <Sparkles size={28} color="#c8895b" />
           </div>
-          <h1 style={styles.title}>SportVerse Admin</h1>
-          <p style={styles.subtitle}>Superadmin & Platform Control Console</p>
+          <h1 style={styles.title}>SportVerse Portal</h1>
+          <p style={styles.subtitle}>Superadmin & Station Owner Control Center</p>
         </div>
 
         {error && (
@@ -58,7 +58,7 @@ export default function LoginPage({ onLoginSuccess }) {
         <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.7rem', color: '#a39c93', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <KeyRound size={12} color="#c8895b" />
-            <span>Quick Login Presets</span>
+            <span>Admin & Demo Shortcuts</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
             <button
@@ -76,7 +76,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 textAlign: 'center',
               }}
             >
-              Primary Superadmin
+              Superadmin
             </button>
             <button
               type="button"
@@ -102,14 +102,14 @@ export default function LoginPage({ onLoginSuccess }) {
           <div className="form-group">
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Mail size={14} color="#a39c93" />
-              <span>Admin Email</span>
+              <span>Email Address</span>
             </label>
             <input
               type="email"
               className="form-input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="tomshibu666@gmail.com"
+              placeholder="e.g. owner@example.com or admin"
               required
             />
           </div>
@@ -117,7 +117,7 @@ export default function LoginPage({ onLoginSuccess }) {
           <div className="form-group">
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Lock size={14} color="#a39c93" />
-              <span>Password</span>
+              <span>Password / Station Key</span>
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -125,7 +125,7 @@ export default function LoginPage({ onLoginSuccess }) {
                 className="form-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="•••••••• or SV-Station#..."
                 required
                 style={{ paddingRight: '2.5rem' }}
               />
@@ -159,7 +159,7 @@ export default function LoginPage({ onLoginSuccess }) {
           >
             {loading ? 'Authenticating...' : (
               <>
-                <span>Sign In to Superadmin</span>
+                <span>Sign In to Control Center</span>
                 <ArrowRight size={18} />
               </>
             )}

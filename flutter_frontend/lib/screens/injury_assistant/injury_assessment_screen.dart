@@ -5,7 +5,6 @@ import '../../models/injury_model.dart';
 import '../../widgets/top_navigation_bar.dart';
 import '../../widgets/injury/assessment_step_indicator.dart';
 import '../../widgets/injury/body_part_selector.dart';
-import '../../widgets/injury/pain_scale_slider.dart';
 import '../../services/injury_service.dart';
 import './injury_result_screen.dart';
 
@@ -25,7 +24,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
   String? _sport;
   String? _bodyPart;
   String? _injuryMechanism;
-  List<String> _symptoms = [];
+  final List<String> _symptoms = [];
   int _painLevel = 0;
   bool _hasSwelling = false;
   String _mobilityStatus = 'Full';
@@ -212,7 +211,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.warmAccent.withOpacity(0.1) : Colors.white,
+                color: isSelected ? AppColors.warmAccent.withValues(alpha: 0.1) : Colors.white,
                 border: Border.all(color: isSelected ? AppColors.warmAccent : AppColors.border),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -235,35 +234,62 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
 
   Widget _buildStep3() {
     return Column(
-      children: _availableSymptoms.map((sym) {
-        final isSelected = _symptoms.contains(sym);
-        return CheckboxListTile(
-          title: Text(sym),
-          value: isSelected,
-          activeColor: AppColors.warmAccent,
-          onChanged: (bool? value) {
-            setState(() {
-              if (value == true) {
-                _symptoms.add(sym);
-              } else {
-                _symptoms.remove(sym);
-              }
-            });
-          },
-          controlAffinity: ListTileControlAffinity.leading,
-          contentPadding: EdgeInsets.zero,
-        );
-      }).toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Select all symptoms you are experiencing:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 16),
+        ..._availableSymptoms.map((symptom) {
+          final isSelected = _symptoms.contains(symptom);
+          return CheckboxListTile(
+            title: Text(symptom),
+            value: isSelected,
+            activeColor: AppColors.warmAccent,
+            onChanged: (val) {
+              setState(() {
+                if (val == true) {
+                  _symptoms.add(symptom);
+                } else {
+                  _symptoms.remove(symptom);
+                }
+              });
+            },
+            contentPadding: EdgeInsets.zero,
+          );
+        }),
+      ],
     );
   }
 
   Widget _buildStep4() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32.0),
-      child: PainScaleSlider(
-        value: _painLevel,
-        onChanged: (val) => setState(() => _painLevel = val),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Pain Severity (0-10)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('$_painLevel', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: AppColors.warmAccent)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Slider(
+          value: _painLevel.toDouble(),
+          min: 0,
+          max: 10,
+          divisions: 10,
+          activeColor: AppColors.warmAccent,
+          label: _painLevel.toString(),
+          onChanged: (val) => setState(() => _painLevel = val.toInt()),
+        ),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('No Pain (0)', style: TextStyle(color: AppColors.mutedText)),
+            Text('Moderate (5)', style: TextStyle(color: AppColors.mutedText)),
+            Text('Severe (10)', style: TextStyle(color: AppColors.mutedText)),
+          ],
+        ),
+      ],
     );
   }
 
@@ -274,7 +300,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
         SwitchListTile(
           title: const Text('Noticeable Swelling', style: TextStyle(fontWeight: FontWeight.bold)),
           value: _hasSwelling,
-          activeColor: AppColors.warmAccent,
+          activeThumbColor: AppColors.warmAccent,
           onChanged: (val) => setState(() => _hasSwelling = val),
           contentPadding: EdgeInsets.zero,
         ),
@@ -282,15 +308,33 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
         const Text('Mobility Status', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         const SizedBox(height: 12),
         ...['Full', 'Partial', 'Minimal', 'None'].map((status) {
-          return RadioListTile<String>(
-            title: Text(status),
-            value: status,
-            groupValue: _mobilityStatus,
-            activeColor: AppColors.warmAccent,
-            onChanged: (val) => setState(() => _mobilityStatus = val!),
-            contentPadding: EdgeInsets.zero,
+          final isSelected = _mobilityStatus == status;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: InkWell(
+              onTap: () => setState(() => _mobilityStatus = status),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.warmAccent.withValues(alpha: 0.1) : Colors.white,
+                  border: Border.all(color: isSelected ? AppColors.warmAccent : AppColors.border),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      color: isSelected ? AppColors.warmAccent : AppColors.mutedText,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(status, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                  ],
+                ),
+              ),
+            ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -302,7 +346,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
         SwitchListTile(
           title: const Text('Previous injury in this area', style: TextStyle(fontWeight: FontWeight.bold)),
           value: _hasPreviousInjury,
-          activeColor: AppColors.warmAccent,
+          activeThumbColor: AppColors.warmAccent,
           onChanged: (val) => setState(() => _hasPreviousInjury = val),
           contentPadding: EdgeInsets.zero,
         ),
@@ -355,7 +399,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.1),
+            color: Colors.amber.withValues(alpha: 0.1),
             border: Border.all(color: Colors.amber),
             borderRadius: BorderRadius.circular(8),
           ),
@@ -377,6 +421,7 @@ class _InjuryAssessmentScreenState extends State<InjuryAssessmentScreen> {
           onPressed: () async {
             final picker = ImagePicker();
             await picker.pickImage(source: ImageSource.gallery);
+            if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Image uploaded (simulation)')));
           },
           icon: const Icon(Icons.camera_alt),

@@ -109,16 +109,16 @@ class BookingModel {
 
     if (json['ground'] != null && json['ground'] is Map) {
       final g = json['ground'] as Map;
-      if (groundTitle.isEmpty && g['title'] != null) groundTitle = g['title'].toString();
-      if (sport.isEmpty && g['sport_type'] != null) sport = g['sport_type'].toString();
-      if (g['location'] != null) loc = g['location'].toString();
-      if (g['address'] != null) addr = g['address'].toString();
+      if (groundTitle.isEmpty && g['title'] != null) groundTitle = g['title']?.toString() ?? '';
+      if (sport.isEmpty && g['sport_type'] != null) sport = g['sport_type']?.toString() ?? '';
+      if (g['location'] != null) loc = g['location']?.toString() ?? loc;
+      if (g['address'] != null) addr = g['address']?.toString() ?? addr;
     }
 
     String uName = json['user_name']?.toString() ?? '';
     if (json['user'] != null && json['user'] is Map) {
       final u = json['user'] as Map;
-      if (uName.isEmpty && u['fullName'] != null) uName = u['fullName'].toString();
+      if (uName.isEmpty && u['fullName'] != null) uName = u['fullName']?.toString() ?? '';
     }
 
     return BookingModel(
@@ -138,7 +138,7 @@ class BookingModel {
       qrCode: json['qr_code']?.toString() ?? 'SPORTVERSE_QR_${json['booking_id'] ?? 'PASS'}',
       location: loc,
       address: addr,
-      createdAt: json['created_at'] != null ? json['created_at'].toString() : '',
+      createdAt: json['created_at'] != null ? json['created_at']?.toString() ?? '' : '',
     );
   }
 }

@@ -41,9 +41,10 @@ class GroundProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  GroundModel? getGroundById(int id) {
+  GroundModel? getGroundById(dynamic id) {
     try {
-      return _grounds.firstWhere((g) => g.groundId == id);
+      final strId = id?.toString() ?? '';
+      return _grounds.firstWhere((g) => g.groundId.toString() == strId || g.groundId == id);
     } catch (_) {
       return _grounds.isNotEmpty ? _grounds.first : null;
     }

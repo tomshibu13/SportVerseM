@@ -6,4 +6,4 @@
 import 'package:flutter/material.dart';
 
 /// Stub that returns an empty widget — only called on web via conditional import.
-Widget renderButton() => const SizedBox.shrink();
+Widget renderButton({dynamic configuration}) => const SizedBox.shrink();

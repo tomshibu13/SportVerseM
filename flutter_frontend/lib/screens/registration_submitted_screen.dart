@@ -3,7 +3,14 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 
 class RegistrationSubmittedScreen extends StatelessWidget {
-  const RegistrationSubmittedScreen({super.key});
+  final String? paymentId;
+  final double? amount;
+
+  const RegistrationSubmittedScreen({
+    super.key,
+    this.paymentId,
+    this.amount,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +72,7 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                               border: Border.all(color: const Color(0xFFEEEEEE)),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.03),
+                                  color: Colors.black.withValues(alpha: 0.03),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -78,8 +85,8 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                                   children: [
                                     Container(
                                       padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFFF3E0),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFFFF3E0),
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
@@ -131,9 +138,9 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(color: const Color(0xFFFDE68A)),
                                       ),
-                                      child: Row(
+                                      child: const Row(
                                         mainAxisSize: MainAxisSize.min,
-                                        children: const [
+                                        children: [
                                           Icon(
                                             Icons.schedule,
                                             size: 14,
@@ -153,6 +160,47 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                                     ),
                                   ],
                                 ),
+                                if (paymentId != null) ...[
+                                  const SizedBox(height: 12),
+                                  const Divider(color: Color(0xFFEEEEEE), height: 1),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Razorpay Txn',
+                                        style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
+                                      ),
+                                      Text(
+                                        paymentId!,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontFamily: 'monospace',
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0C2340),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Verification Fee Paid',
+                                        style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
+                                      ),
+                                      Text(
+                                        '₹${(amount ?? 499).toStringAsFixed(0)} (Verified)',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF10B981),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -182,9 +230,9 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                             (route) => false,
                           );
                         },
-                        child: Row(
+                        child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
+                          children: [
                             Text(
                               'Go to Dashboard',
                               style: TextStyle(
@@ -214,7 +262,7 @@ class RegistrationSubmittedScreen extends StatelessWidget {
   }
 
   Widget _buildSubmittedIllustration(MediaQueryData media) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 220,
       child: Stack(
@@ -233,7 +281,7 @@ class RegistrationSubmittedScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                 ),
@@ -266,7 +314,7 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                 border: Border.all(color: Colors.white, width: 4),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withOpacity(0.3),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -296,7 +344,7 @@ class GroundIllustrationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF4CAF50).withOpacity(0.3)
+      ..color = const Color(0xFF4CAF50).withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 

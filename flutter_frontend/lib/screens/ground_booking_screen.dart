@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../models/ground_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/razorpay_service.dart';
 import 'bookings_screen.dart';
 
 class GroundBookingScreen extends StatefulWidget {
@@ -29,6 +30,8 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
   bool _addEquipmentRental = false;
   bool _addRefresherDrinks = false;
   bool _isSubmitting = false;
+  bool _isLoadingSlots = false;
+  Set<String> _bookedSlotsFromApi = {};
 
   final TextEditingController _nameController = TextEditingController(text: 'Player');
   final TextEditingController _phoneController = TextEditingController(text: '+91 98765 43210');
@@ -53,6 +56,23 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
       }
     }
     _generateSlotsForGround();
+    _fetchBookedSlotsForSelectedDate();
+  }
+
+  Future<void> _fetchBookedSlotsForSelectedDate() async {
+    setState(() => _isLoadingSlots = true);
+    try {
+      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final bookedList = await ApiService.fetchBookedSlotsForGround(widget.ground.groundId, date: dateStr);
+      if (mounted) {
+        setState(() {
+          _bookedSlotsFromApi = bookedList.toSet();
+          _isLoadingSlots = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingSlots = false);
+    }
   }
 
   @override
@@ -74,13 +94,13 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         GroundSlot(slotId: 'sl_1', time: '06:00 AM - 07:00 AM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_2', time: '07:00 AM - 08:00 AM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_3', time: '08:00 AM - 09:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_4', time: '09:00 AM - 10:00 AM', isBooked: true, price: basePrice),
+        GroundSlot(slotId: 'sl_4', time: '09:00 AM - 10:00 AM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_5', time: '10:00 AM - 11:00 AM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_6', time: '11:00 AM - 12:00 PM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_7', time: '03:00 PM - 04:00 PM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_8', time: '04:00 PM - 05:00 PM', isBooked: false, price: basePrice),
         GroundSlot(slotId: 'sl_9', time: '05:00 PM - 06:00 PM', isBooked: false, price: (basePrice * 1.15).roundToDouble()),
-        GroundSlot(slotId: 'sl_10', time: '06:00 PM - 07:00 PM', isBooked: true, price: (basePrice * 1.25).roundToDouble()),
+        GroundSlot(slotId: 'sl_10', time: '06:00 PM - 07:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
         GroundSlot(slotId: 'sl_11', time: '07:00 PM - 08:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
         GroundSlot(slotId: 'sl_12', time: '08:00 PM - 09:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
         GroundSlot(slotId: 'sl_13', time: '09:00 PM - 10:00 PM', isBooked: false, price: (basePrice * 1.15).roundToDouble()),
@@ -122,8 +142,81 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     return _calculatedSlotsPrice + _calculatedAddonsPrice;
   }
 
+  bool _isSlotPastTime(GroundSlot slot) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final bookingDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    // If selected date is in the past
+    if (bookingDay.isBefore(today)) return true;
+    // If selected date is in the future
+    if (bookingDay.isAfter(today)) return false;
+
+    // Selected date is Today: Parse slot starting time
+    // Formats: "06:00 AM - 07:00 AM", "6:00 AM", "18:00", "06:00 PM - 07:00 PM"
+    try {
+      final timePart = slot.time.split('-').first.trim();
+      final regex = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false);
+      final match = regex.firstMatch(timePart);
+
+      if (match != null) {
+        int hour = int.parse(match.group(1)!);
+        final minute = int.parse(match.group(2)!);
+        final ampm = match.group(3)?.toUpperCase();
+
+        if (ampm != null) {
+          if (ampm == 'PM' && hour < 12) hour += 12;
+          if (ampm == 'AM' && hour == 12) hour = 0;
+        }
+
+        final slotDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+        return slotDateTime.isBefore(now);
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
   void _toggleSlotSelection(GroundSlot slot) {
-    if (slot.isBooked) return;
+    final isBookedInApi = _bookedSlotsFromApi.contains(slot.time) ||
+        _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(slot.time));
+    final isBooked = slot.isBooked || isBookedInApi;
+
+    if (isBooked) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('⚠️ Slot "${slot.time}" is already booked for ${DateFormat('dd MMM').format(_selectedDate)}.'),
+          backgroundColor: const Color(0xFFDC2626),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (_isSlotPastTime(slot)) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.history_toggle_off, color: Colors.amberAccent, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('This time slot has already passed for today. Please select an upcoming slot.'),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF1E293B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       if (_selectedSlotTimes.contains(slot.time)) {
@@ -137,6 +230,12 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
   }
 
   Future<void> _handleConfirmBooking() async {
+    final authenticated = await AuthService.requireAuth(
+      context,
+      message: 'Sign in to reserve court slots and secure tickets',
+    );
+    if (!authenticated || !mounted) return;
+
     if (_selectedSlots.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -145,6 +244,30 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         ),
       );
       return;
+    }
+
+    // Check that none of selected slots have passed or are booked
+    for (final s in _selectedSlots) {
+      if (_isSlotPastTime(s)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Slot "${s.time}" has already passed. Please select an upcoming slot.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+      final isAlreadyBooked = _bookedSlotsFromApi.contains(s.time) ||
+          _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(s.time));
+      if (isAlreadyBooked) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Slot "${s.time}" has already been booked. Please choose another slot.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isSubmitting = true);
@@ -157,7 +280,39 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     final userName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : (user?['full_name'] ?? user?['fullName'] ?? user?['name'] ?? 'Player');
+    final userPhone = _phoneController.text.trim().isNotEmpty
+        ? _phoneController.text.trim()
+        : '+91 98765 43210';
     final slotId = _selectedSlots.isNotEmpty ? _selectedSlots.first.slotId : 'sl_1';
+    final generatedBookingId = 'SPV-BK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+
+    // 1. Process payment via Razorpay Gateway
+    final rzpResult = await RazorpayService.processPayment(
+      context: context,
+      amount: _totalBookingPrice,
+      purpose: 'ground_booking',
+      title: '${widget.ground.title} Slot Booking',
+      description: 'Court slot reservation on $dateStr ($combinedSlotTime)',
+      customerName: userName,
+      customerPhone: userPhone,
+      bookingId: generatedBookingId,
+      groundId: widget.ground.groundId,
+      userId: userId,
+    );
+
+    if (!rzpResult.success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(rzpResult.message ?? 'Payment was cancelled or unsuccessful.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
 
     try {
       final res = await ApiService.createBooking(
@@ -176,9 +331,19 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
       if (res['success'] == true && mounted) {
         final bookingData = res['booking'] is Map ? res['booking'] as Map<String, dynamic> : <String, dynamic>{};
-        final bookingId = bookingData['booking_id'] ?? 'SPV-BK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+        final bookingId = bookingData['booking_id'] ?? generatedBookingId;
+        final txnId = rzpResult.paymentId ?? 'pay_${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
 
-        _showBookingSuccessDialog(bookingId, dateStr, combinedSlotTime);
+        setState(() {
+          for (final s in _selectedSlots) {
+            _bookedSlotsFromApi.add(s.time);
+          }
+          _selectedSlotTimes.clear();
+          _selectedSlots.clear();
+        });
+        _fetchBookedSlotsForSelectedDate();
+
+        _showBookingSuccessDialog(bookingId, dateStr, combinedSlotTime, txnId);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -202,7 +367,8 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     }
   }
 
-  void _showBookingSuccessDialog(String bookingId, String dateStr, String slotTimeStr) {
+  void _showBookingSuccessDialog(String bookingId, String dateStr, String slotTimeStr, [String? txnId]) {
+    final transactionId = txnId ?? 'pay_${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -240,7 +406,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Your slot at ${widget.ground.title} is secured.',
+                  'Your slot at ${widget.ground.title} is secured via Razorpay.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13,
@@ -272,6 +438,25 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: AppColors.warmAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Razorpay Txn ID',
+                            style: TextStyle(fontSize: 10, color: AppColors.mutedText),
+                          ),
+                          Text(
+                            transactionId,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0C2340),
                             ),
                           ),
                         ],
@@ -408,9 +593,9 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
           icon: const Icon(Icons.arrow_back_ios, size: 20, color: AppColors.primaryBlack),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Book Court Slot',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.bold,
             color: AppColors.primaryBlack,
@@ -621,6 +806,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                       _selectedSlotTimes.clear();
                       _selectedSlots.clear();
                     });
+                    _fetchBookedSlotsForSelectedDate();
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: AnimatedContainer(
@@ -697,7 +883,13 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                   color: AppColors.primaryBlack,
                 ),
               ),
-              if (_selectedSlots.isNotEmpty)
+              if (_isLoadingSlots)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC8895B)),
+                )
+              else if (_selectedSlots.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
@@ -742,15 +934,20 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
           const SizedBox(height: 14),
 
-          // Legend Indicators (Available, Selected, Booked)
-          Row(
-            children: [
-              _buildLegendPill(const Color(0xFFF1F8E9), const Color(0xFF2E7D32), 'Available'),
-              const SizedBox(width: 12),
-              _buildLegendPill(const Color(0xFFC8895B), Colors.white, 'Selected'),
-              const SizedBox(width: 12),
-              _buildLegendPill(Colors.grey.shade100, Colors.grey.shade400, 'Booked'),
-            ],
+          // Legend Indicators (Available, Selected, Booked, Past Time)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildLegendPill(const Color(0xFFF1F8E9), const Color(0xFF2E7D32), 'Available'),
+                const SizedBox(width: 8),
+                _buildLegendPill(const Color(0xFFC8895B), Colors.white, 'Selected'),
+                const SizedBox(width: 8),
+                _buildLegendPill(Colors.grey.shade100, Colors.grey.shade400, 'Booked'),
+                const SizedBox(width: 8),
+                _buildLegendPill(const Color(0xFFFFF1F2), const Color(0xFFE11D48), 'Past Time'),
+              ],
+            ),
           ),
 
           const SizedBox(height: 16),
@@ -764,26 +961,68 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
               crossAxisCount: 2,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              childAspectRatio: 2.2,
+              childAspectRatio: 2.0,
             ),
             itemBuilder: (context, index) {
               final slot = slots[index];
+              final isPast = _isSlotPastTime(slot);
+              final isBookedInApi = _bookedSlotsFromApi.contains(slot.time) ||
+                  _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(slot.time));
+              final isBooked = slot.isBooked || isBookedInApi;
+              final isUnavailable = isBooked || isPast;
               final isSelected = _selectedSlotTimes.contains(slot.time);
-              final isBooked = slot.isBooked;
 
               return InkWell(
-                onTap: isBooked ? null : () => _toggleSlotSelection(slot),
+                onTap: isUnavailable
+                    ? () {
+                        if (isPast) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Row(
+                                children: [
+                                  Icon(Icons.history_toggle_off, color: Colors.amberAccent, size: 18),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text('This time slot has already passed for today. Please select an upcoming slot.'),
+                                  ),
+                                ],
+                              ),
+                              backgroundColor: const Color(0xFF1E293B),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        } else if (isBooked) {
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('⚠️ Slot "${slot.time}" is already booked for ${DateFormat('dd MMM').format(_selectedDate)}.'),
+                              backgroundColor: const Color(0xFFDC2626),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      }
+                    : () => _toggleSlotSelection(slot),
                 borderRadius: BorderRadius.circular(12),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isBooked
+                    color: isPast
+                        ? const Color(0xFFF9FAFB)
+                        : isBooked
                         ? Colors.grey.shade100
                         : (isSelected ? const Color(0xFFC8895B) : Colors.white),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isBooked
+                      color: isPast
+                          ? Colors.grey.shade200
+                          : isBooked
                           ? Colors.grey.shade300
                           : (isSelected ? const Color(0xFFC8895B) : AppColors.border),
                       width: isSelected ? 2 : 1,
@@ -799,42 +1038,58 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                         : [],
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            slot.time,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: isBooked
-                                  ? Colors.grey.shade400
-                                  : (isSelected ? Colors.white : AppColors.primaryBlack),
-                              decoration: isBooked ? TextDecoration.lineThrough : null,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              slot.time,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isUnavailable
+                                    ? Colors.grey.shade400
+                                    : (isSelected ? Colors.white : AppColors.primaryBlack),
+                                decoration: isUnavailable ? TextDecoration.lineThrough : null,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            isBooked ? 'Unavailable' : '₹${slot.price.toInt()}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                              color: isBooked
-                                  ? Colors.grey.shade400
-                                  : (isSelected ? Colors.white70 : const Color(0xFF2E7D32)),
+                            const SizedBox(height: 2),
+                            Text(
+                              isPast
+                                  ? 'Past Time'
+                                  : isBooked
+                                  ? 'Booked'
+                                  : '₹${slot.price.toInt()}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                                color: isPast
+                                    ? const Color(0xFFE11D48)
+                                    : isBooked
+                                    ? Colors.grey.shade400
+                                    : (isSelected ? Colors.white70 : const Color(0xFF2E7D32)),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 4),
                       Icon(
-                        isBooked
+                        isPast
+                            ? Icons.history_toggle_off
+                            : isBooked
                             ? Icons.block_rounded
                             : (isSelected ? Icons.check_circle : Icons.radio_button_unchecked),
                         size: 18,
-                        color: isBooked
+                        color: isPast
+                            ? const Color(0xFFE11D48)
+                            : isBooked
                             ? Colors.grey.shade400
                             : (isSelected ? Colors.white : AppColors.mutedText),
                       ),

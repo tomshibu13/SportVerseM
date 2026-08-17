@@ -254,6 +254,17 @@ const getCurrentUser = async (req, res, next) => {
       });
     }
 
+    const isApprovedOwner = (user.role === 'GroundOwner' || user.role === 'ShopOwner') && 
+      (user.approvalStatus === 'Approved' || user.isApproved === true);
+    
+    let stationPass = user.stationPasswordDisplay || '';
+    if (isApprovedOwner && !stationPass) {
+      const suffix = (user._id ? user._id.toString().slice(-4) : '7892').toUpperCase();
+      stationPass = `SV-Station#${suffix}`;
+      user.stationPasswordDisplay = stationPass;
+      try { await user.save(); } catch (_) {}
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -272,7 +283,9 @@ const getCurrentUser = async (req, res, next) => {
         approvalStatus: user.approvalStatus || 'Approved',
         isApproved: user.isApproved !== undefined ? user.isApproved : true,
         stationPortalUrl: process.env.STATION_OWNER_PORTAL_URL || 'http://localhost:5174',
-        hasStationPassword: !!user.stationPassword,
+        stationPassword: stationPass,
+        ownerDashboardPassword: stationPass,
+        hasStationPassword: !!stationPass,
       },
     });
   } catch (error) {
@@ -434,6 +447,7 @@ const approveUser = async (req, res, next) => {
       generatedPassword = `SV-Station#${randomSuffix}`;
       const salt = await bcrypt.genSalt(10);
       user.stationPassword = await bcrypt.hash(generatedPassword, salt);
+      user.stationPasswordDisplay = generatedPassword;
       // NOTE: user.password (entered by user in mobile app) is strictly preserved and NEVER modified!
     }
 

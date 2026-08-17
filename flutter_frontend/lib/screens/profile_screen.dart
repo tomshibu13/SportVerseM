@@ -6,9 +6,11 @@ import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../models/booking_model.dart';
 import 'login_screen.dart';
+import 'register_screen.dart';
 import 'ground_owner_dashboard_screen.dart';
 import 'become_ground_owner_screen.dart';
 import 'bookings_screen.dart';
+import 'orders_screen.dart';
 import 'inbox_screen.dart';
 import 'find_nearby_screen.dart';
 
@@ -21,7 +23,9 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
+  bool _isStationPasswordVisible = false;
   int _userBookingsCount = 0;
+  int _userOrdersCount = 0;
   List<BookingModel> _userBookings = [];
 
   @override
@@ -39,10 +43,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (userId != null) {
         try {
           final bookings = await ApiService.fetchUserBookings(userId.toString());
+          final orders = await ApiService.fetchUserOrders(userId);
           if (mounted) {
             setState(() {
               _userBookings = bookings;
               _userBookingsCount = bookings.length;
+              _userOrdersCount = orders.length;
             });
           }
         } catch (_) {}
@@ -358,28 +364,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = AuthService.currentUser;
-    final fullName = (user?['fullName'] as String?)?.isNotEmpty == true
-        ? user!['fullName'] as String
-        : (user?['full_name'] as String?)?.isNotEmpty == true
-            ? user!['full_name'] as String
-            : 'SportVerse User';
-    final email = (user?['email'] as String?)?.isNotEmpty == true
-        ? user!['email'] as String
-        : '';
-    final phone = (user?['phone'] as String?)?.isNotEmpty == true
-        ? user!['phone'] as String
-        : 'Phone not added';
-    final location = (user?['location'] as String?)?.isNotEmpty == true
-        ? user!['location'] as String
-        : 'Kerala, India';
-    final favoriteSport = (user?['favoriteSport'] as String?)?.isNotEmpty == true
-        ? user!['favoriteSport'] as String
-        : 'Football';
-    final bio = (user?['bio'] as String?)?.isNotEmpty == true
-        ? user!['bio'] as String
-        : '';
+    final rawFullName = user?['fullName']?.toString().trim() ?? user?['full_name']?.toString().trim();
+    final fullName = (rawFullName != null && rawFullName.isNotEmpty) ? rawFullName : 'SportVerse User';
+    final rawEmail = user?['email']?.toString().trim();
+    final email = rawEmail ?? '';
+    final rawPhone = user?['phone']?.toString().trim();
+    final phone = (rawPhone != null && rawPhone.isNotEmpty) ? rawPhone : 'Phone not added';
+    final rawLocation = user?['location']?.toString().trim();
+    final location = (rawLocation != null && rawLocation.isNotEmpty) ? rawLocation : 'Kerala, India';
+    final rawSport = user?['favoriteSport']?.toString().trim();
+    final favoriteSport = (rawSport != null && rawSport.isNotEmpty) ? rawSport : 'Football';
+    final bio = user?['bio']?.toString().trim() ?? '';
 
-    final role = user?['role'] as String? ?? 'User';
+    final role = user?['role']?.toString() ?? 'User';
     final rawApprovalStatus = user?['approvalStatus'] as String?;
     final isApprovedBool = user?['isApproved'] as bool?;
     final approvalStatus = rawApprovalStatus ?? (isApprovedBool == true ? 'Approved' : 'Pending');
@@ -390,6 +387,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             approvalStatus != 'Rejected';
 
     const stationPortalUrl = 'http://localhost:5174';
+    final rawStationPass = user?['stationPassword']?.toString() ??
+        user?['ownerDashboardPassword']?.toString() ??
+        user?['stationPasswordDisplay']?.toString();
+    final rawId = user?['_id']?.toString() ?? user?['id']?.toString() ?? '';
+    final idSuffix = rawId.length >= 4 ? rawId.substring(rawId.length - 4).toUpperCase() : '7842';
+    final ownerDashboardPassword = (rawStationPass != null && rawStationPass.isNotEmpty)
+        ? rawStationPass
+        : 'SV-Station#$idSuffix';
+
+    final isLoggedIn = AuthService.currentToken != null && AuthService.currentUser != null;
+
+    if (!isLoggedIn) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: const TopNavigationBar(),
+        body: _buildSignedOutView(),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -677,11 +692,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const Text('🌐 Portal: ', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
-                                    Expanded(
+                                    const Expanded(
                                       child: Text(
-                                        stationPortalUrl,
-                                        style: const TextStyle(color: AppColors.warmAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                                        '🌐 Portal: $stationPortalUrl',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: AppColors.warmAccent,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                     IconButton(
@@ -689,6 +708,132 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
                                       onPressed: () => _copyToClipboard(stationPortalUrl, 'Station Portal URL'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+
+                              // ── Owner Dashboard Password & Login Credentials Box ──
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF13110E),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.4), width: 1.2),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Expanded(
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.vpn_key_rounded, size: 14, color: Color(0xFFF59E0B)),
+                                              SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  'DASHBOARD PASSWORD',
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFFF59E0B),
+                                                    letterSpacing: 1.1,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text(
+                                            'Approved Key',
+                                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF34D399)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'Password: ',
+                                          style: TextStyle(fontSize: 12, color: Color(0xFFD4C7BC)),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            _isStationPasswordVisible
+                                                ? ownerDashboardPassword
+                                                : '••••••••••••',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'monospace',
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            _isStationPasswordVisible
+                                                ? Icons.visibility_off_outlined
+                                                : Icons.visibility_outlined,
+                                            size: 16,
+                                            color: Colors.white70,
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isStationPasswordVisible = !_isStationPasswordVisible;
+                                            });
+                                          },
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy, size: 16, color: Color(0xFFF59E0B)),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _copyToClipboard(
+                                            ownerDashboardPassword,
+                                            'Owner Dashboard Password',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          'Login ID: ',
+                                          style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            email,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Color(0xFFD4C7BC),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'ℹ️ Use this password to sign into the Station Owner Portal ($stationPortalUrl).',
+                                      style: TextStyle(fontSize: 9.5, color: Colors.white54),
                                     ),
                                   ],
                                 ),
@@ -748,9 +893,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           _buildStatColumn('$_userBookingsCount', 'Bookings', Icons.calendar_today_outlined),
                           _buildStatDivider(),
-                          _buildStatColumn(isApproved ? 'Verified' : 'Pending', 'Status', Icons.verified_user_outlined),
+                          _buildStatColumn('$_userOrdersCount', 'Orders', Icons.shopping_bag_outlined),
                           _buildStatDivider(),
-                          _buildStatColumn(role, 'Account', Icons.sports_score_outlined),
+                          _buildStatColumn(isApproved ? 'Verified' : 'Pending', 'Status', Icons.verified_user_outlined),
                           _buildStatDivider(),
                           _buildStatColumn('₹1,250', 'Wallet', Icons.account_balance_wallet_outlined),
                         ],
@@ -775,6 +920,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const BookingsScreen()),
+                      ),
+                    ),
+                    _buildMenuTile(
+                      Icons.shopping_bag_outlined,
+                      'Your Orders',
+                      '$_userOrdersCount sports gear & equipment purchases',
+                      _userOrdersCount > 0 ? '$_userOrdersCount' : null,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const OrdersScreen()),
                       ),
                     ),
                     _buildMenuTile(
@@ -942,14 +1097,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       width: double.infinity,
                       height: 46,
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          AuthService.logout();
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
-                            (route) => false,
-                          );
-                        },
+                        onPressed: _confirmLogout,
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Colors.redAccent, width: 1.2),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -970,6 +1118,284 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Log Out'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to sign out from your SportVerse account? You can sign back in at any time.',
+          style: TextStyle(fontSize: 13, color: AppColors.secondaryText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              AuthService.logout();
+              setState(() {
+                _userBookings = [];
+                _userBookingsCount = 0;
+                _userOrdersCount = 0;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Logged out successfully'),
+                  backgroundColor: AppColors.primaryBlack,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignedOutView() {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Icon & Brand Header
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              gradient: AppColors.goldGradient,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.warmAccent.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.person_outline_rounded, size: 44, color: Colors.white),
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Welcome to SportVerse',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: AppColors.primaryBlack,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Sign in to access your booked sports turfs, track equipment orders, manage your wallet, and connect with players.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: AppColors.secondaryText, height: 1.4),
+          ),
+          const SizedBox(height: 24),
+
+          // Primary Action: Sign In
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                ).then((_) => _loadUserProfile());
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.warmAccent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.login_rounded, size: 18),
+              label: const Text(
+                'Sign In to Your Account',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Secondary Action: Create Account
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                ).then((_) => _loadUserProfile());
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.warmAccent, width: 1.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.person_add_outlined, size: 18, color: AppColors.warmAccent),
+              label: const Text(
+                'Create New Account',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.warmAccent,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+
+          // Platform Highlights Preview Cards
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'What You Can Do on SportVerse',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                ),
+                const SizedBox(height: 16),
+                _buildSignOutFeatureTile(
+                  Icons.sports_soccer,
+                  'Book Verified Turfs',
+                  'Instant slot reservation with automated QR tickets',
+                ),
+                const Divider(height: 20),
+                _buildSignOutFeatureTile(
+                  Icons.shopping_bag_outlined,
+                  'Pro-Shop Marketplace',
+                  'Order authentic badminton, football & cricket gear',
+                ),
+                const Divider(height: 20),
+                _buildSignOutFeatureTile(
+                  Icons.medical_services_outlined,
+                  'AI Injury Diagnostics',
+                  '24/7 sports first-aid analysis & rehab guidance',
+                ),
+                const Divider(height: 20),
+                _buildSignOutFeatureTile(
+                  Icons.emoji_events_outlined,
+                  'Tournaments & Leagues',
+                  'Enroll your team in high-stakes regional championships',
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Ground Owner Partner CTA
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BecomeGroundOwnerScreen()),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1E1B18), Color(0xFF2C241E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.4)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.storefront_rounded, color: AppColors.warmAccent, size: 24),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Own a Turf or Arena?',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Register as Ground Owner & start receiving bookings.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFFD4C7BC)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.warmAccent),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignOutFeatureTile(IconData icon, String title, String subtitle) {
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.lightDecorAccent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: AppColors.warmAccent),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

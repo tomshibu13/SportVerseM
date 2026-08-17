@@ -100,8 +100,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
     _groundNameController = TextEditingController(text: '${name.isNotEmpty ? name : "User"}\'s Sports Arena');
     _priceController = TextEditingController(text: '45');
 
-    if (user?['role'] != null && (user!['role'] == 'User' || user['role'] == 'GroundOwner')) {
-      _selectedRole = user['role'] as String;
+    final uRole = user?['role']?.toString();
+    if (uRole == 'User' || uRole == 'GroundOwner') {
+      _selectedRole = uRole ?? 'User';
     }
   }
 

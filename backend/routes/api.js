@@ -7,6 +7,7 @@ const bookingController = require('../controllers/bookingController');
 const shopController = require('../controllers/shopController');
 const aiController = require('../controllers/aiController');
 const notificationController = require('../controllers/notificationController');
+const paymentController = require('../controllers/paymentController');
 
 // Health Check
 router.get('/health', (req, res) => {
@@ -35,6 +36,7 @@ router.delete('/grounds/:id', groundController.deleteGround);
 
 // Booking Routes
 router.get('/bookings', bookingController.getAllBookings);
+router.get('/bookings/ground/:groundId', bookingController.getGroundBookedSlots);
 router.post('/bookings', bookingController.createBooking);
 router.get('/bookings/user/:userId', bookingController.getUserBookings);
 router.put('/bookings/:bookingId/approve', bookingController.approveBooking);
@@ -44,7 +46,17 @@ router.put('/bookings/cancel/:bookingId', bookingController.cancelBooking);
 
 // Shop Routes
 router.get('/products', shopController.getAllProducts);
+router.get('/products/:id', shopController.getProductById);
 router.post('/products', shopController.createProduct);
+router.get('/orders', shopController.getAllOrders);
+router.post('/orders', shopController.createOrder);
+router.get('/orders/user/:userId', shopController.getUserOrders);
+
+// Razorpay Payment Routes
+router.get('/payment/config', paymentController.getPaymentConfig);
+router.post('/payment/create-order', paymentController.createRazorpayOrder);
+router.post('/payment/verify-payment', paymentController.verifyPayment);
+router.get('/payment/history/:userId', paymentController.getUserPaymentHistory);
 
 // AI Recommendation Routes
 router.get('/ai/recommendations', aiController.getRecommendations);

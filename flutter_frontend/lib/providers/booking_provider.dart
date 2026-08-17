@@ -11,7 +11,7 @@ class BookingProvider with ChangeNotifier {
   List<BookingModel> get completedBookings => _bookings.where((b) => b.bookingStatus == 'Completed' || b.bookingStatus == 'Cancelled').toList();
   bool get isLoading => _isLoading;
 
-  Future<void> loadUserBookings(int userId) async {
+  Future<void> loadUserBookings(dynamic userId) async {
     _isLoading = true;
     notifyListeners();
 
@@ -22,14 +22,15 @@ class BookingProvider with ChangeNotifier {
   }
 
   Future<bool> createBooking({
-    required int userId,
+    dynamic userId = 1,
     required String userName,
-    required int groundId,
+    required dynamic groundId,
     required String groundName,
     required String sportType,
     required String date,
     required String slotTime,
     required double totalPrice,
+    String? slotId,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -43,6 +44,7 @@ class BookingProvider with ChangeNotifier {
       date: date,
       slotTime: slotTime,
       totalPrice: totalPrice,
+      slotId: slotId,
     );
 
     _isLoading = false;

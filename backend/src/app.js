@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const authRoutes = require('../routes/authRoutes');
 const apiRoutes = require('../routes/api');
 const injuryRoutes = require('../routes/injuryRoutes');
+const paymentRoutes = require('../routes/paymentRoutes');
 const { errorHandler, notFound } = require('../middleware/errorMiddleware');
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api/auth/login', authLimiter);
 
 // Mount API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/payment', paymentRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/injury', injuryRoutes);
 

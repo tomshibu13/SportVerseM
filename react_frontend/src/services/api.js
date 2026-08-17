@@ -259,6 +259,8 @@ export async function createGroundApi(groundData) {
       image: groundData.image,
       images: [groundData.image],
       status: groundData.status || 'Active',
+      owner_id: groundData.owner_id || groundData.ownerId,
+      owner_email: groundData.owner_email || groundData.ownerEmail,
     };
 
     const res = await request('/grounds', {

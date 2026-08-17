@@ -11,8 +11,10 @@ import 'profile_screen.dart';
 import 'injury_assistant/injury_assessment_screen.dart';
 import 'ai_assistant_screen.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../models/ground_model.dart';
 import 'ground_booking_screen.dart';
+import 'become_ground_owner_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -256,13 +258,15 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: const BoxDecoration(
-                  gradient: AppColors.goldGradient,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                  ),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                child: const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 16),
               ),
               label: const Text(
-                'AI Assistant',
+                'AI Injury Assistant',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -665,41 +669,47 @@ class _HomeScreenState extends State<HomeScreen> {
           // Horizontal Venues List
           SizedBox(
             height: 245,
-            child: _filteredVenues.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off, size: 36, color: AppColors.mutedText),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No venues match "$_searchQuery"',
-                          style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              _searchController.clear();
-                              _searchQuery = '';
-                            });
-                          },
-                          child: const Text('Reset Search',
-                              style: TextStyle(color: AppColors.warmAccent)),
-                        ),
-                      ],
+            child: _isLoadingVenues
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.warmAccent,
                     ),
                   )
-                : ListView.separated(
-                    physics: const BouncingScrollPhysics(),
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _filteredVenues.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 14),
-                    itemBuilder: (context, index) {
-                      final venue = _filteredVenues[index];
-                      return _buildVenueCard(venue);
-                    },
-                  ),
+                : _filteredVenues.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off, size: 36, color: AppColors.mutedText),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No venues match "$_searchQuery"',
+                              style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                              child: const Text('Reset Search',
+                                  style: TextStyle(color: AppColors.warmAccent)),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        physics: const BouncingScrollPhysics(),
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _filteredVenues.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 14),
+                        itemBuilder: (context, index) {
+                          final venue = _filteredVenues[index];
+                          return _buildVenueCard(venue);
+                        },
+                      ),
           ),
 
           const SizedBox(height: 24),
@@ -954,6 +964,36 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          const SizedBox(height: 24),
+
+          // ── Open Matches & Community Games (Find Teammates) ──
+          _buildOpenMatchesSection(),
+
+          const SizedBox(height: 24),
+
+          // ── Trending Pro-Shop Sports Gear (Marketplace Preview) ──
+          _buildTrendingShopSection(),
+
+          const SizedBox(height: 24),
+
+          // ── Active Tournaments & Championships ──
+          _buildTournamentsSection(),
+
+          const SizedBox(height: 24),
+
+          // ── Why SportVerse Core Platform Pillars ──
+          _buildWhySportVerseSection(),
+
+          const SizedBox(height: 24),
+
+          // ── Athlete Reviews & Turf Stories ──
+          _buildAthleteReviewsSection(),
+
+          const SizedBox(height: 24),
+
+          // ── Ground Owner Partnership Banner ──
+          _buildPartnerBannerSection(),
+
           const SizedBox(height: 90),
         ],
       ),
@@ -1134,6 +1174,959 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontSize: 10, color: AppColors.mutedText),
                         ),
                       ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── 1. Open Matches & Community Games (Find Teammates) ──
+  Widget _buildOpenMatchesSection() {
+    final openMatches = [
+      {
+        'title': '5v5 Night Turf Football Clash',
+        'venue': 'Kozhikode Football Arena, Court A',
+        'time': 'Today, 08:30 PM - 09:30 PM',
+        'sport': 'Football',
+        'icon': Icons.sports_soccer,
+        'needed': '2 players needed',
+        'spotsColor': const Color(0xFFEF4444),
+        'host': 'Captain Rahul',
+        'level': 'Intermediate',
+        'fee': '₹150 / player',
+      },
+      {
+        'title': 'Badminton Doubles Match Play',
+        'venue': 'Calicut Smash Badminton Academy',
+        'time': 'Tomorrow, 07:00 AM - 08:00 AM',
+        'sport': 'Badminton',
+        'icon': Icons.sports_tennis,
+        'needed': '1 player needed',
+        'spotsColor': const Color(0xFFD97706),
+        'host': 'Arun V.',
+        'level': 'Advanced',
+        'fee': '₹100 / player',
+      },
+      {
+        'title': 'Cricket T20 Box Match (8-a-side)',
+        'venue': 'Malabar Box Cricket Arena',
+        'time': 'Tomorrow, 05:00 PM - 07:00 PM',
+        'sport': 'Cricket',
+        'icon': Icons.sports_cricket,
+        'needed': '3 players needed',
+        'spotsColor': const Color(0xFF10B981),
+        'host': 'Shibin K.',
+        'level': 'All Levels',
+        'fee': '₹200 / player',
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.groups, color: AppColors.warmAccent, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Open Matches & Teams',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryBlack,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () => _openAIAssistant('Find open sports matches and teammates near me'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'Host Match',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warmAccent,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(Icons.add_circle_outline, size: 14, color: AppColors.warmAccent),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 160,
+          child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: openMatches.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final match = openMatches[index];
+              return Container(
+                width: 280,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor: AppColors.warmAccent.withValues(alpha: 0.15),
+                              child: Icon(match['icon'] as IconData, size: 14, color: AppColors.warmAccent),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              match['sport'] as String,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (match['spotsColor'] as Color).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            match['needed'] as String,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: match['spotsColor'] as Color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          match['title'] as String,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule, size: 11, color: AppColors.mutedText),
+                            const SizedBox(width: 4),
+                            Text(
+                              match['time'] as String,
+                              style: const TextStyle(fontSize: 10.5, color: AppColors.secondaryText),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          match['fee'] as String,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.warmAccent),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Joined "${match['title']}"! Captain ${match['host']} notified.'),
+                                backgroundColor: AppColors.primaryBlack,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlack,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: const Size(60, 28),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Join Match', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 2. Trending Pro-Shop Sports Gear (Marketplace Preview) ──
+  Widget _buildTrendingShopSection() {
+    final trendingShopGear = [
+      {
+        'title': 'Yonex Astrox 100 ZZ',
+        'category': 'Badminton Racket',
+        'price': '₹12,999',
+        'originalPrice': '₹14,499',
+        'rating': '4.9',
+        'reviews': '142',
+        'image': 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80',
+        'tag': 'Best Seller',
+      },
+      {
+        'title': 'Asics Gel Rocket 11 Shoes',
+        'category': 'Court Shoes',
+        'price': '₹4,299',
+        'originalPrice': '₹4,999',
+        'rating': '4.7',
+        'reviews': '89',
+        'image': 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80',
+        'tag': 'Non-Marking',
+      },
+      {
+        'title': 'Nike Strike Pro Football',
+        'category': 'Match Ball',
+        'price': '₹1,499',
+        'originalPrice': '₹1,999',
+        'rating': '4.8',
+        'reviews': '112',
+        'image': 'https://images.unsplash.com/photo-1614632537197-38a17061c2bd?auto=format&fit=crop&w=800&q=80',
+        'tag': '25% OFF',
+      },
+      {
+        'title': 'Spalding TF-1000 Basketball',
+        'category': 'Official Game Ball',
+        'price': '₹2,899',
+        'originalPrice': '₹3,499',
+        'rating': '4.9',
+        'reviews': '95',
+        'image': 'https://images.unsplash.com/photo-1519766304817-4f37bda74a29?auto=format&fit=crop&w=800&q=80',
+        'tag': 'Official',
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.shopping_bag_outlined, color: AppColors.warmAccent, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Trending Gear & Pro-Shop',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryBlack,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _currentBottomTab = 3),
+                child: const Row(
+                  children: [
+                    Text(
+                      'View Shop',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warmAccent,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.warmAccent),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 225,
+          child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: trendingShopGear.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final item = trendingShopGear[index];
+              return GestureDetector(
+                onTap: () => setState(() => _currentBottomTab = 3),
+                child: Container(
+                  width: 165,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                            child: Image.network(
+                              item['image'] as String,
+                              height: 105,
+                              width: 165,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                height: 105,
+                                color: Colors.grey.shade100,
+                                child: const Icon(Icons.sports, color: AppColors.mutedText),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.warmAccent,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                item['tag'] as String,
+                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['title'] as String,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item['category'] as String,
+                              style: const TextStyle(fontSize: 10, color: AppColors.secondaryText),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['price'] as String,
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppColors.warmAccent),
+                                    ),
+                                    Text(
+                                      item['originalPrice'] as String,
+                                      style: const TextStyle(
+                                        fontSize: 9.5,
+                                        color: AppColors.mutedText,
+                                        decoration: TextDecoration.lineThrough,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryBlack,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.add_shopping_cart, size: 14, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 3. Active Tournaments & Championships ──
+  Widget _buildTournamentsSection() {
+    final tournaments = [
+      {
+        'title': 'Kerala Super Turf League 2026',
+        'sport': 'Football 5v5',
+        'prize': '₹50,000 Prize Pool',
+        'teams': '16 Teams Competing',
+        'date': 'Sep 05 - Sep 07, 2026',
+        'location': 'Kozhikode Arena',
+        'badge': 'Filling Fast 🔥',
+        'badgeColor': const Color(0xFFDC2626),
+        'entry': '₹1,500 / Team',
+      },
+      {
+        'title': 'Calicut Smash Badminton Open',
+        'sport': 'Badminton Doubles',
+        'prize': '₹25,000 Prize Pool',
+        'teams': '32 Pairs (Men & Mixed)',
+        'date': 'Sep 12 - Sep 13, 2026',
+        'location': 'Smash Badminton Club',
+        'badge': 'Open for Entry',
+        'badgeColor': const Color(0xFF16A34A),
+        'entry': '₹600 / Pair',
+      },
+      {
+        'title': 'Malabar T20 Box Cricket Cup',
+        'sport': 'Box Cricket',
+        'prize': '₹75,000 Prize Pool',
+        'teams': '24 Teams',
+        'date': 'Sep 20 - Sep 22, 2026',
+        'location': 'Malabar Turf Arena',
+        'badge': 'Cash Prize 🏆',
+        'badgeColor': const Color(0xFFD97706),
+        'entry': '₹2,000 / Team',
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.emoji_events_outlined, color: AppColors.warmAccent, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Tournaments & Leagues',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryBlack,
+                    ),
+                  ),
+                ],
+              ),
+              GestureDetector(
+                onTap: () => _openAIAssistant('Tell me about upcoming tournaments in Kerala'),
+                child: const Row(
+                  children: [
+                    Text(
+                      'All Events',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warmAccent,
+                      ),
+                    ),
+                    SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.warmAccent),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 175,
+          child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: tournaments.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              final tourney = tournaments[index];
+              return Container(
+                width: 290,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1E1B18), Color(0xFF2C241E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.4), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.emoji_events, color: Colors.amber, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              tourney['prize'] as String,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: (tourney['badgeColor'] as Color).withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: (tourney['badgeColor'] as Color).withValues(alpha: 0.6)),
+                          ),
+                          child: Text(
+                            tourney['badge'] as String,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: tourney['badgeColor'] as Color,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tourney['title'] as String,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '📅 ${tourney['date']} • 📍 ${tourney['location']}',
+                          style: const TextStyle(fontSize: 10.5, color: Color(0xFFD4C7BC)),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          tourney['entry'] as String,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white70),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Tournament registration open for "${tourney['title']}"!'),
+                                backgroundColor: AppColors.primaryBlack,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.warmAccent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: const Size(70, 28),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('Register Team', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 4. Why SportVerse Core Platform Pillars ──
+  Widget _buildWhySportVerseSection() {
+    final pillars = [
+      {
+        'icon': Icons.qr_code_scanner_rounded,
+        'title': 'Instant QR Entry',
+        'desc': 'Zero waiting. Dynamic gate ticket pass generated upon booking.',
+      },
+      {
+        'icon': Icons.auto_awesome,
+        'title': 'AI Matchmaking',
+        'desc': 'Smart algorithms recommend slots & players matching your skill.',
+      },
+      {
+        'icon': Icons.verified_rounded,
+        'title': 'FIFA & BWF Certified',
+        'desc': 'All venues undergo 12-point quality turf & lighting audits.',
+      },
+      {
+        'icon': Icons.security_rounded,
+        'title': 'Razorpay & UPI',
+        'desc': '100% encrypted checkout with instant refund protection.',
+      },
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.shield_outlined, color: AppColors.warmAccent, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Why SportVerse?',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryBlack,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'The complete ecosystem for athletes, turf owners, and sports clubs.',
+            style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+          ),
+          const SizedBox(height: 16),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: pillars.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.45,
+            ),
+            itemBuilder: (context, index) {
+              final p = pillars[index];
+              return Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(p['icon'] as IconData, size: 22, color: AppColors.warmAccent),
+                    const SizedBox(height: 6),
+                    Text(
+                      p['title'] as String,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                    ),
+                    const SizedBox(height: 2),
+                    Expanded(
+                      child: Text(
+                        p['desc'] as String,
+                        style: const TextStyle(fontSize: 10, color: AppColors.mutedText, height: 1.2),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 5. Athlete Reviews & Turf Stories ──
+  Widget _buildAthleteReviewsSection() {
+    final reviews = [
+      {
+        'name': 'Fahad Mohammed',
+        'sport': 'Footballer',
+        'rating': 5,
+        'comment': 'The synthetic turf quality at Kozhikode Arena is top notch! QR check-in took 2 seconds.',
+        'venue': 'Kozhikode Arena',
+      },
+      {
+        'name': 'Anjali Nair',
+        'sport': 'Badminton Player',
+        'rating': 5,
+        'comment': 'Wooden court cushioning is exceptional. Booking through Razorpay was seamless and quick.',
+        'venue': 'Smash Badminton Academy',
+      },
+      {
+        'name': 'Deepak Menon',
+        'sport': 'Box Cricket',
+        'rating': 5,
+        'comment': 'AI Injury Assistant gave instant first aid advice when I twisted my ankle on court!',
+        'venue': 'Malabar Turf Club',
+      },
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Icon(Icons.rate_review_outlined, color: AppColors.warmAccent, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Player Reviews & Stories',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryBlack,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 135,
+          child: ListView.separated(
+            physics: const BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: reviews.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final r = reviews[index];
+              return Container(
+                width: 260,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundColor: AppColors.warmAccent.withValues(alpha: 0.15),
+                              child: Text(
+                                (r['name'] as String).substring(0, 1),
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.warmAccent),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  r['name'] as String,
+                                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  r['sport'] as String,
+                                  style: const TextStyle(fontSize: 9.5, color: AppColors.mutedText),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: List.generate(
+                            5,
+                            (i) => const Icon(Icons.star, size: 11, color: Colors.amber),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      '"${r['comment']}"',
+                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: AppColors.secondaryText, height: 1.3),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '🏟️ ${r['venue']}',
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.warmAccent),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── 6. Ground Owner Partnership Banner ──
+  Widget _buildPartnerBannerSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF131110), Color(0xFF261D17)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.5), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: AppColors.warmAccent.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.storefront_rounded, color: AppColors.warmAccent, size: 26),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'OWN A SPORTS ARENA?',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.warmAccent,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Partner with SportVerse',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Boost bookings by 3x with automated slot pricing & QR entry.',
+                    style: TextStyle(fontSize: 10.5, color: Color(0xFFD4C7BC), height: 1.3),
+                  ),
+                  const SizedBox(height: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final authenticated = await AuthService.requireAuth(
+                        context,
+                        message: 'Sign in to register and list your sports facility',
+                      );
+                      if (authenticated && mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const BecomeGroundOwnerScreen()),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.warmAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: const Size(120, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    icon: const Icon(Icons.add_business_outlined, size: 14),
+                    label: const Text(
+                      'List Your Ground Now',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -1367,9 +2360,9 @@ class _AIAssistantSheetState extends State<AIAssistantSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        FormattedMarkdownText(
-                          text: msg['text'] as String,
-                          baseStyle: TextStyle(
+                        Text(
+                          msg['text'] as String,
+                          style: TextStyle(
                             fontSize: 13,
                             height: 1.4,
                             color: isUser ? Colors.white : AppColors.primaryBlack,

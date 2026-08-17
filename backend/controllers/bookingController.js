@@ -65,6 +65,43 @@ exports.createBooking = async (req, res) => {
     const { user_id, user_name, ground_id, ground_name, sport_type, date, slot_time, total_price, slot_id } = req.body;
     const booking_id = 'SPV-BK-' + Math.floor(1000 + Math.random() * 9000);
 
+    // 0. Validate that booking date and slot time have not already passed
+    const bookingDateStr = date || new Date().toISOString().split('T')[0];
+    const now = new Date();
+    // Use local date string comparison in YYYY-MM-DD
+    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    if (bookingDateStr < todayLocalStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book a court slot for a past date. Please select today or a future date.'
+      });
+    }
+
+    if (bookingDateStr === todayLocalStr && slot_time) {
+      try {
+        const timePart = slot_time.split('-')[0].trim();
+        const match = timePart.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (match) {
+          let hour = parseInt(match[1], 10);
+          const minute = parseInt(match[2], 10);
+          const ampm = match[3] ? match[3].toUpperCase() : null;
+          if (ampm === 'PM' && hour < 12) hour += 12;
+          if (ampm === 'AM' && hour === 12) hour = 0;
+
+          const slotDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute);
+          if (slotDateTime < now) {
+            return res.status(400).json({
+              success: false,
+              message: 'This time slot has already passed for today. Please select an upcoming slot.'
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Slot time validation parse warning:', e);
+      }
+    }
+
     // 1. Look up normalized Ground document
     let groundDoc = null;
     if (ground_id) {
@@ -100,6 +137,45 @@ exports.createBooking = async (req, res) => {
     const resolvedUserName = user_name || (userDoc ? userDoc.fullName : 'Guest User');
     const resolvedPrice = Number(total_price) || (groundDoc ? groundDoc.price_per_hour : 800);
     const resolvedUserId = userDoc ? String(userDoc._id) : (user_id || 1);
+
+    // 3. Double-check if the slot(s) for this ground on this date is ALREADY booked!
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    const incomingSlots = (slot_time || '').split(',').map(s => s.trim()).filter(Boolean);
+    
+    if (incomingSlots.length > 0) {
+      const groundMatchQuery = [];
+      if (groundDoc) {
+        groundMatchQuery.push({ ground: groundDoc._id });
+        groundMatchQuery.push({ ground_id: groundDoc.ground_id || groundDoc._id });
+      }
+      if (ground_id) {
+        groundMatchQuery.push({ ground_id: ground_id });
+        if (isObjectIdString(ground_id)) groundMatchQuery.push({ ground: ground_id });
+      }
+      if (resolvedGroundName) {
+        groundMatchQuery.push({ ground_name: new RegExp(`^${resolvedGroundName.trim()}$`, 'i') });
+      }
+
+      const existingActiveBookings = await Booking.find({
+        $or: groundMatchQuery,
+        date: targetDate,
+        booking_status: { $nin: ['Cancelled', 'Refunded'] }
+      });
+
+      for (const slot of incomingSlots) {
+        const isConflict = existingActiveBookings.some(b => {
+          const bookedSlots = (b.slot_time || '').split(',').map(s => s.trim());
+          return bookedSlots.includes(slot) || b.slot_time === slot;
+        });
+
+        if (isConflict) {
+          return res.status(400).json({
+            success: false,
+            message: `Slot "${slot}" is already booked for ${targetDate}. Please choose another available slot.`
+          });
+        }
+      }
+    }
 
     const bookingData = {
       booking_id,
@@ -389,18 +465,44 @@ exports.checkInBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: `Booking not found for ID: ${trimmedId}` });
     }
 
-    const wasAlreadyCompleted = booking.booking_status === 'Completed';
+    // Check if QR pass is ALREADY SCANNED / EXPIRED
+    if (booking.booking_status === 'Completed' || booking.is_qr_expired === true || booking.qr_scanned === true) {
+      console.warn(`⚠️ Rejected scan: Booking ${booking.booking_id} (${booking.user_name}) is ALREADY EXPIRED.`);
+      return res.status(200).json({
+        success: false,
+        expired: true,
+        alreadyCheckedIn: true,
+        message: `⚠️ QR Ticket Expired! Pass #${booking.booking_id} for ${booking.user_name || 'Player'} has ALREADY been scanned and used. Duplicate entry denied.`,
+        booking: {
+          booking_id: booking.booking_id,
+          user_name: booking.user_name || (booking.user ? booking.user.fullName : 'Player'),
+          ground_name: booking.ground_name || (booking.ground ? booking.ground.title : 'Sports Arena'),
+          sport_type: booking.sport_type,
+          date: booking.date,
+          slot_time: booking.slot_time,
+          total_price: booking.total_price,
+          booking_status: 'Completed (Expired)',
+          is_qr_expired: true,
+          payment_status: booking.payment_status,
+          qr_code: booking.qr_code,
+        }
+      });
+    }
+
+    // First time scan: Expire QR ticket immediately and confirm entry
     booking.booking_status = 'Completed';
+    booking.is_qr_expired = true;
+    booking.qr_scanned = true;
+    booking.scanned_at = new Date();
     await booking.save();
 
-    console.log(`🎟️ Check-in confirmed for Booking ${booking.booking_id} (${booking.user_name || 'Player'})`);
+    console.log(`🎟️ First-time check-in confirmed & QR EXPIRED for Booking ${booking.booking_id} (${booking.user_name || 'Player'})`);
 
     return res.status(200).json({
       success: true,
-      alreadyCheckedIn: wasAlreadyCompleted,
-      message: wasAlreadyCompleted
-        ? `Booking ${booking.booking_id} for ${booking.user_name || 'Player'} is already checked in.`
-        : `Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id})!`,
+      expired: false,
+      alreadyCheckedIn: false,
+      message: `✅ Entry Approved! Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id}). QR ticket is now EXPIRED.`,
       booking: {
         booking_id: booking.booking_id,
         user_name: booking.user_name || (booking.user ? booking.user.fullName : 'Player'),
@@ -409,13 +511,76 @@ exports.checkInBooking = async (req, res) => {
         date: booking.date,
         slot_time: booking.slot_time,
         total_price: booking.total_price,
-        booking_status: booking.booking_status,
+        booking_status: 'Completed',
+        is_qr_expired: true,
         payment_status: booking.payment_status,
         qr_code: booking.qr_code,
       }
     });
   } catch (error) {
     console.error('❌ checkInBooking error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get booked slots for a ground on a specific date (or all dates)
+// @route   GET /api/bookings/ground/:groundId
+// @access  Public
+exports.getGroundBookedSlots = async (req, res) => {
+  try {
+    const { groundId } = req.params;
+    const { date } = req.query;
+
+    const groundMatchQuery = [];
+    if (isObjectIdString(groundId)) {
+      groundMatchQuery.push({ ground: groundId });
+    }
+    const numId = parseInt(groundId, 10);
+    if (!isNaN(numId)) {
+      groundMatchQuery.push({ ground_id: numId });
+    }
+    groundMatchQuery.push({ ground_id: groundId });
+
+    let groundDoc = null;
+    if (isObjectIdString(groundId)) groundDoc = await Ground.findById(groundId);
+    if (!groundDoc && !isNaN(numId)) groundDoc = await Ground.findOne({ ground_id: numId });
+    if (groundDoc) {
+      groundMatchQuery.push({ ground_name: new RegExp(`^${groundDoc.title.trim()}$`, 'i') });
+      groundMatchQuery.push({ ground: groundDoc._id });
+    }
+
+    const query = {
+      $or: groundMatchQuery,
+      booking_status: { $nin: ['Cancelled', 'Refunded'] }
+    };
+
+    if (date) {
+      query.date = date;
+    }
+
+    const bookings = await Booking.find(query).select('booking_id date slot_time booking_status user_name');
+
+    const bookedSlotTimes = [];
+    bookings.forEach(b => {
+      if (b.slot_time) {
+        b.slot_time.split(',').forEach(s => {
+          const trimmed = s.trim();
+          if (trimmed && !bookedSlotTimes.includes(trimmed)) {
+            bookedSlotTimes.push(trimmed);
+          }
+        });
+      }
+    });
+
+    return res.json({
+      success: true,
+      groundId,
+      date: date || 'all',
+      bookedSlotTimes,
+      bookings
+    });
+  } catch (error) {
+    console.error('❌ getGroundBookedSlots error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

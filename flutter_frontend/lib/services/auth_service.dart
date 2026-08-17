@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint, debugPrintStack;
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
+import '../screens/login_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Google Sign-In Architecture:
@@ -26,13 +28,52 @@ class AuthService {
   // ── Base URL ──────────────────────────────────────────────────────────────
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return dotenv.env['ANDROID_API_URL'] ?? 'http://192.168.57.228:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
     }
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
   static String? currentToken;
   static Map<String, dynamic>? currentUser;
+
+  /// Check whether the user is fully logged in with an active session
+  static bool get isLoggedIn => currentToken != null && currentUser != null;
+
+  /// Protect any interactive feature: if the user is not signed in,
+  /// opens LoginScreen and returns true if authenticated, false otherwise.
+  static Future<bool> requireAuth(BuildContext context, {String? message}) async {
+    if (!isLoggedIn) {
+      if (message != null && message.isNotEmpty) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.lock_outline, color: Colors.amberAccent, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return isLoggedIn;
+    }
+    return true;
+  }
 
   // ── Profile Update ────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> updateProfile({
@@ -43,14 +84,15 @@ class AuthService {
     String? bio,
     String? role,
   }) async {
-    if (currentUser != null) {
-      currentUser!['fullName'] = fullName;
-      currentUser!['full_name'] = fullName;
-      currentUser!['phone'] = phone;
-      if (location != null) currentUser!['location'] = location;
-      if (favoriteSport != null) currentUser!['favoriteSport'] = favoriteSport;
-      if (bio != null) currentUser!['bio'] = bio;
-      if (role != null) currentUser!['role'] = role;
+    final curr = currentUser;
+    if (curr != null) {
+      curr['fullName'] = fullName;
+      curr['full_name'] = fullName;
+      curr['phone'] = phone;
+      if (location != null) curr['location'] = location;
+      if (favoriteSport != null) curr['favoriteSport'] = favoriteSport;
+      if (bio != null) curr['bio'] = bio;
+      if (role != null) curr['role'] = role;
     }
     if (currentToken == null) {
       return {'success': true, 'message': 'Profile updated locally'};

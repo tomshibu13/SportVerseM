@@ -18,16 +18,16 @@ const { checkMedicationSafety } = require('./medicationSafetyService');
 
 // 1. Injury & Sports-Health Keyword Patterns
 const INJURY_PATTERNS = [
-  /\b(twist(ed|ing)?\s+(ankle|knee|wrist|foot|leg))\b/i,
-  /\b(sprain(ed|s)?|strain(ed|s)?|pulled\s+(muscle|hamstring|calf|quad|groin))\b/i,
-  /\b(acl|mcl|pcl|lcl|meniscus|rotator\s+cuff|achilles|tendonitis|tendinopathy)\b/i,
+  /\b(injury|injuries|injured|injuring|hurt|hurts|hurting|pain|painful|ache|aching|aches|sore|soreness|wound|damage)\b/i,
+  /\b(knee|ankle|wrist|foot|feet|leg|legs|shoulder|elbow|hamstring|calf|calves|groin|back|neck|thigh|shin|hip|quad|muscle|joint|tendon|ligament|bone|heel|toe|finger|spine)\b/i,
+  /\b(sprain|sprains|sprained|spraining|strain|strains|strained|straining|tear|tears|torn|twist|twists|twisted|twisting|pull|pulls|pulled|pulling|rupture|ruptured|fracture|fractured|dislocat(ed|ion)?|swelling|swollen|bruis(e|ed|ing)?|cramp|cramps|cramping|popping|clicking|locked)\b/i,
+  /\b(acl|mcl|pcl|lcl|meniscus|rotator\s+cuff|achilles|tendonitis|tendinopathy|plantar\s+fasciitis|shin\s+splints|runner'?s\s+knee|tennis\s+elbow|golfer'?s\s+elbow)\b/i,
   /\b(concussion|head\s+(injury|trauma|blow|impact)|dizzy|dizziness|loss\s+of\s+consciousness)\b/i,
   /\b(heat\s+(exhaustion|stroke|illness|cramp)|dehydration|dehydrated|severe\s+thirst)\b/i,
-  /\b(swelling|swollen|bruis(e|ing)|fracture|dislocat(ed|ion)|broken\s+bone|popping\s+sound)\b/i,
-  /\b(cannot\s+(walk|bear\s+weight|move)|can't\s+(walk|bear\s+weight|move)|walk\s+with\s+support|bear\s+weight)\b/i,
-  /\b(rice\s+protocol|first\s+aid\s+for|injury\s+recovery|healing\s+time|return\s+to\s+sport|when\s+can\s+i\s+play)\b/i,
+  /\b(cannot\s+(walk|bear\s+weight|move)|can't\s+(walk|bear\s+weight|move)|walk\s+with\s+support|bear\s+weight|limp|limping)\b/i,
+  /\b(rice\s+protocol|first\s+aid|injury\s+recovery|healing\s+time|return\s+to\s+sport|when\s+can\s+i\s+play|ice\s+vs\s+heat|cold\s+pack|heating\s+pad|ice\s+or\s+heat)\b/i,
   /\b(pain\s+(is|in|level|scale|\d|severe|mild|moderate)|hurt(s|ing)?\s+(my|in|when))\b/i,
-  /\b(sports\s+injury|injury\s+assessment|rehab(ilitation)?\s+exercises?)\b/i
+  /\b(sports\s+injury|injury\s+assessment|rehab(ilitation)?\s+exercises?|physio(therapy)?)\b/i
 ];
 
 // 2. Booking Patterns

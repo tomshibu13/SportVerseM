@@ -8,10 +8,10 @@ class InjuryChatScreen extends StatefulWidget {
   final InjuryReport report;
   final String? initialMessage;
 
-  const InjuryChatScreen({Key? key, required this.report, this.initialMessage}) : super(key: key);
+  const InjuryChatScreen({super.key, required this.report, this.initialMessage});
 
   @override
-  _InjuryChatScreenState createState() => _InjuryChatScreenState();
+  State<InjuryChatScreen> createState() => _InjuryChatScreenState();
 }
 
 class _InjuryChatScreenState extends State<InjuryChatScreen> {
@@ -56,12 +56,14 @@ class _InjuryChatScreenState extends State<InjuryChatScreen> {
     try {
       final response = await InjuryService.sendChatMessage(widget.report.id, text);
       final reply = response['reply'];
+      if (!mounted) return;
       setState(() {
         _messages.add(ChatMessage(role: 'model', content: reply, timestamp: DateTime.now()));
         _isLoading = false;
       });
       _scrollToBottom();
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -89,7 +91,7 @@ class _InjuryChatScreenState extends State<InjuryChatScreen> {
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            color: AppColors.lightDecorAccent.withOpacity(0.5),
+            color: AppColors.lightDecorAccent.withValues(alpha: 0.5),
             width: double.infinity,
             child: Text(
               '${widget.report.sport} • ${widget.report.bodyPart}',
