@@ -109,17 +109,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       _showSnackBar('Please enter your email');
       return;
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     if (!emailRegex.hasMatch(email)) {
-      _showSnackBar('Please enter a valid email');
+      _showSnackBar('Please enter a valid email address');
       return;
     }
     if (password.isEmpty) {
       _showSnackBar('Please enter your password');
       return;
     }
-    if (password.length < 8) {
-      _showSnackBar('Password must contain at least 8 characters');
+    if (password.length < 6) {
+      _showSnackBar('Password must contain at least 6 characters');
       return;
     }
 
@@ -326,18 +326,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         onPressed: _isLoading ? null : () async {
                                           setState(() => _isLoading = true);
                                           final result = await AuthService.signInWithGoogle();
-                                          if (mounted) {
-                                            setState(() => _isLoading = false);
-                                            _showSnackBar(result['message'] as String);
-                                            if (result['success'] == true) {
-                                              final isNewUser = result['data']?['isNewUser'] == true;
-                                              Navigator.pushReplacement(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
-                                                ),
-                                              );
-                                            }
+                                          if (!mounted) return;
+                                          setState(() => _isLoading = false);
+                                          _showSnackBar(result['message'] as String);
+                                          if (result['success'] == true) {
+                                            final isNewUser = result['data']?['isNewUser'] == true;
+                                            Navigator.pushReplacement(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                              ),
+                                            );
                                           }
                                         },
                                         style: OutlinedButton.styleFrom(

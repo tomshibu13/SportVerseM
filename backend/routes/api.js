@@ -28,6 +28,7 @@ router.put('/notifications/:id/read', notificationController.markAsRead);
 router.get('/grounds', groundController.getAllGrounds);
 router.get('/grounds/:id', groundController.getGroundById);
 router.post('/grounds', groundController.createGround);
+router.put('/grounds/:id', groundController.updateGround);
 router.put('/grounds/:id/approve', groundController.approveGround);
 router.put('/grounds/:id/status', groundController.approveGround);
 router.delete('/grounds/:id', groundController.deleteGround);

@@ -38,12 +38,18 @@ class AuthService {
   static Future<Map<String, dynamic>> updateProfile({
     required String fullName,
     required String phone,
+    String? location,
+    String? favoriteSport,
+    String? bio,
     String? role,
   }) async {
     if (currentUser != null) {
       currentUser!['fullName'] = fullName;
       currentUser!['full_name'] = fullName;
       currentUser!['phone'] = phone;
+      if (location != null) currentUser!['location'] = location;
+      if (favoriteSport != null) currentUser!['favoriteSport'] = favoriteSport;
+      if (bio != null) currentUser!['bio'] = bio;
       if (role != null) currentUser!['role'] = role;
     }
     if (currentToken == null) {
@@ -59,6 +65,9 @@ class AuthService {
         body: jsonEncode({
           'fullName': fullName,
           'phone': phone,
+          if (location != null) 'location': location,
+          if (favoriteSport != null) 'favoriteSport': favoriteSport,
+          if (bio != null) 'bio': bio,
           if (role != null) 'role': role,
         }),
       ).timeout(const Duration(seconds: 5));
@@ -242,15 +251,11 @@ class AuthService {
       }
 
       // Step 1: Trigger Google OAuth 2.0 consent screen
-      final GoogleSignInAccount? googleUser =
+      final GoogleSignInAccount googleUser =
           await GoogleSignIn.instance.authenticate();
 
-      if (googleUser == null) {
-        return {'success': false, 'message': 'Google Sign-In was cancelled'};
-      }
-
       // Step 2: Get the ID token from Google
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken == null) {
@@ -280,7 +285,7 @@ class AuthService {
     String role = 'User',
   }) async {
     try {
-      final GoogleSignInAuthentication auth = await account.authentication;
+      final GoogleSignInAuthentication auth = account.authentication;
       final String? idToken = auth.idToken;
 
       if (idToken == null) {

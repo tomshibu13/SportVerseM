@@ -3,9 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../theme/app_theme.dart';
-import '../widgets/custom_graphics.dart';
 import '../widgets/top_navigation_bar.dart';
 import '../models/ground_model.dart';
+import '../services/api_service.dart';
+import 'ground_booking_screen.dart';
 
 class FindNearbyScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -27,12 +28,17 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
   GroundModel? _selectedGround;
   bool _isListViewFull = false;
   bool _isFetchingLocation = false;
-  final Set<int> _favoriteGroundIds = {102}; // Mock favorite state
+  bool _isLoadingGrounds = true;
+
+  // Live database grounds loaded from MongoDB
+  List<GroundModel> _databaseGrounds = [];
+
+  final Set<int> _favoriteGroundIds = {};
 
   // Live user position (Default: Calicut center coordinate)
   LatLng _userLocation = const LatLng(11.2588, 75.7804);
 
-  // Sports filters matching the screenshot
+  // Sports filters
   final List<Map<String, dynamic>> _sportFilters = [
     {'name': 'All Sports', 'icon': Icons.grid_view_rounded},
     {'name': 'Football', 'icon': Icons.sports_soccer_rounded},
@@ -40,100 +46,6 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
     {'name': 'Basketball', 'icon': Icons.sports_basketball_rounded},
     {'name': 'Cricket', 'icon': Icons.sports_cricket_rounded},
     {'name': 'Tennis', 'icon': Icons.sports_baseball_rounded},
-  ];
-
-  // Venues data with coordinates for OpenStreetMap
-  final List<Map<String, dynamic>> _venuesData = [
-    {
-      'id': 102,
-      'title': 'Smash Court',
-      'sport': 'Badminton',
-      'rating': 4.8,
-      'reviews': 120,
-      'distanceKm': 1.2,
-      'pricePerHour': 400,
-      'operatingHours': '6:00 AM - 11:00 PM',
-      'isFeatured': true,
-      'location': 'Calicut, Kerala',
-      'address': 'Mavoor Road, Kozhikode',
-      'coords': const LatLng(11.2650, 75.7720),
-      'color': const Color(0xFF2E7D32), // Green
-      'sportIcon': Icons.sports_tennis_rounded,
-      'image':
-          'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      'id': 101,
-      'title': 'Kickoff Arena',
-      'sport': 'Football',
-      'rating': 4.6,
-      'reviews': 98,
-      'distanceKm': 1.5,
-      'pricePerHour': 800,
-      'operatingHours': '5:00 AM - 12:00 AM',
-      'isFeatured': false,
-      'location': 'Malaparamba, Calicut',
-      'address': 'Near Bypass Junction, Kozhikode',
-      'coords': const LatLng(11.2480, 75.7910),
-      'color': const Color(0xFF1565C0), // Blue
-      'sportIcon': Icons.sports_soccer_rounded,
-      'image':
-          'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      'id': 103,
-      'title': 'Hoopster Court',
-      'sport': 'Basketball',
-      'rating': 4.7,
-      'reviews': 76,
-      'distanceKm': 2.1,
-      'pricePerHour': 600,
-      'operatingHours': '6:00 AM - 10:00 PM',
-      'isFeatured': false,
-      'location': 'Kozhikode, Kerala',
-      'address': 'Medical College Road, Calicut',
-      'coords': const LatLng(11.2720, 75.7980),
-      'color': const Color(0xFFE65100), // Orange
-      'sportIcon': Icons.sports_basketball_rounded,
-      'image':
-          'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      'id': 105,
-      'title': 'Super Strikers Cricket Box',
-      'sport': 'Cricket',
-      'rating': 4.8,
-      'reviews': 175,
-      'distanceKm': 1.8,
-      'pricePerHour': 1000,
-      'operatingHours': '6:00 AM - 11:30 PM',
-      'isFeatured': false,
-      'location': 'Feroke, Calicut',
-      'address': 'Station Road, Feroke',
-      'coords': const LatLng(11.2390, 75.7760),
-      'color': const Color(0xFFC62828), // Red
-      'sportIcon': Icons.sports_cricket_rounded,
-      'image':
-          'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-      'id': 104,
-      'title': 'Smash Tennis Club',
-      'sport': 'Tennis',
-      'rating': 4.7,
-      'reviews': 65,
-      'distanceKm': 3.4,
-      'pricePerHour': 900,
-      'operatingHours': '6:00 AM - 9:00 PM',
-      'isFeatured': false,
-      'location': 'West Hill, Calicut',
-      'address': 'Beach Road, West Hill',
-      'coords': const LatLng(11.2810, 75.7650),
-      'color': const Color(0xFF2E7D32),
-      'sportIcon': Icons.sports_baseball_rounded,
-      'image':
-          'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=800&q=80',
-    },
   ];
 
   @override
@@ -145,8 +57,11 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
 
-    // Fetch initial device GPS geolocation silently
+    // 1. Fetch initial device GPS geolocation
     _getCurrentUserLocation(showToast: false);
+
+    // 2. Fetch live grounds directly from database
+    _fetchDatabaseGrounds();
   }
 
   @override
@@ -155,13 +70,36 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
     super.dispose();
   }
 
-  // Fetch Live Device Location via Geolocator with Failsafe Fallbacks
+  // Fetch Live Grounds from MongoDB via ApiService
+  Future<void> _fetchDatabaseGrounds() async {
+    if (!mounted) return;
+    setState(() => _isLoadingGrounds = true);
+
+    try {
+      final grounds = await ApiService.fetchGrounds(
+        sport: _selectedSport == 'All Sports' ? 'All' : _selectedSport,
+        search: _searchQuery,
+      );
+
+      if (mounted) {
+        setState(() {
+          _databaseGrounds = grounds;
+          _isLoadingGrounds = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingGrounds = false);
+      }
+    }
+  }
+
+  // Fetch Live Device Location via Geolocator
   Future<void> _getCurrentUserLocation({bool showToast = true}) async {
     if (!mounted) return;
     setState(() => _isFetchingLocation = true);
 
     try {
-      // 1. Check if location services are enabled on device
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted && showToast) {
@@ -177,7 +115,6 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
         return;
       }
 
-      // 2. Check and request location permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -210,89 +147,142 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
         return;
       }
 
-      // 3. Try getting last known position first (Instant!)
       Position? position = await Geolocator.getLastKnownPosition();
-
-      // 4. If no cached position, request fresh position
       position ??= await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.medium,
-      ).timeout(const Duration(seconds: 10), onTimeout: () async {
+      ).timeout(const Duration(seconds: 8), onTimeout: () async {
         return await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.low,
         );
       });
 
-      final realLocation = LatLng(position.latitude, position.longitude);
-
-      if (mounted) {
+      final currentPos = position;
+      if (mounted && currentPos != null) {
         setState(() {
-          _userLocation = realLocation;
+          _userLocation = LatLng(currentPos.latitude, currentPos.longitude);
           _isFetchingLocation = false;
         });
 
-        _mapController.move(realLocation, 14.5);
+        _mapController.move(_userLocation, 14.0);
 
         if (showToast) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                '📍 Location updated! (${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)})',
-              ),
-              backgroundColor: AppColors.primaryBlack,
+                  '📍 Location updated (${currentPos.latitude.toStringAsFixed(3)}, ${currentPos.longitude.toStringAsFixed(3)})'),
+              backgroundColor: const Color(0xFF2E7D32),
               duration: const Duration(seconds: 2),
             ),
           );
         }
       }
-    } catch (e) {
-      debugPrint('Location fetch error: $e');
+    } catch (_) {
       if (mounted) {
         setState(() => _isFetchingLocation = false);
         _mapController.move(_userLocation, 14.0);
-        if (showToast) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('📍 Centered on Calicut, Kerala'),
-              backgroundColor: AppColors.primaryBlack,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
     }
   }
 
+  // Filtered and Sorted list of Database Grounds with dynamic distance
   List<Map<String, dynamic>> get _filteredVenues {
-    return _venuesData.map((venue) {
-      final coords = venue['coords'] as LatLng;
-      // Calculate dynamic distance in km from real user position
-      final meters = Geolocator.distanceBetween(
-        _userLocation.latitude,
-        _userLocation.longitude,
-        coords.latitude,
-        coords.longitude,
-      );
-      final dynamicKm = double.parse((meters / 1000).toStringAsFixed(1));
-      return {
-        ...venue,
-        'distanceKm': dynamicKm > 0 ? dynamicKm : venue['distanceKm'],
-      };
-    }).where((v) {
+    final rawGrounds = _databaseGrounds;
+    if (rawGrounds.isEmpty) return <Map<String, dynamic>>[];
+
+    final list = <Map<String, dynamic>>[];
+    for (final ground in rawGrounds) {
+      final lat = ground.latitude != 0.0 ? ground.latitude : 11.2588;
+      final lng = ground.longitude != 0.0 ? ground.longitude : 75.7804;
+      final coords = LatLng(lat, lng);
+
+      double dynamicKm = ground.distanceKm;
+      try {
+        final meters = Geolocator.distanceBetween(
+          _userLocation.latitude,
+          _userLocation.longitude,
+          coords.latitude,
+          coords.longitude,
+        );
+        final km = double.parse((meters / 1000).toStringAsFixed(1));
+        if (km > 0) dynamicKm = km;
+      } catch (_) {}
+
       final matchesSport = _selectedSport == 'All Sports' ||
-          v['sport'].toString().toLowerCase() == _selectedSport.toLowerCase();
+          ground.sportType.toLowerCase() == _selectedSport.toLowerCase();
       final matchesQuery = _searchQuery.isEmpty ||
-          v['title'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          v['location'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchesSport && matchesQuery;
-    }).toList()
-      ..sort((a, b) {
-        if (_sortBy == 'Rating') {
-          return (b['rating'] as double).compareTo(a['rating'] as double);
-        } else if (_sortBy == 'Price') {
-          return (a['pricePerHour'] as num).compareTo(b['pricePerHour'] as num);
-        }
-        return (a['distanceKm'] as num).compareTo(b['distanceKm'] as num);
-      });
+          ground.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          ground.location.toLowerCase().contains(_searchQuery.toLowerCase());
+
+      if (matchesSport && matchesQuery) {
+        list.add({
+          'id': ground.groundId,
+          'title': ground.title,
+          'sport': ground.sportType,
+          'rating': ground.rating,
+          'reviews': ground.reviewCount,
+          'distanceKm': dynamicKm,
+          'pricePerHour': ground.pricePerHour,
+          'operatingHours': '6:00 AM - 11:00 PM',
+          'isFeatured': ground.aiScore >= 95,
+          'location': ground.location,
+          'address': ground.address,
+          'coords': coords,
+          'color': _getSportColor(ground.sportType),
+          'sportIcon': _getSportIcon(ground.sportType),
+          'image': ground.images.isNotEmpty
+              ? ground.images.first
+              : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
+          'groundModel': ground,
+        });
+      }
+    }
+
+    list.sort((a, b) {
+      if (_sortBy == 'Rating') {
+        return (b['rating'] as double).compareTo(a['rating'] as double);
+      } else if (_sortBy == 'Price') {
+        return (a['pricePerHour'] as num).compareTo(b['pricePerHour'] as num);
+      }
+      return (a['distanceKm'] as num).compareTo(b['distanceKm'] as num);
+    });
+
+    return list;
+  }
+
+  Color _getSportColor(String sport) {
+    switch (sport.toLowerCase()) {
+      case 'football':
+      case 'soccer':
+        return const Color(0xFF1565C0);
+      case 'badminton':
+        return const Color(0xFF2E7D32);
+      case 'basketball':
+        return const Color(0xFFE65100);
+      case 'cricket':
+        return const Color(0xFFC62828);
+      case 'tennis':
+        return const Color(0xFF7B1FA2);
+      default:
+        return AppColors.warmAccent;
+    }
+  }
+
+  IconData _getSportIcon(String sport) {
+    switch (sport.toLowerCase()) {
+      case 'football':
+      case 'soccer':
+        return Icons.sports_soccer_rounded;
+      case 'badminton':
+        return Icons.sports_tennis_rounded;
+      case 'basketball':
+        return Icons.sports_basketball_rounded;
+      case 'cricket':
+        return Icons.sports_cricket_rounded;
+      case 'tennis':
+        return Icons.sports_baseball_rounded;
+      default:
+        return Icons.sports_rounded;
+    }
   }
 
   void _recenterMap() {
@@ -301,25 +291,9 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
 
   void _selectVenueOnMap(Map<String, dynamic> venue) {
     setState(() {
-      _selectedGround = GroundModel(
-        groundId: venue['id'],
-        title: venue['title'],
-        sportType: venue['sport'],
-        location: venue['location'],
-        address: venue['address'],
-        distanceKm: (venue['distanceKm'] as num).toDouble(),
-        pricePerHour: (venue['pricePerHour'] as num).toDouble(),
-        rating: (venue['rating'] as num).toDouble(),
-        reviewCount: venue['reviews'],
-        images: [venue['image']],
-        facilities: ['Lighting', 'Turf', 'Parking', 'Changing Room'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 95,
-        availableSlots: [],
-      );
+      _selectedGround = venue['groundModel'] as GroundModel;
     });
-    _mapController.move(venue['coords'] as LatLng, 15.0);
+    _mapController.move(venue['coords'] as LatLng, 15.5);
   }
 
   void _openVenueDetailsModal(Map<String, dynamic> venue) {
@@ -340,7 +314,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // ── TOP HEADER (Menu, Logo, Bell, Filter) ──
+            // ── TOP HEADER (Menu, Logo, Filter) ──
             _buildTopAppBar(),
 
             // ── LOCATION SELECTOR & SEARCH BAR ──
@@ -357,7 +331,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
             Expanded(
               child: Stack(
                 children: [
-                  // OpenStreetMap view
+                  // OpenStreetMap view with Exact Database Ground Coordinates
                   Positioned.fill(
                     child: FlutterMap(
                       mapController: _mapController,
@@ -370,15 +344,14 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                       children: [
                         // OpenStreetMap Standard Tile Layer
                         TileLayer(
-                          urlTemplate:
-                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.sportverse.ai',
                         ),
 
-                        // Map Markers Layer
+                        // Map Markers Layer (Exact Database Markings)
                         MarkerLayer(
                           markers: [
-                            // 1. User Location Pulse Marker
+                            // 1. User Live Location Pulse Marker
                             Marker(
                               point: _userLocation,
                               width: 60,
@@ -394,10 +367,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                         height: 24 + (_pulseController.value * 24),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF2196F3)
-                                              .withValues(
-                                                  alpha: 0.35 -
-                                                      (_pulseController.value *
-                                                          0.2)),
+                                              .withValues(alpha: 0.35 - (_pulseController.value * 0.2)),
                                           shape: BoxShape.circle,
                                         ),
                                       ),
@@ -409,8 +379,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
-                                              color:
-                                                  Colors.black.withValues(alpha: 0.2),
+                                              color: Colors.black.withValues(alpha: 0.2),
                                               blurRadius: 4,
                                             ),
                                           ],
@@ -432,14 +401,15 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                               ),
                             ),
 
-                            // 2. Sport Venue Pin Markers
+                            // 2. Exact Database Ground Pin Markers
                             ...filteredList.map((venue) {
-                              final isSelected =
-                                  _selectedGround?.groundId == venue['id'];
+                              final isSelected = _selectedGround?.groundId == venue['id'];
+                              final LatLng coords = venue['coords'] as LatLng;
+
                               return Marker(
-                                point: venue['coords'] as LatLng,
-                                width: isSelected ? 54 : 44,
-                                height: isSelected ? 54 : 44,
+                                point: coords,
+                                width: isSelected ? 56 : 46,
+                                height: isSelected ? 56 : 46,
                                 child: GestureDetector(
                                   onTap: () {
                                     _selectVenueOnMap(venue);
@@ -453,21 +423,20 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                     child: Stack(
                                       alignment: Alignment.center,
                                       children: [
-                                        // Pin background teardrop container
                                         Container(
-                                          width: isSelected ? 50 : 42,
-                                          height: isSelected ? 50 : 42,
+                                          width: isSelected ? 52 : 42,
+                                          height: isSelected ? 52 : 42,
                                           decoration: BoxDecoration(
                                             color: venue['color'] as Color,
                                             shape: BoxShape.circle,
                                             border: Border.all(
-                                                color: Colors.white,
-                                                width: isSelected ? 3 : 2),
+                                              color: Colors.white,
+                                              width: isSelected ? 3 : 2,
+                                            ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: (venue['color'] as Color)
-                                                    .withValues(alpha: 0.4),
-                                                blurRadius: isSelected ? 10 : 6,
+                                                color: (venue['color'] as Color).withValues(alpha: 0.45),
+                                                blurRadius: isSelected ? 12 : 6,
                                                 offset: const Offset(0, 3),
                                               ),
                                             ],
@@ -498,7 +467,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Locate Me Button (Crosshair Icon)
+                        // Locate Me Button
                         FloatingActionButton.small(
                           heroTag: 'locate_me_btn',
                           onPressed: _isFetchingLocation ? null : _recenterMap,
@@ -521,7 +490,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                 ),
                         ),
 
-                        // List View Toggle Button
+                        // List / Map View Toggle Button
                         ElevatedButton.icon(
                           onPressed: () {
                             setState(() {
@@ -532,16 +501,13 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                             backgroundColor: Colors.white,
                             foregroundColor: AppColors.primaryBlack,
                             elevation: 4,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                           icon: Icon(
-                            _isListViewFull
-                                ? Icons.map_outlined
-                                : Icons.format_list_bulleted_rounded,
+                            _isListViewFull ? Icons.map_outlined : Icons.format_list_bulleted_rounded,
                             size: 18,
                             color: AppColors.primaryBlack,
                           ),
@@ -558,7 +524,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                     ),
                   ),
 
-                  // ── DRAGGABLE SCROLLABLE SHEET FOR NEARBY GROUNDS ──
+                  // ── DRAGGABLE SCROLLABLE SHEET FOR DATABASE GROUNDS ──
                   DraggableScrollableSheet(
                     initialChildSize: _isListViewFull ? 0.90 : 0.44,
                     minChildSize: 0.22,
@@ -582,12 +548,10 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                         child: CustomScrollView(
                           controller: scrollController,
                           slivers: [
-                            // Drag handle and sheet header
                             SliverToBoxAdapter(
                               child: Column(
                                 children: [
                                   const SizedBox(height: 10),
-                                  // Drag indicator handle
                                   Container(
                                     width: 44,
                                     height: 4.5,
@@ -598,13 +562,11 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                   ),
                                   const SizedBox(height: 12),
 
-                                  // Sheet Header (Nearby Grounds & Sort by)
+                                  // Sheet Header
                                   Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 20),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20),
                                     child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Row(
                                           children: [
@@ -618,12 +580,10 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                             ),
                                             const SizedBox(width: 8),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8, vertical: 2),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                               decoration: BoxDecoration(
                                                 color: AppColors.lightDecorAccent,
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
+                                                borderRadius: BorderRadius.circular(10),
                                               ),
                                               child: Text(
                                                 '${filteredList.length}',
@@ -640,8 +600,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                         // Sort Dropdown
                                         PopupMenuButton<String>(
                                           initialValue: _sortBy,
-                                          onSelected: (val) =>
-                                              setState(() => _sortBy = val),
+                                          onSelected: (val) => setState(() => _sortBy = val),
                                           child: Row(
                                             children: [
                                               const Text(
@@ -690,43 +649,54 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                             ),
 
                             // Ground Cards List
-                            filteredList.isEmpty
-                                ? SliverToBoxAdapter(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(32.0),
-                                      child: Column(
-                                        children: [
-                                          Icon(
-                                            Icons.location_off_outlined,
-                                            size: 48,
-                                            color: Colors.grey.shade400,
-                                          ),
-                                          const SizedBox(height: 12),
-                                          const Text(
-                                            'No grounds found in this area',
-                                            style: TextStyle(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppColors.secondaryText,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                : SliverPadding(
-                                    padding:
-                                        const EdgeInsets.symmetric(horizontal: 16),
-                                    sliver: SliverList(
-                                      delegate: SliverChildBuilderDelegate(
-                                        (context, index) {
-                                          final venue = filteredList[index];
-                                          return _buildGroundCard(venue);
-                                        },
-                                        childCount: filteredList.length,
-                                      ),
+                            if (_isLoadingGrounds)
+                              const SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: EdgeInsets.all(40.0),
+                                  child: Center(
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.warmAccent,
                                     ),
                                   ),
+                                ),
+                              )
+                            else if (filteredList.isEmpty)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32.0),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.location_off_outlined,
+                                        size: 48,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'No grounds found in this area',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.secondaryText,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              SliverPadding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                sliver: SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) {
+                                      final venue = filteredList[index];
+                                      return _buildGroundCard(venue);
+                                    },
+                                    childCount: filteredList.length,
+                                  ),
+                                ),
+                              ),
 
                             const SliverToBoxAdapter(
                               child: SizedBox(height: 80),
@@ -750,8 +720,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
     return TopNavigationBar(
       onMenuPressed: widget.onBack,
       trailing: IconButton(
-        icon: const Icon(Icons.tune_outlined,
-            size: 22, color: AppColors.primaryBlack),
+        icon: const Icon(Icons.tune_outlined, size: 22, color: AppColors.primaryBlack),
         onPressed: _showFilterOptionsModal,
       ),
     );
@@ -784,8 +753,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.location_on_outlined,
-                      size: 16, color: AppColors.warmAccent),
+                  const Icon(Icons.location_on_outlined, size: 16, color: AppColors.warmAccent),
                   const SizedBox(width: 4),
                   Text(
                     _selectedLocation,
@@ -796,22 +764,21 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                     ),
                   ),
                   const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down,
-                      size: 16, color: AppColors.mutedText),
+                  const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.mutedText),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: 10),
 
-          // Search Field Box
+          const SizedBox(width: 8),
+
+          // Search Field
           Expanded(
             child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              height: 42,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.border),
                 boxShadow: [
                   BoxShadow(
@@ -821,34 +788,28 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.search, size: 18, color: AppColors.mutedText),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                      decoration: const InputDecoration(
-                        hintText: 'Search for grounds, sports...',
-                        hintStyle: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.mutedText,
-                        ),
-                        border: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
+              child: TextField(
+                onChanged: (val) {
+                  setState(() => _searchQuery = val);
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search ground, area...',
+                  hintStyle: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.mutedText,
                   ),
-                  if (_searchQuery.isNotEmpty)
-                    GestureDetector(
-                      onTap: () => setState(() => _searchQuery = ''),
-                      child: const Icon(Icons.close,
-                          size: 16, color: AppColors.mutedText),
-                    ),
-                ],
+                  prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.mutedText),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16, color: AppColors.mutedText),
+                          onPressed: () {
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                ),
               ),
             ),
           ),
@@ -872,20 +833,18 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
           final isSelected = _selectedSport == sport['name'];
 
           return InkWell(
-            onTap: () => setState(() => _selectedSport = sport['name'] as String),
+            onTap: () {
+              setState(() => _selectedSport = sport['name'] as String);
+            },
             borderRadius: BorderRadius.circular(20),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFFC8895B) // Golden brown active pill
-                    : Colors.white,
+                color: isSelected ? const Color(0xFFC8895B) : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFFC8895B)
-                      : AppColors.border,
+                  color: isSelected ? const Color(0xFFC8895B) : AppColors.border,
                 ),
                 boxShadow: isSelected
                     ? [
@@ -915,8 +874,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                     sport['name'] as String,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w600,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                       color: isSelected ? Colors.white : AppColors.primaryBlack,
                     ),
                   ),
@@ -929,7 +887,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
     );
   }
 
-  // ── 4. Nearby Ground Card Component (Exact Mockup Match) ──
+  // ── 4. Ground Card Component Connected to Real Database ──
   Widget _buildGroundCard(Map<String, dynamic> venue) {
     final int venueId = venue['id'];
     final bool isFav = _favoriteGroundIds.contains(venueId);
@@ -973,22 +931,20 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                           width: 110,
                           height: 110,
                           color: Colors.grey.shade200,
-                          child: const Icon(Icons.sports,
-                              color: AppColors.mutedText),
+                          child: const Icon(Icons.sports, color: AppColors.mutedText),
                         ),
                       ),
                     ),
 
-                    // FEATURED Tag (if featured)
+                    // FEATURED Tag
                     if (venue['isFeatured'] == true)
                       Positioned(
                         top: 6,
                         left: 6,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF2E7D32), // Emerald green
+                            color: const Color(0xFF2E7D32),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -1003,7 +959,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                         ),
                       ),
 
-                    // Circular Sport Badge icon bottom-left of thumbnail
+                    // Circular Sport Badge icon
                     Positioned(
                       bottom: 6,
                       left: 6,
@@ -1032,7 +988,6 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Title & Favorite Heart
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1061,20 +1016,15 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                             child: Padding(
                               padding: const EdgeInsets.all(2.0),
                               child: Icon(
-                                isFav
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
+                                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                                 size: 20,
-                                color: isFav
-                                    ? const Color(0xFFE53935)
-                                    : AppColors.mutedText,
+                                color: isFav ? const Color(0xFFE53935) : AppColors.mutedText,
                               ),
                             ),
                           ),
                         ],
                       ),
 
-                      // Sport Type Subtitle
                       Text(
                         venue['sport'],
                         style: const TextStyle(
@@ -1087,8 +1037,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                       // Rating & Reviews Count
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded,
-                              size: 16, color: Color(0xFFFFB300)),
+                          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB300)),
                           const SizedBox(width: 3),
                           Text(
                             '${venue['rating']} ',
@@ -1112,12 +1061,11 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                       // Distance
                       Row(
                         children: [
-                          const Icon(Icons.location_on_outlined,
-                              size: 13, color: AppColors.mutedText),
+                          const Icon(Icons.location_on_outlined, size: 13, color: AppColors.mutedText),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
-                              '${venue['distanceKm']} km away',
+                              '${venue['distanceKm']} km away • ${venue['location']}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: AppColors.secondaryText,
@@ -1132,8 +1080,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                       // Operating Hours
                       Row(
                         children: [
-                          const Icon(Icons.access_time_rounded,
-                              size: 13, color: AppColors.mutedText),
+                          const Icon(Icons.access_time_rounded, size: 13, color: AppColors.mutedText),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
@@ -1164,7 +1111,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                                     style: const TextStyle(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w900,
-                                      color: Color(0xFFC8895B), // Golden price
+                                      color: Color(0xFFC8895B),
                                     ),
                                   ),
                                   const TextSpan(
@@ -1180,13 +1127,15 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                           ),
                           const SizedBox(width: 4),
                           ElevatedButton(
-                            onPressed: () => _openVenueDetailsModal(venue),
+                            onPressed: () {
+                              _selectVenueOnMap(venue);
+                              _openVenueDetailsModal(venue);
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFC8895B),
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               minimumSize: const Size(80, 32),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
@@ -1215,6 +1164,8 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
 
   // ── Venue Details Sheet Modal ──
   Widget _buildVenueDetailsSheet(Map<String, dynamic> venue) {
+    final GroundModel ground = venue['groundModel'] as GroundModel;
+
     return Container(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
@@ -1228,7 +1179,6 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Modal Header Handle
             Center(
               child: Container(
                 margin: const EdgeInsets.only(top: 10, bottom: 8),
@@ -1249,6 +1199,12 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   width: double.infinity,
                   height: 200,
                   fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: double.infinity,
+                    height: 200,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.sports, size: 48, color: AppColors.mutedText),
+                  ),
                 ),
                 Positioned(
                   top: 12,
@@ -1265,16 +1221,14 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   bottom: 12,
                   left: 16,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
                       color: venue['color'] as Color,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        Icon(venue['sportIcon'] as IconData,
-                            color: Colors.white, size: 14),
+                        Icon(venue['sportIcon'] as IconData, color: Colors.white, size: 14),
                         const SizedBox(width: 4),
                         Text(
                           venue['sport'],
@@ -1322,14 +1276,15 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(Icons.location_on,
-                          size: 16, color: AppColors.warmAccent),
+                      const Icon(Icons.location_on, size: 16, color: AppColors.warmAccent),
                       const SizedBox(width: 4),
-                      Text(
-                        '${venue['address']} • ${venue['distanceKm']} km away',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.secondaryText,
+                      Expanded(
+                        child: Text(
+                          '${venue['address']} • ${venue['distanceKm']} km away',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.secondaryText,
+                          ),
                         ),
                       ),
                     ],
@@ -1337,21 +1292,20 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.star_rounded,
-                          color: Color(0xFFFFB300), size: 18),
+                      const Icon(Icons.star_rounded, color: Color(0xFFFFB300), size: 18),
                       const SizedBox(width: 4),
                       Text(
                         '${venue['rating']}',
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       Text(
                         ' (${venue['reviews']} verified reviews)',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.mutedText),
+                        style: const TextStyle(fontSize: 13, color: AppColors.mutedText),
                       ),
                     ],
                   ),
+
+                  // Facilities Section
                   const SizedBox(height: 16),
                   const Text(
                     'Facilities Available',
@@ -1365,24 +1319,59 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: [
-                      'Floodlights',
-                      'Synthetic Turf',
-                      'Changing Rooms',
-                      'Free Parking',
-                      'Water Cooler'
-                    ]
+                    children: (ground.facilities.isNotEmpty
+                            ? ground.facilities
+                            : ['Floodlights', 'Turf', 'Changing Rooms', 'Parking', 'Water Cooler'])
                         .map(
                           (f) => Chip(
                             label: Text(f, style: const TextStyle(fontSize: 11)),
                             backgroundColor: AppColors.lightDecorAccent,
                             padding: EdgeInsets.zero,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                         )
                         .toList(),
                   ),
+
+                  // Available Slots Section
+                  if (ground.availableSlots.isNotEmpty) ...[
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Available Slots Today',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryBlack,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ground.availableSlots.map((slot) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: slot.isBooked ? Colors.grey.shade100 : const Color(0xFFF1F8E9),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: slot.isBooked ? Colors.grey.shade300 : const Color(0xFF81C784),
+                            ),
+                          ),
+                          child: Text(
+                            slot.time,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: slot.isBooked ? Colors.grey : const Color(0xFF2E7D32),
+                              decoration: slot.isBooked ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
 
                   // Book Slot Action Button
@@ -1392,11 +1381,10 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Opening available slots for ${venue['title']}...'),
-                            backgroundColor: AppColors.primaryBlack,
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GroundBookingScreen(ground: ground),
                           ),
                         );
                       },
@@ -1438,7 +1426,8 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
           'Kozhikode Beach, Calicut',
           'Mavoor Road, Calicut',
           'Malaparamba, Calicut',
-          'Feroke, Calicut',
+          'Palayam, Calicut',
+          'Koovapally, Kerala',
           'Kochi, Kerala',
           'Trivandrum, Kerala',
         ];
@@ -1458,12 +1447,9 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
               const SizedBox(height: 12),
               ...locations.map(
                 (loc) => ListTile(
-                  leading: const Icon(Icons.location_city_rounded,
-                      color: AppColors.warmAccent),
+                  leading: const Icon(Icons.location_city_rounded, color: AppColors.warmAccent),
                   title: Text(loc),
-                  trailing: _selectedLocation == loc
-                      ? const Icon(Icons.check_circle, color: AppColors.warmAccent)
-                      : null,
+                  trailing: _selectedLocation == loc ? const Icon(Icons.check_circle, color: AppColors.warmAccent) : null,
                   onTap: () {
                     setState(() => _selectedLocation = loc);
                     Navigator.pop(context);

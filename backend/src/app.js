@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const authRoutes = require('../routes/authRoutes');
 const apiRoutes = require('../routes/api');
+const injuryRoutes = require('../routes/injuryRoutes');
 const { errorHandler, notFound } = require('../middleware/errorMiddleware');
 
 const app = express();
@@ -24,8 +25,8 @@ app.use(
 );
 
 // Request Parsing Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 // HTTP Request Logger
@@ -33,10 +34,10 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-// Rate Limiter for Auth API Endpoints (Max 10 login/register attempts per 15 min per IP)
+// Rate Limiter for Auth API Endpoints (Max 100 login/register attempts per 15 min per IP)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 100,
   message: {
     success: false,
     message: 'Too many authentication attempts from this IP, please try again after 15 minutes.',
@@ -50,6 +51,7 @@ app.use('/api/auth/login', authLimiter);
 // Mount API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
+app.use('/api/injury', injuryRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

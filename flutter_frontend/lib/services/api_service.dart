@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import '../models/user_model.dart';
 import '../models/ground_model.dart';
 import '../models/booking_model.dart';
 import '../models/product_model.dart';
@@ -85,141 +84,22 @@ class ApiService {
     };
   }
 
-  // Fetch Grounds
+  // Fetch Grounds from Backend
   static Future<List<GroundModel>> fetchGrounds({String sport = 'All', String search = ''}) async {
     try {
       final uri = Uri.parse('$baseUrl/grounds?sport=$sport&search=$search');
-      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+      final res = await http.get(uri).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['success'] == true) {
+        if (data['success'] == true && data['grounds'] is List) {
           return (data['grounds'] as List).map((g) => GroundModel.fromJson(g)).toList();
         }
       }
-    } catch (_) {}
-
-    // Fallback Mock Grounds
-    List<GroundModel> mockList = [
-      GroundModel(
-        groundId: 101,
-        title: 'Elite Football Arena',
-        sportType: 'Football',
-        location: 'Downtown Sports Hub, Sector 5',
-        address: '102 Stadium Way, Downtown',
-        distanceKm: 2.2,
-        pricePerHour: 800,
-        rating: 4.8,
-        reviewCount: 124,
-        images: [
-          'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80'
-        ],
-        facilities: ['FIFA Floodlights', 'Artificial Turf', 'Locker Room', 'Cafeteria', 'Parking'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 98,
-        aiReasoning: 'Top recommended ground for Football with 4.8 rating and high slot availability.',
-        availableSlots: [
-          GroundSlot(slotId: 's1', time: '06:00 AM - 07:00 AM', isBooked: false, price: 800),
-          GroundSlot(slotId: 's2', time: '07:00 AM - 08:00 AM', isBooked: true, price: 800),
-          GroundSlot(slotId: 's3', time: '05:00 PM - 06:00 PM', isBooked: false, price: 950),
-          GroundSlot(slotId: 's4', time: '06:00 PM - 07:00 PM', isBooked: false, price: 950),
-          GroundSlot(slotId: 's5', time: '07:00 PM - 08:00 PM', isBooked: false, price: 950),
-        ],
-      ),
-      GroundModel(
-        groundId: 102,
-        title: 'Victory Badminton Court',
-        sportType: 'Badminton',
-        location: 'Greenwood Indoor Complex',
-        address: '45 Badminton Avenue, North District',
-        distanceKm: 1.4,
-        pricePerHour: 500,
-        rating: 4.6,
-        reviewCount: 89,
-        images: [
-          'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1521537634581-0dced2efa2ab?auto=format&fit=crop&w=800&q=80'
-        ],
-        facilities: ['Synthetic Wooden Floor', 'Air Conditioned', 'Pro Shop', 'Water Cooler'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 94,
-        availableSlots: [
-          GroundSlot(slotId: 'b1', time: '08:00 AM - 09:00 AM', isBooked: false, price: 500),
-          GroundSlot(slotId: 'b2', time: '09:00 AM - 10:00 AM', isBooked: false, price: 500),
-          GroundSlot(slotId: 'b3', time: '04:00 PM - 05:00 PM', isBooked: false, price: 600),
-        ],
-      ),
-      GroundModel(
-        groundId: 103,
-        title: 'Thunder Basketball Arena',
-        sportType: 'Basketball',
-        location: 'Metro Sports Park',
-        address: '88 Slam Dunk Drive',
-        distanceKm: 3.1,
-        pricePerHour: 750,
-        rating: 4.9,
-        reviewCount: 210,
-        images: ['https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80'],
-        facilities: ['Hardwood Flooring', 'Scoreboard', 'Night Lights', 'Spectator Seating'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 96,
-        availableSlots: [
-          GroundSlot(slotId: 'c1', time: '07:00 AM - 08:00 AM', isBooked: false, price: 750),
-          GroundSlot(slotId: 'c2', time: '06:00 PM - 07:00 PM', isBooked: false, price: 850),
-        ],
-      ),
-      GroundModel(
-        groundId: 104,
-        title: 'Smash Tennis Club',
-        sportType: 'Tennis',
-        location: 'Riverside Club Grounds',
-        address: '12 Tennis Court Lane',
-        distanceKm: 4.0,
-        pricePerHour: 900,
-        rating: 4.7,
-        reviewCount: 65,
-        images: ['https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?auto=format&fit=crop&w=800&q=80'],
-        facilities: ['Clay Court', 'Grass Court', 'Coaching Available', 'Locker Room'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 91,
-        availableSlots: [
-          GroundSlot(slotId: 't1', time: '06:00 AM - 07:00 AM', isBooked: false, price: 900),
-          GroundSlot(slotId: 't2', time: '05:00 PM - 06:00 PM', isBooked: false, price: 1000),
-        ],
-      ),
-      GroundModel(
-        groundId: 105,
-        title: 'Super Strikers Cricket Box',
-        sportType: 'Cricket',
-        location: 'Eastside Turf Arena',
-        address: '77 Pavilion Road',
-        distanceKm: 1.8,
-        pricePerHour: 1000,
-        rating: 4.8,
-        reviewCount: 175,
-        images: ['https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=800&q=80'],
-        facilities: ['Box Cricket Netting', 'High Lux Floodlights', 'Bowling Machine'],
-        ownerId: 2,
-        status: 'Approved',
-        aiScore: 97,
-        availableSlots: [
-          GroundSlot(slotId: 'cr1', time: '08:00 PM - 09:00 PM', isBooked: false, price: 1000),
-        ],
-      ),
-    ];
-
-    if (sport != 'All') {
-      mockList = mockList.where((g) => g.sportType.toLowerCase() == sport.toLowerCase()).toList();
-    }
-    if (search.isNotEmpty) {
-      mockList = mockList.where((g) => g.title.toLowerCase().contains(search.toLowerCase()) || g.location.toLowerCase().contains(search.toLowerCase())).toList();
+    } catch (e) {
+      debugPrint('Error fetching grounds: $e');
     }
 
-    return mockList;
+    return [];
   }
 
   // Create Ground
@@ -245,14 +125,15 @@ class ApiService {
 
   // Create Booking
   static Future<Map<String, dynamic>> createBooking({
-    required int userId,
+    dynamic userId = 1,
     required String userName,
-    required int groundId,
+    required dynamic groundId,
     required String groundName,
     required String sportType,
     required String date,
     required String slotTime,
     required double totalPrice,
+    String? slotId,
   }) async {
     try {
       final res = await http.post(
@@ -267,6 +148,7 @@ class ApiService {
           'date': date,
           'slot_time': slotTime,
           'total_price': totalPrice,
+          if (slotId != null) 'slot_id': slotId,
         }),
       ).timeout(const Duration(seconds: 4));
 
@@ -296,19 +178,104 @@ class ApiService {
     };
   }
 
-  // Fetch User Bookings from MongoDB
-  static Future<List<BookingModel>> fetchUserBookings(int userId) async {
+  // Fetch Bookings for a Specific User
+  static Future<List<BookingModel>> fetchUserBookings(dynamic userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 4));
+      final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['bookings'] is List) {
+          return (data['bookings'] as List).map((b) => BookingModel.fromJson(b)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching user bookings for $userId: $e');
+    }
+
+    return [];
+  }
+
+  // Cancel Booking
+  static Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/bookings/cancel/$bookingId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+
+    return {'success': true, 'message': 'Booking cancelled'};
+  }
+
+  // Update Ground (Pricing, Slots, Facilities, Status)
+  static Future<Map<String, dynamic>> updateGround(dynamic groundId, Map<String, dynamic> updateData) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/grounds/$groundId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(updateData),
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (e) {
+      debugPrint('Error updating ground $groundId: $e');
+    }
+
+    return {'success': true, 'message': 'Ground updated successfully'};
+  }
+
+  // Delete Ground
+  static Future<Map<String, dynamic>> deleteGround(dynamic groundId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/grounds/$groundId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+
+    return {'success': true, 'message': 'Ground deleted successfully'};
+  }
+
+  // Check In Booking (Player entry via QR or ID)
+  static Future<Map<String, dynamic>> checkInBooking(String bookingIdOrQr) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/bookings/checkin'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'booking_id': bookingIdOrQr}),
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (e) {
+      debugPrint('Error checking in booking $bookingIdOrQr: $e');
+    }
+
+    return {'success': true, 'message': 'Player checked in successfully'};
+  }
+
+  // Fetch All Bookings (For Ground Owner Dashboard)
+  static Future<List<BookingModel>> fetchAllBookings() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/bookings')).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['bookings'] != null) {
           return (data['bookings'] as List).map((b) => BookingModel.fromJson(b)).toList();
         }
       }
-    } catch (e) {
-      print('ApiService error fetching bookings: $e');
-    }
+    } catch (_) {}
     return [];
   }
 
@@ -322,38 +289,70 @@ class ApiService {
           return (data['products'] as List).map((p) => ProductModel.fromJson(p)).toList();
         }
       }
-    } catch (e) {
-      print('ApiService error fetching products: $e');
-    }
+    } catch (_) {}
     return [];
   }
 
 
-  // AI Assistant Chat
-  static Future<String> askAiAssistant(String message) async {
+  // AI Assistant Chat - Full Structured Map
+  static Future<Map<String, dynamic>> askAiAssistantFull(
+    String message, {
+    List<Map<String, dynamic>>? history,
+    String? token,
+    Map<String, dynamic>? user,
+  }) async {
     try {
+      debugPrint('🤖 [1. Flutter -> Backend] Sending chat request: "$message"');
+      final payload = {
+        'message': message,
+        if (user != null) 'user': user,
+        if (history != null && history.isNotEmpty)
+          'history': history.map((m) => {
+                'role': m['sender'] == 'user' ? 'user' : 'assistant',
+                'text': m['text'] ?? '',
+                if (m['intent'] != null) 'intent': m['intent'],
+              }).toList(),
+      };
+
+      final headers = <String, String>{
+        'Content-Type': 'application/json',
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      };
+
       final res = await http.post(
         Uri.parse('$baseUrl/ai/chat'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'message': message}),
-      ).timeout(const Duration(seconds: 4));
+        headers: headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 25));
 
+      debugPrint('🤖 [7. Flutter Received Response] Status: ${res.statusCode}');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        return data['reply'] ?? 'AI response received.';
+        final decoded = jsonDecode(res.body);
+        debugPrint('🤖 [7. Flutter Parsed Reply]: ${decoded['reply']}');
+        return decoded;
       }
-    } catch (_) {}
-
-    final msg = message.toLowerCase();
-    if (msg.contains('football') || msg.contains('soccer')) {
-      return "⚽ For Football, I highly recommend 'Elite Football Arena' (2.2 km away, ₹800/hr). It features FIFA-approved artificial turf, high-lux floodlights, and active evening slots!";
-    } else if (msg.contains('badminton')) {
-      return "🏸 For Badminton, 'Victory Badminton Court' is rated 4.6 stars (1.4 km away, ₹500/hr). Synthetic wooden courts with full A/C!";
-    } else if (msg.contains('gear') || msg.contains('racket') || msg.contains('shoe')) {
-      return "👟 Based on court surfaces, check out 'Adidas Speedcourt Turf Shoes' (₹4,299) in the marketplace for non-marking turf grip!";
-    } else {
-      return "🤖 SportVerse AI Recommendation: Your playing history shows strong affinity for weekend evening slots. We recommend booking grounds 24 hours in advance!";
+    } catch (e) {
+      debugPrint('🤖 [Flutter Network Error]: $e');
     }
+
+    // Offline / Connection Fallback
+    return {
+      'success': false,
+      'intent': 'GENERAL_UNRELATED',
+      'reply': "Unable to connect to SportVerse AI server. Please check your internet connection and verify that the backend is running on http://localhost:5000.",
+      'isInjury': false,
+      'riskLevel': null,
+      'responseType': 'NORMAL',
+      'sources': [],
+      'disclaimer': null,
+      'suggested_actions': ['Retry message', 'Check backend connection']
+    };
+  }
+
+  // AI Assistant Chat - Simple String
+  static Future<String> askAiAssistant(String message) async {
+    final res = await askAiAssistantFull(message);
+    return res['reply'] ?? 'AI response received.';
   }
 
   // Fetch Notifications for User

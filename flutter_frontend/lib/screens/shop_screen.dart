@@ -112,15 +112,194 @@ class _ShopScreenState extends State<ShopScreen> {
     }).toList();
   }
 
+  final List<Map<String, dynamic>> _cartItems = [
+    {
+      'title': 'Yonex Astrox 100 ZZ',
+      'price': 12999,
+      'quantity': 1,
+      'sport': 'Badminton',
+    },
+    {
+      'title': 'Nivia Ashtang 2.0 Football',
+      'price': 1499,
+      'quantity': 1,
+      'sport': 'Football',
+    },
+  ];
+
   void _addToCart(Map<String, dynamic> product) {
     setState(() {
       _cartItemCount++;
+      _cartItems.add({
+        'title': product['title'],
+        'price': product['price'],
+        'quantity': 1,
+        'sport': product['sport'] ?? 'Gear',
+      });
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${product['title']} added to your cart!'),
+        content: Text('🛍️ ${product['title']} added to your cart!'),
         backgroundColor: AppColors.primaryBlack,
+        action: SnackBarAction(
+          label: 'View Cart',
+          textColor: AppColors.warmAccent,
+          onPressed: _showCartModal,
+        ),
         duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showCartModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final total = _cartItems.fold<num>(0, (sum, item) => sum + ((item['price'] as num) * (item['quantity'] as num)));
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Shopping Bag (${_cartItems.length})',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    if (_cartItems.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _cartItems.clear();
+                            _cartItemCount = 0;
+                          });
+                          setModalState(() {});
+                        },
+                        child: const Text('Clear All', style: TextStyle(color: Colors.red, fontSize: 12)),
+                      ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: _cartItems.isEmpty
+                      ? const Center(
+                          child: Text('Your shopping bag is empty', style: TextStyle(color: AppColors.mutedText)),
+                        )
+                      : ListView.separated(
+                          itemCount: _cartItems.length,
+                          separatorBuilder: (_, __) => const Divider(height: 16),
+                          itemBuilder: (context, idx) {
+                            final item = _cartItems[idx];
+                            return Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.lightDecorAccent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.shopping_bag_outlined, color: AppColors.warmAccent),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(item['title'] as String,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                      Text('₹${item['price']}',
+                                          style: const TextStyle(color: AppColors.warmAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                  onPressed: () {
+                                    setState(() {
+                                      _cartItems.removeAt(idx);
+                                      _cartItemCount = _cartItems.length;
+                                    });
+                                    setModalState(() {});
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+                if (_cartItems.isNotEmpty) ...[
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Amount', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                      Text('₹$total',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.warmAccent)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _cartItems.clear();
+                          _cartItemCount = 0;
+                        });
+                        Navigator.pop(ctx);
+                        showDialog(
+                          context: context,
+                          builder: (c) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.green),
+                                SizedBox(width: 8),
+                                Text('Order Confirmed!'),
+                              ],
+                            ),
+                            content: const Text('Thank you! Your sports gear order has been placed and will be delivered in 2-3 business days.'),
+                            actions: [
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(c),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlack),
+                                child: const Text('Awesome'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlack,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Checkout & Pay Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -213,6 +392,7 @@ class _ShopScreenState extends State<ShopScreen> {
       onMenuPressed: widget.onBack,
       showCart: true,
       cartCount: _cartItemCount,
+      onCartPressed: _showCartModal,
     );
   }
 
@@ -294,7 +474,9 @@ class _ShopScreenState extends State<ShopScreen> {
                   ),
                   const SizedBox(height: 14),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      _openProductDetailsModal(_bestSellers.first);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFC8895B),
                       foregroundColor: Colors.white,

@@ -6,6 +6,8 @@ const groundSchema = new mongoose.Schema({
   sport_type: { type: String, required: true }, // e.g. Football, Badminton, Cricket, Tennis
   location: { type: String, required: true },
   address: { type: String, required: true },
+  latitude: { type: Number, default: 11.2588 },
+  longitude: { type: Number, default: 75.7804 },
   distance_km: { type: Number, default: 2.5 },
   price_per_hour: { type: Number, required: true },
   rating: { type: Number, default: 4.8 },

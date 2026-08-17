@@ -80,6 +80,8 @@ exports.createGround = async (req, res) => {
       sport_type: sportType,
       location: req.body.location || 'City Sports Zone',
       address: req.body.address || req.body.location || 'Main Road',
+      latitude: Number(req.body.latitude || req.body.lat) || 11.2588,
+      longitude: Number(req.body.longitude || req.body.lng) || 75.7804,
       price_per_hour: pricePerHour,
       facilities: req.body.facilities || ['Floodlights', 'Parking'],
       images: groundImages,
@@ -179,5 +181,45 @@ exports.deleteGround = async (req, res) => {
   }
 };
 
+// @desc    Ground Owner updates ground details, slot prices, availability, or facilities
+// @route   PUT /api/grounds/:id
+// @access  GroundOwner / Admin
+exports.updateGround = async (req, res) => {
+  try {
+    const groundId = req.params.id;
+    let ground = null;
+    const numId = parseInt(groundId, 10);
+    if (!isNaN(numId)) {
+      ground = await Ground.findOne({ ground_id: numId });
+    }
+    if (!ground && mongoose.Types.ObjectId.isValid(groundId)) {
+      ground = await Ground.findById(groundId);
+    }
 
+    if (!ground) {
+      return res.status(404).json({ success: false, message: 'Ground not found in MongoDB database' });
+    }
 
+    if (req.body.title) ground.title = req.body.title;
+    if (req.body.sport_type) ground.sport_type = req.body.sport_type;
+    if (req.body.location) ground.location = req.body.location;
+    if (req.body.address) ground.address = req.body.address;
+    if (req.body.price_per_hour != null) ground.price_per_hour = Number(req.body.price_per_hour);
+    if (req.body.facilities) ground.facilities = req.body.facilities;
+    if (req.body.available_slots) ground.available_slots = req.body.available_slots;
+    if (req.body.images) ground.images = req.body.images;
+    if (req.body.status) ground.status = req.body.status;
+
+    await ground.save();
+    console.log(`🏟️ Ground ${ground.title} (${ground._id}) updated successfully!`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Ground updated successfully',
+      ground
+    });
+  } catch (error) {
+    console.error('❌ updateGround error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

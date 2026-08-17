@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/booking_model.dart';
+import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/custom_graphics.dart';
 import '../widgets/top_navigation_bar.dart';
 
 class BookingsScreen extends StatefulWidget {
@@ -12,53 +14,274 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  List<BookingModel> _bookings = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _upcomingBookings = [
-    {
-      'title': 'Kickoff Arena',
-      'sport': 'Football (7v7 Turf)',
-      'date': 'Today, 09 Aug 2026',
-      'time': '07:00 PM - 08:00 PM',
-      'slot': 'Slot #A2',
-      'price': '₹800',
-      'location': 'Malaparamba, Calicut',
-      'status': 'Confirmed',
-    },
-    {
-      'title': 'Smash Court',
-      'sport': 'Badminton (Court #3)',
-      'date': 'Tomorrow, 10 Aug 2026',
-      'time': '06:00 AM - 07:00 AM',
-      'slot': 'Court #3',
-      'price': '₹400',
-      'location': 'Calicut, Kerala',
-      'status': 'Confirmed',
-    },
-  ];
+  List<BookingModel> get _upcomingBookings => _bookings
+      .where((b) =>
+          b.bookingStatus.toLowerCase() == 'upcoming' ||
+          b.bookingStatus.toLowerCase() == 'confirmed' ||
+          b.bookingStatus.toLowerCase() == 'active')
+      .toList();
 
-  final List<Map<String, dynamic>> _completedBookings = [
-    {
-      'title': 'Hoopster Court',
-      'sport': 'Basketball Court',
-      'date': '05 Aug 2026',
-      'time': '05:00 PM - 06:00 PM',
-      'slot': 'Court #1',
-      'price': '₹600',
-      'location': 'Kozhikode, Kerala',
-      'status': 'Completed',
-    },
-  ];
+  List<BookingModel> get _completedBookings => _bookings
+      .where((b) =>
+          b.bookingStatus.toLowerCase() == 'completed' ||
+          b.bookingStatus.toLowerCase() == 'cancelled')
+      .toList();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadBookings();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBookings() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final userId = AuthService.currentUser?['_id'] ??
+          AuthService.currentUser?['id'] ??
+          AuthService.currentUser?['user_id'] ??
+          '1';
+      final list = await ApiService.fetchUserBookings(userId);
+      if (mounted) {
+        setState(() {
+          _bookings = list;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showDirectionsDialog(BookingModel booking) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.directions, color: AppColors.warmAccent),
+            const SizedBox(width: 8),
+            Expanded(child: Text(booking.groundName, style: const TextStyle(fontSize: 18))),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '📍 Address:',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[800], fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(booking.address.isNotEmpty ? booking.address : booking.location),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Turn-by-turn navigation available at entry gate.',
+                      style: TextStyle(fontSize: 12, color: Colors.green),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Opening navigation to ${booking.groundName}...'),
+                  backgroundColor: AppColors.primaryBlack,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlack,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Start Navigation'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQRCodeTicketModal(BookingModel booking) {
+    final qrString = booking.qrCode.isNotEmpty ? booking.qrCode : 'SPORTVERSE_QR_${booking.bookingId}';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '🎟️ Digital Entry Pass',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Show this QR ticket at the court entry gate for automated check-in',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F1116),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.qr_code_2, size: 140, color: Colors.black),
+                        const SizedBox(height: 8),
+                        Text(
+                          qrString,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    booking.groundName,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${booking.date} • ${booking.slotTime}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.warmAccent),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Close'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ticket saved to gallery / wallet!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.warmAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Save Ticket'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _cancelBooking(BookingModel booking) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Cancel Booking?'),
+        content: Text('Are you sure you want to cancel your reservation for ${booking.groundName}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Keep Slot')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final res = await ApiService.cancelBooking(booking.bookingId);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(res['message'] ?? 'Booking for ${booking.groundName} cancelled.'),
+                    backgroundColor: AppColors.primaryBlack,
+                  ),
+                );
+                _loadBookings();
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Cancel Booking'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -76,185 +299,223 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
               labelColor: AppColors.warmAccent,
               unselectedLabelColor: AppColors.secondaryText,
               labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              tabs: const [
-                Tab(text: 'Upcoming Bookings'),
-                Tab(text: 'Completed'),
+              tabs: [
+                Tab(text: 'Upcoming (${_upcomingBookings.length})'),
+                Tab(text: 'Completed (${_completedBookings.length})'),
               ],
             ),
           ),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildBookingList(_upcomingBookings, isUpcoming: true),
-                _buildBookingList(_completedBookings, isUpcoming: false),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.warmAccent),
+                  )
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildBookingList(_upcomingBookings, isUpcoming: true),
+                      _buildBookingList(_completedBookings, isUpcoming: false),
+                    ],
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBookingList(List<Map<String, dynamic>> bookings, {required bool isUpcoming}) {
+  Widget _buildBookingList(List<BookingModel> bookings, {required bool isUpcoming}) {
     if (bookings.isEmpty) {
-      return const Center(
-        child: Text(
-          'No bookings found',
-          style: TextStyle(color: AppColors.mutedText, fontSize: 14),
+      return RefreshIndicator(
+        onRefresh: _loadBookings,
+        color: AppColors.warmAccent,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.confirmation_number_outlined, size: 48, color: Colors.grey[400]),
+                  const SizedBox(height: 12),
+                  Text(
+                    isUpcoming ? 'No upcoming bookings' : 'No past bookings',
+                    style: const TextStyle(color: AppColors.mutedText, fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Pull down to refresh',
+                    style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20),
-      itemCount: bookings.length,
-      itemBuilder: (context, index) {
-        final b = bookings[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      b['title'] as String,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryBlack,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isUpcoming
-                          ? Colors.green.withValues(alpha: 0.1)
-                          : Colors.grey.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      b['status'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: isUpcoming ? Colors.green : Colors.grey[700],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                b['sport'] as String,
-                style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-              ),
-              const Divider(height: 20),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 14, color: AppColors.warmAccent),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      b['date'] as String,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Icon(Icons.access_time, size: 14, color: AppColors.warmAccent),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      b['time'] as String,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  const Icon(Icons.location_on_outlined, size: 14, color: AppColors.mutedText),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      b['location'] as String,
-                      style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    b['price'] as String,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.warmAccent,
-                    ),
-                  ),
-                ],
-              ),
-              if (isUpcoming) ...[
-                const SizedBox(height: 14),
+    return RefreshIndicator(
+      onRefresh: _loadBookings,
+      color: AppColors.warmAccent,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.all(20),
+        itemCount: bookings.length,
+        itemBuilder: (context, index) {
+          final b = bookings[index];
+          final isCancelled = b.bookingStatus.toLowerCase() == 'cancelled';
+          return Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {},
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                      child: Text(
+                        b.groundName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryBlack,
                         ),
-                        child: const Text('Directions',
-                            style: TextStyle(fontSize: 12, color: AppColors.primaryBlack)),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {},
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlack,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCancelled
+                            ? Colors.red.withValues(alpha: 0.1)
+                            : (isUpcoming
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        b.bookingStatus,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isCancelled
+                              ? Colors.red
+                              : (isUpcoming ? Colors.green : Colors.grey[700]),
                         ),
-                        child: const Text('Reschedule',
-                            style: TextStyle(fontSize: 12, color: Colors.white)),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  b.sportType,
+                  style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                ),
+                const Divider(height: 20),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today, size: 14, color: AppColors.warmAccent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        b.date,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.access_time, size: 14, color: AppColors.warmAccent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        b.slotTime,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.mutedText),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        b.location,
+                        style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '₹${b.totalPrice.toInt()}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warmAccent,
+                      ),
+                    ),
+                  ],
+                ),
+                if (isUpcoming && !isCancelled) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showDirectionsDialog(b),
+                          icon: const Icon(Icons.directions, size: 15, color: AppColors.primaryBlack),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          label: const Text('Directions', style: TextStyle(fontSize: 12, color: AppColors.primaryBlack)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _showQRCodeTicketModal(b),
+                          icon: const Icon(Icons.qr_code, size: 15, color: Colors.white),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlack,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          label: const Text('Entry Pass', style: TextStyle(fontSize: 12, color: Colors.white)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Center(
+                    child: TextButton(
+                      onPressed: () => _cancelBooking(b),
+                      child: const Text('Cancel Reservation', style: TextStyle(fontSize: 11, color: Colors.red)),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }

@@ -8,6 +8,11 @@ import 'bookings_screen.dart';
 import 'shop_screen.dart';
 import 'find_nearby_screen.dart';
 import 'profile_screen.dart';
+import 'injury_assistant/injury_assessment_screen.dart';
+import 'ai_assistant_screen.dart';
+import '../services/api_service.dart';
+import '../models/ground_model.dart';
+import 'ground_booking_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,44 +47,32 @@ class _HomeScreenState extends State<HomeScreen> {
     {'name': 'More', 'icon': Icons.grid_view},
   ];
 
-  final List<Map<String, dynamic>> _popularVenues = [
-    {
-      'title': 'Kickoff Arena',
-      'sport': 'Football',
-      'rating': '4.8',
-      'reviews': '(120)',
-      'location': 'Malaparamba, Calicut',
-      'price': '₹800',
-      'isFavorite': false,
-    },
-    {
-      'title': 'Smash Court',
-      'sport': 'Badminton',
-      'rating': '4.7',
-      'reviews': '(98)',
-      'location': 'Calicut, Kerala',
-      'price': '₹400',
-      'isFavorite': true,
-    },
-    {
-      'title': 'Hoopster Court',
-      'sport': 'Basketball',
-      'rating': '4.6',
-      'reviews': '(76)',
-      'location': 'Kozhikode, Kerala',
-      'price': '₹600',
-      'isFavorite': false,
-    },
-  ];
+  List<GroundModel> _databaseGrounds = [];
+  bool _isLoadingVenues = true;
 
   List<Map<String, dynamic>> get _filteredVenues {
-    return _popularVenues.where((venue) {
+    if (_databaseGrounds.isEmpty) return <Map<String, dynamic>>[];
+    return _databaseGrounds.where((g) {
       final query = _searchQuery.toLowerCase().trim();
       if (query.isEmpty) return true;
-      final title = (venue['title'] as String).toLowerCase();
-      final sport = (venue['sport'] as String).toLowerCase();
-      final loc = (venue['location'] as String).toLowerCase();
-      return title.contains(query) || sport.contains(query) || loc.contains(query);
+      return g.title.toLowerCase().contains(query) ||
+          g.sportType.toLowerCase().contains(query) ||
+          g.location.toLowerCase().contains(query);
+    }).map((g) {
+      return {
+        'groundId': g.groundId,
+        'title': g.title,
+        'sport': g.sportType,
+        'rating': g.rating.toStringAsFixed(1),
+        'reviews': '(${g.reviewCount})',
+        'location': g.location,
+        'price': '₹${g.pricePerHour.toInt()}',
+        'isFavorite': false,
+        'image': g.images.isNotEmpty
+            ? g.images.first
+            : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
+        'groundModel': g,
+      };
     }).toList();
   }
 
@@ -93,6 +86,21 @@ class _HomeScreenState extends State<HomeScreen> {
           statusBarIconBrightness: Brightness.dark,
         ),
       );
+    }
+    _loadDatabaseGrounds();
+  }
+
+  Future<void> _loadDatabaseGrounds() async {
+    try {
+      final grounds = await ApiService.fetchGrounds();
+      if (mounted) {
+        setState(() {
+          _databaseGrounds = grounds;
+          _isLoadingVenues = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingVenues = false);
     }
   }
 
@@ -223,12 +231,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _openAIAssistant() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const AIAssistantSheet(),
+  void _openAIAssistant([String? initialQuery]) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AIAssistantScreen(initialQuery: initialQuery),
+      ),
     );
   }
 
@@ -579,21 +587,36 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 _buildActionCard('Book Instantly', Icons.event_available, () {
+                  if (_databaseGrounds.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GroundBookingScreen(ground: _databaseGrounds.first),
+                      ),
+                    );
+                  } else {
+                    setState(() => _currentBottomTab = 1);
+                  }
+                }),
+                const SizedBox(width: 10),
+                _buildActionCard('Find Nearby', Icons.near_me_outlined, () {
                   setState(() => _currentBottomTab = 1);
                 }),
                 const SizedBox(width: 10),
-                _buildActionCard('Find Nearby', Icons.near_me_outlined, () {}),
-                const SizedBox(width: 10),
-                _buildActionCard('Compete & Win', Icons.emoji_events_outlined, () {
+                _buildActionCard('Shop Gear', Icons.shopping_bag_outlined, () {
                   setState(() => _currentBottomTab = 3);
                 }),
                 const SizedBox(width: 10),
-                _buildActionCard('Shop Gear', Icons.shopping_bag_outlined, () {
+                _buildActionCard('My Bookings', Icons.confirmation_number_outlined, () {
                   setState(() => _currentBottomTab = 2);
                 }),
                 const SizedBox(width: 10),
-                _buildActionCard('Community', Icons.people_outline, () {
-                  setState(() => _currentBottomTab = 3);
+                _buildActionCard('Injury AI', Icons.medical_services_outlined, () {
+                  _openAIAssistant('I have a sports injury and need advice');
+                }),
+                const SizedBox(width: 10),
+                _buildActionCard('Profile', Icons.person_outline, () {
+                  setState(() => _currentBottomTab = 4);
                 }),
               ],
             ),
@@ -767,6 +790,73 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const SizedBox(height: 24),
 
+          // ── AI Injury Assistant Feature Banner ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: GestureDetector(
+              onTap: () => _openAIAssistant('I want to check an injury and get sports medicine first aid'),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A0A05),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFA76F45).withValues(alpha: 0.4), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFA76F45).withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.medical_services_rounded, color: Color(0xFFA76F45), size: 26),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'AI INJURY ASSISTANT',
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFFA76F45), letterSpacing: 1.4),
+                          ),
+                          SizedBox(height: 3),
+                          Text(
+                            'Smart Injury Assessment',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          Text(
+                            'Get AI-powered risk analysis & sports medicine guidance',
+                            style: TextStyle(fontSize: 11, color: Colors.white54, height: 1.3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: AppColors.goldGradient,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text('Assess →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
           // ── Popular Sports Section Header ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -782,7 +872,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 GestureDetector(
-                  onTap: () {},
+                  onTap: () => setState(() => _currentBottomTab = 1),
                   child: const Row(
                     children: [
                       Text(
@@ -908,8 +998,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildVenueCard(Map<String, dynamic> venue) {
+    final GroundModel? groundModel = venue['groundModel'] as GroundModel?;
+
     return GestureDetector(
-      onTap: () => setState(() => _currentBottomTab = 1),
+      onTap: () {
+        if (groundModel != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroundBookingScreen(ground: groundModel),
+            ),
+          );
+        } else {
+          setState(() => _currentBottomTab = 1);
+        }
+      },
       child: Container(
         width: 180,
         decoration: BoxDecoration(
@@ -929,15 +1032,21 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Stack(
               children: [
-                Container(
-                  height: 100,
-                  decoration: const BoxDecoration(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(16)),
-                    color: Color(0xFF1E293B),
-                  ),
-                  child: const Center(
-                    child: Icon(Icons.sports_soccer, size: 40, color: Colors.white30),
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  child: Image.network(
+                    venue['image'] as String,
+                    height: 100,
+                    width: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 100,
+                      width: 180,
+                      color: const Color(0xFF1E293B),
+                      child: const Center(
+                        child: Icon(Icons.sports, size: 40, color: Colors.white30),
+                      ),
+                    ),
                   ),
                 ),
                 Positioned(
@@ -1046,39 +1155,93 @@ class AIAssistantSheet extends StatefulWidget {
 }
 
 class _AIAssistantSheetState extends State<AIAssistantSheet> {
-  final _promptController = TextEditingController();
-  final List<Map<String, String>> _messages = [
-    {
-      'sender': 'ai',
-      'text':
-          'Hi! I am SportVerse AI Assistant 🤖. How can I help you today? Ask me for venue recommendations, available slots, or sports gear advice!',
-    },
+  late final TextEditingController _promptController;
+  late final ScrollController _scrollController;
+  bool _isTyping = false;
+
+  static const List<String> _quickPrompts = [
+    '⚽ Book Football slot',
+    '🏸 Badminton near me',
+    '🏥 I have an injury',
+    '👟 Best turf shoes',
   ];
 
-  void _sendMessage(String query) {
-    if (query.trim().isEmpty) return;
-    setState(() {
-      _messages.add({'sender': 'user', 'text': query});
-    });
-    _promptController.clear();
+  late List<Map<String, dynamic>> _messages;
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) {
-        setState(() {
-          _messages.add({
-            'sender': 'ai',
-            'text':
-                'I found 3 great venues near Calicut matching "$query"! Kickoff Arena has open slots tonight at 7:00 PM (₹800/hr). Would you like me to reserve a slot?',
-          });
-        });
+  @override
+  void initState() {
+    super.initState();
+    _promptController = TextEditingController();
+    _scrollController = ScrollController();
+    _messages = [
+      {
+        'sender': 'ai',
+        'text':
+            'Hi! I am SportVerse AI Assistant 🤖. How can I help you today? Ask me for venue recommendations, available slots, sports gear advice, or report an injury!',
+        'isInjury': false,
+      },
+    ];
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       }
     });
+  }
+
+  Future<void> _sendMessage(String query) async {
+    final text = query.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add({'sender': 'user', 'text': text, 'isInjury': false});
+      _isTyping = true;
+    });
+    _promptController.clear();
+    _scrollToBottom();
+
+    final result = await ApiService.askAiAssistantFull(text, history: _messages);
+    final response = result['reply'] ?? 'AI response received.';
+    final isInjury = result['isInjury'] == true ||
+        response.contains('🏥') ||
+        response.toLowerCase().contains('injury') ||
+        response.toLowerCase().contains('rice protocol') ||
+        text.toLowerCase().contains('twist') ||
+        text.toLowerCase().contains('pain') ||
+        text.toLowerCase().contains('ankle') ||
+        text.toLowerCase().contains('knee') ||
+        text.toLowerCase().contains('medicine');
+
+    if (mounted) {
+      setState(() {
+        _isTyping = false;
+        _messages.add({
+          'sender': 'ai',
+          'text': response,
+          'isInjury': isInjury,
+        });
+      });
+      _scrollToBottom();
+    }
+  }
+
+  @override
+  void dispose() {
+    _promptController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
+      height: MediaQuery.of(context).size.height * 0.80,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -1122,7 +1285,7 @@ class _AIAssistantSheetState extends State<AIAssistantSheet> {
                       ),
                     ),
                     Text(
-                      'Personalized Venue & Slot Recommendations',
+                      'Smart Venue, Gear & Injury Guidance',
                       style: TextStyle(
                         fontSize: 11,
                         color: AppColors.secondaryText,
@@ -1139,32 +1302,159 @@ class _AIAssistantSheetState extends State<AIAssistantSheet> {
             ),
           ),
 
-          const Divider(),
+          const Divider(height: 1),
 
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(20),
-              itemCount: _messages.length,
+              itemCount: _messages.length + (_isTyping ? 1 : 0),
               itemBuilder: (context, index) {
+                if (_isTyping && index == _messages.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightDecorAccent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.warmAccent,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Text('SportVerse AI is typing...',
+                              style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
                 final msg = _messages[index];
                 final isUser = msg['sender'] == 'user';
+                final isInjury = msg['isInjury'] == true;
+
                 return Align(
                   alignment:
                       isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
+                    margin: const EdgeInsets.only(bottom: 14),
                     padding: const EdgeInsets.all(14),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.82,
+                    ),
                     decoration: BoxDecoration(
                       color: isUser
                           ? AppColors.primaryBlack
-                          : AppColors.lightDecorAccent,
+                          : (isInjury
+                              ? const Color(0xFFFFF7ED)
+                              : AppColors.lightDecorAccent),
+                      border: isInjury
+                          ? Border.all(color: const Color(0xFFFDBA74), width: 1)
+                          : null,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Text(
-                      msg['text']!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isUser ? Colors.white : AppColors.primaryBlack,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FormattedMarkdownText(
+                          text: msg['text'] as String,
+                          baseStyle: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: isUser ? Colors.white : AppColors.primaryBlack,
+                          ),
+                        ),
+                        if (isInjury && !isUser) ...[
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const InjuryAssessmentScreen(),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.medical_services_outlined,
+                                      size: 16, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Launch AI Injury Assessment',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_ios,
+                                      size: 10, color: Colors.white),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Quick Prompts Bar
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _quickPrompts.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final prompt = _quickPrompts[index];
+                return GestureDetector(
+                  onTap: () => _sendMessage(prompt),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Center(
+                      child: Text(
+                        prompt,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.primaryBlack,
+                        ),
                       ),
                     ),
                   ),
@@ -1173,11 +1463,12 @@ class _AIAssistantSheetState extends State<AIAssistantSheet> {
             ),
           ),
 
+          const SizedBox(height: 8),
+
           Padding(
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 16,
               bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
             ),
             child: Row(
@@ -1193,7 +1484,7 @@ class _AIAssistantSheetState extends State<AIAssistantSheet> {
                     child: TextField(
                       controller: _promptController,
                       decoration: const InputDecoration(
-                        hintText: 'Ask SportVerse AI...',
+                        hintText: 'Ask SportVerse AI or describe an injury...',
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(vertical: 12),

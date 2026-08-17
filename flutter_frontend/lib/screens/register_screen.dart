@@ -408,18 +408,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     }
                                     setState(() => _isLoading = true);
                                     final result = await AuthService.signInWithGoogle();
-                                    if (mounted) {
-                                      setState(() => _isLoading = false);
-                                      _showSnackBar(result['message'] as String);
-                                      if (result['success'] == true) {
-                                        final isNewUser = result['data']?['isNewUser'] == true;
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
-                                          ),
-                                        );
-                                      }
+                                    if (!mounted) return;
+                                    setState(() => _isLoading = false);
+                                    _showSnackBar(result['message'] as String);
+                                    if (result['success'] == true) {
+                                      final isNewUser = result['data']?['isNewUser'] == true;
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                        ),
+                                      );
                                     }
                                   },
                                   style: OutlinedButton.styleFrom(

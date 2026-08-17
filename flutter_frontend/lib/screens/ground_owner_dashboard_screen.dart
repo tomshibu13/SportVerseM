@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -19,22 +18,23 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
   bool _isLoading = false;
   List<GroundModel> _myGrounds = [];
   List<BookingModel> _allBookings = [];
-  
-  // Simulated Notification Logs (Phase 2 Notifications)
+  String _bookingFilter = 'All';
+  final TextEditingController _checkInInputController = TextEditingController();
+
   final List<Map<String, String>> _notifications = [
     {
       'title': 'New Booking Confirmed',
-      'body': 'User Tom Holland booked Elite Football Arena for 07:00 PM today.',
-      'time': '5 mins ago'
+      'body': 'User Tom Holland booked Smash Arena for 06:00 PM today.',
+      'time': '10 mins ago'
     },
     {
-      'title': 'Ground Registration Approved',
-      'body': 'Your new venue registration for Smash Arena has been approved by admin.',
-      'time': '2 hours ago'
+      'title': 'Facility Active & Live',
+      'body': 'Your sports facility is active and visible for instant public reservations.',
+      'time': '1 hour ago'
     },
     {
-      'title': 'Dynamic Pricing Auto-Adjusted',
-      'body': 'Slot rate increased by 15% for evening prime hour slot.',
+      'title': 'Dynamic Peak Rate Applied',
+      'body': 'Evening slots (05:00 PM - 09:00 PM) optimized with standard prime rates.',
       'time': '1 day ago'
     }
   ];
@@ -49,37 +49,30 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _checkInInputController.dispose();
     super.dispose();
   }
 
   Future<void> _loadDashboardData() async {
     setState(() => _isLoading = true);
     try {
-      // Fetch grounds and filter those owned by current user
       final user = AuthService.currentUser;
-      final ownerId = user?['id'] as int? ?? 2;
-      
+      final ownerId = user?['id'] ?? user?['user_id'] ?? 2;
+
       final allGrounds = await ApiService.fetchGrounds();
-      // Fetch bookings (which contains booking logs for all grounds)
-      final bookingsList = await ApiService.fetchUserBookings(1); // loads DB bookings
-      
+      final bookingsList = await ApiService.fetchAllBookings();
+
       setState(() {
-        _myGrounds = allGrounds.where((g) => g.ownerId == ownerId).toList();
-        
-        // If owner has no registered grounds in MongoDB yet, use fallback seeded grounds
-        if (_myGrounds.isEmpty) {
-          _myGrounds = allGrounds;
-        }
-        
-        _allBookings = bookingsList;
+        final filtered = allGrounds.where((g) => g.ownerId.toString() == ownerId.toString()).toList();
+        _myGrounds = filtered.isNotEmpty ? filtered : allGrounds;
+        _allBookings = bookingsList.isNotEmpty ? bookingsList : [];
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Phase 1 - Quick Register New Ground Link
   void _navigateToAddGround() {
     Navigator.push(
       context,
@@ -87,73 +80,73 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     ).then((_) => _loadDashboardData());
   }
 
-  // Phase 1 - Confirm Customer Check-In
-  void _confirmCheckIn(BookingModel booking) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Check-in'),
-        content: Text('Do you want to confirm player check-in for ${booking.userName}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+  Future<void> _performCheckIn(String rawId) async {
+    final query = rawId.trim();
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a Booking ID or QR code to verify.')),
+      );
+      return;
+    }
+
+    final res = await ApiService.checkInBooking(query);
+    if (res['success'] == true) {
+      _checkInInputController.clear();
+      await _loadDashboardData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF16A34A),
+            behavior: SnackBarBehavior.floating,
+            content: Text('✅ ${res['message'] ?? 'Check-in confirmed successfully!'}'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
-            onPressed: () {
-              setState(() {
-                booking.bookingStatus = 'Completed';
-              });
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('✅ Player ${booking.userName} checked in successfully!'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            child: const Text('Check In', style: TextStyle(color: Colors.white)),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFDC2626),
+            behavior: SnackBarBehavior.floating,
+            content: Text('✕ ${res['message'] ?? 'Invalid booking ID'}'),
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
   }
 
-  // Phase 1 - Cancel booking
   void _cancelBooking(BookingModel booking) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel Booking'),
-        content: Text('Are you sure you want to cancel booking ${booking.bookingId}?'),
+        title: const Text('Cancel Reservation?'),
+        content: Text('Are you sure you want to cancel booking ${booking.bookingId} for ${booking.userName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('No'),
+            child: const Text('Keep Active'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () {
-              setState(() {
-                booking.bookingStatus = 'Cancelled';
-              });
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
+              await ApiService.cancelBooking(booking.bookingId);
+              await _loadDashboardData();
+              messenger.showSnackBar(
                 SnackBar(
-                  content: Text('✕ Booking ${booking.bookingId} cancelled.'),
                   behavior: SnackBarBehavior.floating,
+                  content: Text('✕ Booking ${booking.bookingId} has been cancelled.'),
                 ),
               );
             },
-            child: const Text('Cancel Booking', style: TextStyle(color: Colors.white)),
+            child: const Text('Confirm Cancel', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  // Phase 1 - Edit slot prices / availability dialog
   void _editSlots(GroundModel ground) {
     showModalBottomSheet(
       context: context,
@@ -163,7 +156,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
         return StatefulBuilder(
           builder: (modalCtx, modalSetState) {
             return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
+              height: MediaQuery.of(context).size.height * 0.80,
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -193,7 +186,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const Text('Configure Time Slots & Hourly Pricing', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                              const Text('Configure Time Slots & Live Hourly Pricing', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
                             ],
                           ),
                         ),
@@ -206,82 +199,127 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                   ),
                   const Divider(),
                   Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: ground.availableSlots?.length ?? 0,
-                      itemBuilder: (context, index) {
-                        final slot = ground.availableSlots![index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          color: slot.isBooked ? Colors.grey[100] : Colors.white,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      slot.isBooked ? Icons.lock : Icons.lock_open,
-                                      color: slot.isBooked ? Colors.grey : AppColors.warmAccent,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(slot.time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                        Text(
-                                          slot.isBooked ? 'Status: Booked' : 'Status: Available',
-                                          style: TextStyle(fontSize: 11, color: slot.isBooked ? Colors.red : Colors.green),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
-                                    Text('₹${slot.price}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.warmAccent)),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, size: 16, color: Colors.blueAccent),
-                                      onPressed: () {
-                                        final priceController = TextEditingController(text: slot.price.toString());
-                                        showDialog(
-                                          context: context,
-                                          builder: (context) => AlertDialog(
-                                            title: const Text('Update Slot Price'),
-                                            content: TextField(
-                                              controller: priceController,
-                                              keyboardType: TextInputType.number,
-                                              decoration: const InputDecoration(labelText: 'Price per hour (₹)'),
-                                            ),
-                                            actions: [
-                                              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                                              ElevatedButton(
-                                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
-                                                onPressed: () {
-                                                  modalSetState(() {
-                                                    slot.price = double.tryParse(priceController.text) ?? slot.price;
-                                                  });
-                                                  Navigator.pop(context);
-                                                },
-                                                child: const Text('Save', style: TextStyle(color: Colors.white)),
-                                              )
+                    child: ground.availableSlots.isEmpty
+                        ? const Center(child: Text('No slots configured for this facility.'))
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: ground.availableSlots.length,
+                            itemBuilder: (context, index) {
+                              final slot = ground.availableSlots[index];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                color: slot.isBooked ? const Color(0xFFF8FAFC) : Colors.white,
+                                elevation: 1,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            slot.isBooked ? Icons.lock : Icons.lock_open,
+                                            color: slot.isBooked ? Colors.grey : const Color(0xFF16A34A),
+                                            size: 20,
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(slot.time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                              Text(
+                                                slot.isBooked ? 'Status: Booked / Reserved' : 'Status: Open for Booking',
+                                                style: TextStyle(fontSize: 11, color: slot.isBooked ? Colors.red : Colors.green),
+                                              ),
                                             ],
                                           ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
+                                        ],
+                                      ),
+                                      Row(
+                                        children: [
+                                          Text('₹${slot.price.toInt()}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.warmAccent)),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
+                                            tooltip: 'Edit Slot Rate',
+                                            onPressed: () {
+                                              final priceController = TextEditingController(text: slot.price.toInt().toString());
+                                              showDialog(
+                                                context: context,
+                                                builder: (dialogCtx) => AlertDialog(
+                                                  title: const Text('Update Slot Price'),
+                                                  content: TextField(
+                                                    controller: priceController,
+                                                    keyboardType: TextInputType.number,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Rate per hour (₹)',
+                                                      border: OutlineInputBorder(),
+                                                    ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
+                                                    ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+                                                      onPressed: () async {
+                                                        final newPrice = double.tryParse(priceController.text) ?? slot.price;
+                                                        modalSetState(() {
+                                                          slot.price = newPrice;
+                                                        });
+                                                        Navigator.pop(dialogCtx);
+
+                                                        // Save updated slots to MongoDB
+                                                        final updatedSlots = ground.availableSlots.map((s) => {
+                                                          'slot_id': s.slotId,
+                                                          'time': s.time,
+                                                          'is_booked': s.isBooked,
+                                                          'price': s.price,
+                                                        }).toList();
+
+                                                        await ApiService.updateGround(ground.groundId, {
+                                                          'available_slots': updatedSlots,
+                                                        });
+                                                        await _loadDashboardData();
+                                                      },
+                                                      child: const Text('Save Rate', style: TextStyle(color: Colors.white)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              slot.isBooked ? Icons.toggle_on : Icons.toggle_off,
+                                              size: 26,
+                                              color: slot.isBooked ? Colors.grey : const Color(0xFF16A34A),
+                                            ),
+                                            tooltip: slot.isBooked ? 'Mark Available' : 'Block Slot',
+                                            onPressed: () async {
+                                              modalSetState(() {
+                                                slot.isBooked = !slot.isBooked;
+                                              });
+                                              final updatedSlots = ground.availableSlots.map((s) => {
+                                                'slot_id': s.slotId,
+                                                'time': s.time,
+                                                'is_booked': s.isBooked,
+                                                'price': s.price,
+                                              }).toList();
+
+                                              await ApiService.updateGround(ground.groundId, {
+                                                'available_slots': updatedSlots,
+                                              });
+                                              await _loadDashboardData();
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
@@ -292,11 +330,99 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     );
   }
 
+  void _editGroundDetails(GroundModel ground) {
+    final titleController = TextEditingController(text: ground.title);
+    final locationController = TextEditingController(text: ground.location);
+    final priceController = TextEditingController(text: ground.pricePerHour.toInt().toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Facility Details'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: 'Facility Name', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: locationController,
+                decoration: const InputDecoration(labelText: 'Location / City', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Base Price per Hour (₹)', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final newPrice = double.tryParse(priceController.text) ?? ground.pricePerHour;
+              Navigator.pop(ctx);
+
+              await ApiService.updateGround(ground.groundId, {
+                'title': titleController.text.trim(),
+                'location': locationController.text.trim(),
+                'price_per_hour': newPrice,
+              });
+              await _loadDashboardData();
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Facility details updated successfully!')),
+              );
+            },
+            child: const Text('Save Changes', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteGround(GroundModel ground) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Facility?'),
+        content: Text('Are you sure you want to remove "${ground.title}"? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              await ApiService.deleteGround(ground.groundId);
+              await _loadDashboardData();
+              messenger.showSnackBar(
+                SnackBar(content: Text('Facility "${ground.title}" removed.')),
+              );
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final user = AuthService.currentUser;
+    final ownerName = user?['full_name'] ?? user?['name'] ?? 'Ground Partner';
+
     final double totalRevenue = _allBookings
         .where((b) => b.bookingStatus == 'Completed' || b.bookingStatus == 'Upcoming')
         .fold(0.0, (sum, item) => sum + item.totalPrice);
+
+    final completedCheckIns = _allBookings.where((b) => b.bookingStatus == 'Completed').length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -307,36 +433,59 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppColors.primaryBlack),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Owner Control Center',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.primaryBlack),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                gradient: AppColors.goldGradient,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.stadium_rounded, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Ground Control Center',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppColors.primaryBlack),
+                ),
+                Text(
+                  'Partner: $ownerName',
+                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF16A34A), fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
         ),
-        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.warmAccent),
+            tooltip: 'Refresh Dashboard',
             onPressed: _loadDashboardData,
-          )
+          ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.warmAccent))
           : Column(
               children: [
-                // ── KPI Summary Stats (Phase 2 Revenue Dashboard) ──
+                // ── KPI Summary Stats ──
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   color: Colors.white,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildKpiCard('Earnings', '₹${totalRevenue.toInt()}', Icons.payments_outlined, Colors.green),
-                      _buildKpiCard('Bookings', '${_allBookings.length}', Icons.calendar_today, Colors.blue),
-                      _buildKpiCard('Venues', '${_myGrounds.length}', Icons.sports_soccer, Colors.deepOrange),
+                      _buildKpiCard('Total Revenue', '₹${totalRevenue.toInt()}', Icons.payments_outlined, const Color(0xFF16A34A)),
+                      _buildKpiCard('Reservations', '${_allBookings.length}', Icons.calendar_today_outlined, const Color(0xFF2563EB)),
+                      _buildKpiCard('Facilities', '${_myGrounds.length}', Icons.stadium_outlined, const Color(0xFFEA580C)),
+                      _buildKpiCard('Checked-In', '$completedCheckIns', Icons.how_to_reg_outlined, const Color(0xFF7C3AED)),
                     ],
                   ),
                 ),
-                
+
                 // TabBar controller header
                 Container(
                   color: Colors.white,
@@ -347,7 +496,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                     unselectedLabelColor: AppColors.secondaryText,
                     labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     tabs: const [
-                      Tab(text: 'Venues'),
+                      Tab(text: 'Facilities'),
                       Tab(text: 'Bookings'),
                       Tab(text: 'Customers'),
                       Tab(text: 'Insights'),
@@ -372,7 +521,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     );
   }
 
-  // ── Tab 1: Venues / Grounds Tab (Phase 1 Ground Management) ──
+  // ── Tab 1: Venues / Facilities Tab ──
   Widget _buildVenuesTab() {
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -382,146 +531,304 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Active Facilities (${_myGrounds.length})',
+              'Managed Facilities (${_myGrounds.length})',
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
             ),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlack,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               ),
               onPressed: _navigateToAddGround,
-              icon: const Icon(Icons.add, size: 14, color: Colors.white),
-              label: const Text('Add Ground', style: TextStyle(fontSize: 11, color: Colors.white)),
-            )
+              icon: const Icon(Icons.add_business_rounded, size: 15, color: Colors.white),
+              label: const Text('Add Facility', style: TextStyle(fontSize: 11.5, color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ],
         ),
-        const SizedBox(height: 16),
-        ..._myGrounds.map((ground) {
-          final imageUrl = ground.images.isNotEmpty ? ground.images[0] : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=400&q=80';
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 2,
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    Image.network(
-                      imageUrl,
-                      height: 140,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(height: 140, color: Colors.grey[200], child: const Icon(Icons.image));
-                      },
-                    ),
-                    Positioned(
-                      top: 12,
-                      right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: ground.status == 'Approved' ? Colors.green : Colors.orange,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          ground.status,
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 14),
+        if (_myGrounds.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  const Icon(Icons.stadium_outlined, size: 48, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  const Text('No facilities registered under your account yet.', style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _navigateToAddGround,
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+                    child: const Text('Register Your First Ground', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ..._myGrounds.map((ground) {
+            final imageUrl = ground.images.isNotEmpty
+                ? ground.images[0]
+                : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=400&q=80';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 2,
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Stack(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              ground.title,
-                              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryBlack),
-                            ),
-                          ),
-                          Text(
-                            '₹${ground.pricePerHour.toInt()}/hr',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.warmAccent),
-                          )
-                        ],
+                      Image.network(
+                        imageUrl,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(height: 140, color: Colors.grey[200], child: const Icon(Icons.image));
+                        },
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(Icons.location_on, size: 12, color: Colors.grey),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              ground.location,
-                              style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
-                            ),
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        ],
+                          child: Text(
+                            ground.sportType,
+                            style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton.icon(
-                            onPressed: () => _editSlots(ground),
-                            icon: const Icon(Icons.settings, size: 14, color: AppColors.warmAccent),
-                            label: const Text('Manage Slots', style: TextStyle(fontSize: 11, color: AppColors.warmAccent)),
+                      Positioned(
+                        top: 12,
+                        right: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: ground.status == 'Approved' || ground.status == 'Active'
+                                ? const Color(0xFF16A34A)
+                                : const Color(0xFFEA580C),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          Row(
-                            children: const [
-                              Icon(Icons.star, color: Colors.amber, size: 14),
-                              SizedBox(width: 4),
-                              Text('4.8 (24 reviews)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            ],
-                          )
-                        ],
-                      )
+                          child: Text(
+                            ground.status,
+                            style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                )
-              ],
-            ),
-          );
-        }),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                ground.title,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppColors.primaryBlack),
+                              ),
+                            ),
+                            Text(
+                              '₹${ground.pricePerHour.toInt()}/hr',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.warmAccent),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined, size: 13, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                ground.location,
+                                style: const TextStyle(color: AppColors.secondaryText, fontSize: 11.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (ground.facilities.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: ground.facilities.map((f) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(f, style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                        const Divider(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _editSlots(ground),
+                              icon: const Icon(Icons.schedule, size: 15, color: AppColors.warmAccent),
+                              label: const Text('Manage Slots & Rates', style: TextStyle(fontSize: 11.5, color: AppColors.warmAccent, fontWeight: FontWeight.bold)),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
+                                  tooltip: 'Edit Details',
+                                  onPressed: () => _editGroundDetails(ground),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                                  tooltip: 'Delete Facility',
+                                  onPressed: () => _deleteGround(ground),
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            );
+          }),
       ],
     );
   }
 
-  // ── Tab 2: Bookings Tab (Phase 1 Booking Management) ──
+  // ── Tab 2: Bookings & Live Check-In Tab ──
   Widget _buildBookingsTab() {
+    final filteredBookings = _allBookings.where((b) {
+      if (_bookingFilter == 'All') return true;
+      return b.bookingStatus.toLowerCase() == _bookingFilter.toLowerCase();
+    }).toList();
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
-        const Text(
-          'Customer Booking Requests',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+        // Fast Check-In Card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF86EFAC)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.qr_code_scanner, color: Color(0xFF16A34A), size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Instant Customer Check-In',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF166534)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: TextField(
+                        controller: _checkInInputController,
+                        style: const TextStyle(fontSize: 13),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter Booking ID or Scan QR (e.g. SPV-BK-9921)...',
+                          hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onSubmitted: (val) => _performCheckIn(val),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => _performCheckIn(_checkInInputController.text),
+                    child: const Text('Check In', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+
+        const SizedBox(height: 16),
+
+        // Filter chips row
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Reservations List',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+            ),
+            Row(
+              children: ['All', 'Upcoming', 'Completed', 'Cancelled'].map((filter) {
+                final isSelected = _bookingFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: ChoiceChip(
+                    label: Text(filter, style: TextStyle(fontSize: 10, color: isSelected ? Colors.white : AppColors.primaryBlack, fontWeight: FontWeight.bold)),
+                    selected: isSelected,
+                    selectedColor: AppColors.warmAccent,
+                    onSelected: (val) {
+                      if (val) setState(() => _bookingFilter = filter);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+
         const SizedBox(height: 12),
-        if (_allBookings.isEmpty)
+
+        if (filteredBookings.isEmpty)
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Text('No active reservations in database.', style: TextStyle(color: Colors.grey)),
+              child: Text('No reservations matching current filter.', style: TextStyle(color: Colors.grey)),
             ),
           )
         else
-          ..._allBookings.map((booking) {
+          ...filteredBookings.map((booking) {
             final isUpcoming = booking.bookingStatus == 'Upcoming';
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 1,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -535,13 +842,13 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                           style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.warmAccent, fontFamily: 'monospace'),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: booking.bookingStatus == 'Completed'
-                                ? Colors.green.withOpacity(0.1)
+                                ? const Color(0xFFDCFCE7)
                                 : booking.bookingStatus == 'Cancelled'
-                                    ? Colors.red.withOpacity(0.1)
-                                    : Colors.orange.withOpacity(0.1),
+                                    ? const Color(0xFFFEE2E2)
+                                    : const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -550,10 +857,10 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               color: booking.bookingStatus == 'Completed'
-                                  ? Colors.green
+                                  ? const Color(0xFF16A34A)
                                   : booking.bookingStatus == 'Cancelled'
-                                      ? Colors.red
-                                      : Colors.orange,
+                                      ? const Color(0xFFDC2626)
+                                      : const Color(0xFFD97706),
                             ),
                           ),
                         ),
@@ -566,18 +873,18 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Customer: ${booking.userName}  •  Sport: ${booking.sportType}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                      'Player: ${booking.userName}  •  Sport: ${booking.sportType}',
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.secondaryText),
                     ),
                     Text(
-                      'Time: ${booking.date} (${booking.slotTime})',
-                      style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                      'Date: ${booking.date}  •  Slot: ${booking.slotTime}',
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.secondaryText),
                     ),
                     const Divider(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Paid: ₹${booking.totalPrice}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        Text('Paid: ₹${booking.totalPrice.toInt()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
                         if (isUpcoming)
                           Row(
                             children: [
@@ -587,17 +894,24 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                               ),
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.black,
+                                  backgroundColor: const Color(0xFF16A34A),
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                                 ),
-                                onPressed: () => _confirmCheckIn(booking),
-                                child: const Text('Check In', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                onPressed: () => _performCheckIn(booking.bookingId),
+                                child: const Text('Confirm Check-In', style: TextStyle(color: Colors.white, fontSize: 11)),
                               ),
                             ],
                           )
                         else
-                          const Text('Archived', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text(
+                            booking.bookingStatus == 'Completed' ? '✅ Completed Check-In' : '✕ Cancelled',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: booking.bookingStatus == 'Completed' ? Colors.green : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                       ],
                     )
                   ],
@@ -609,46 +923,51 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     );
   }
 
-  // ── Tab 3: Customer Management Tab (Phase 2 Customers) ──
+  // ── Tab 3: Customer Management Tab ──
   Widget _buildCustomersTab() {
-    // Collect unique customers from bookings
     final Set<String> uniqueUserNames = _allBookings.map((b) => b.userName).toSet();
 
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
-        const Text(
-          'Registered Customers',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+        Text(
+          'Registered Facility Customers (${uniqueUserNames.length})',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 12),
         if (uniqueUserNames.isEmpty)
           const Center(
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 40),
-              child: Text('No customers found.', style: TextStyle(color: Colors.grey)),
+              child: Text('No customer bookings recorded yet.', style: TextStyle(color: Colors.grey)),
             ),
           )
         else
           ...uniqueUserNames.map((name) {
-            // Find user bookings count
             final userBookings = _allBookings.where((b) => b.userName == name).toList();
+            final double totalSpent = userBookings.fold(0.0, (sum, b) => sum + b.totalPrice);
+
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 1,
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: AppColors.warmAccent.withOpacity(0.2),
-                  child: Text(name.substring(0, 1), style: const TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold)),
+                  backgroundColor: AppColors.warmAccent.withValues(alpha: 0.15),
+                  child: Text(
+                    name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'P',
+                    style: const TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold),
+                  ),
                 ),
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                subtitle: Text('Total Bookings: ${userBookings.length}', style: const TextStyle(fontSize: 11)),
+                subtitle: Text('Total Reservations: ${userBookings.length} • Spent: ₹${totalSpent.toInt()}', style: const TextStyle(fontSize: 11)),
                 trailing: IconButton(
                   icon: const Icon(Icons.phone_outlined, color: Colors.green),
+                  tooltip: 'Contact Customer',
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Calling customer $name... (+91 9988776655)')),
+                      SnackBar(content: Text('Contacting customer $name... (+91 9988776655)')),
                     );
                   },
                 ),
@@ -659,20 +978,20 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     );
   }
 
-  // ── Tab 4: Insights & Notifications Tab (Phase 2 Analytics) ──
+  // ── Tab 4: Insights & Analytics Tab ──
   Widget _buildInsightsTab(double totalRevenue) {
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
         const Text(
-          'Analytics & AI Revenue Insights',
+          'Facility Performance & Analytics',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 12),
         Card(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: Colors.black,
+          color: const Color(0xFF0F172A),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -682,23 +1001,31 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                   children: [
                     Icon(Icons.insights, color: AppColors.warmAccent, size: 20),
                     SizedBox(width: 8),
-                    Text('Occupancy Rates', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text('Occupancy & Peak Demands', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
+                const SizedBox(height: 14),
+                const Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Peak Hours:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  children: [
+                    Text('Peak Reservation Hours:', style: TextStyle(color: Colors.white70, fontSize: 12)),
                     Text('05:00 PM - 09:00 PM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Average Court Occupancy:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text('82%', style: TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Capacity Occupied:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('76%', style: TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                  children: [
+                    const Text('Total Realized Earnings:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text('₹${totalRevenue.toInt()}', style: const TextStyle(color: Color(0xFF4ADE80), fontWeight: FontWeight.bold, fontSize: 13)),
                   ],
                 ),
               ],
@@ -706,10 +1033,10 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           ),
         ),
         const SizedBox(height: 20),
-        
-        // Notifications Center Logs
+
+        // Activity Notifications
         const Text(
-          'Notifications Center Logs',
+          'Facility Activity & Logs',
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 12),
@@ -720,8 +1047,8 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
             child: ListTile(
               leading: const Icon(Icons.notifications_active_outlined, color: AppColors.warmAccent),
               title: Text(notif['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              subtitle: Text(notif['body']!, style: const TextStyle(fontSize: 10)),
-              trailing: Text(notif['time']!, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+              subtitle: Text(notif['body']!, style: const TextStyle(fontSize: 10.5)),
+              trailing: Text(notif['time']!, style: const TextStyle(fontSize: 9.5, color: Colors.grey)),
             ),
           );
         }),
@@ -733,13 +1060,13 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     return Column(
       children: [
         CircleAvatar(
-          backgroundColor: color.withOpacity(0.1),
-          radius: 20,
-          child: Icon(icon, color: color, size: 20),
+          backgroundColor: color.withValues(alpha: 0.12),
+          radius: 18,
+          child: Icon(icon, color: color, size: 18),
         ),
-        const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        const SizedBox(height: 6),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5)),
+        Text(label, style: const TextStyle(fontSize: 9.5, color: Colors.grey)),
       ],
     );
   }

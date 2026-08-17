@@ -23,7 +23,7 @@ const registerUser = async (req, res, next) => {
     }
 
     const { fullName, email, password, phone, role } = req.body;
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     // Check for duplicate email
     const existingUser = await User.findOne({ email: normalizedEmail });
@@ -42,6 +42,8 @@ const registerUser = async (req, res, next) => {
       fullName: fullName.trim(),
       email: normalizedEmail,
       password,
+      authProvider: 'local',
+      isGoogleAuth: false,
       phone: phone ? phone.trim() : '',
       role: requestedRole,
       approvalStatus: initialApprovalStatus,
@@ -88,7 +90,7 @@ const loginUser = async (req, res, next) => {
     }
 
     const { email, password } = req.body;
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = (email || '').trim().toLowerCase();
 
     // Find user and explicitly select password & stationPassword
     const user = await User.findOne({ email: normalizedEmail }).select('+password +stationPassword');
@@ -96,7 +98,7 @@ const loginUser = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password',
+        message: 'No account found with this email. Please register or sign in with Google.',
       });
     }
 
@@ -104,9 +106,15 @@ const loginUser = async (req, res, next) => {
     const isStationPasswordValid = user.stationPassword ? await user.matchStationPassword(password) : false;
 
     if (!isAppPasswordValid && !isStationPasswordValid) {
+      if (user.isGoogleAuth || user.authProvider === 'google') {
+        return res.status(401).json({
+          success: false,
+          message: 'This account was registered with Google. Please use "Continue with Google" to log in, or set a password in your profile.',
+        });
+      }
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password',
+        message: 'Incorrect password. Please try again.',
       });
     }
 
@@ -192,11 +200,19 @@ const googleSignIn = async (req, res, next) => {
         fullName: name || 'Google User',
         email: normalizedEmail,
         password: randomPassword,
+        authProvider: 'google',
+        isGoogleAuth: true,
         role: requestedRole,
         profileImage: picture || '',
         approvalStatus: initialApprovalStatus,
         isApproved: initialIsApproved,
       });
+    } else {
+      // Existing user logging in with Google: update avatar if missing
+      if (!user.profileImage && picture) {
+        user.profileImage = picture;
+        await user.save();
+      }
     }
 
     // Issue JWT token for Flutter to use in subsequent API calls
@@ -246,12 +262,17 @@ const getCurrentUser = async (req, res, next) => {
         fullName: user.fullName,
         email: user.email,
         role: user.role,
-        phone: user.phone,
+        phone: user.phone || '',
+        location: user.location || '',
+        favoriteSport: user.favoriteSport || '',
+        bio: user.bio || '',
         profileImage: user.profileImage,
         platformFeePaid: user.platformFeePaid,
         platformFeeAmount: user.platformFeeAmount,
         approvalStatus: user.approvalStatus || 'Approved',
         isApproved: user.isApproved !== undefined ? user.isApproved : true,
+        stationPortalUrl: process.env.STATION_OWNER_PORTAL_URL || 'http://localhost:5174',
+        hasStationPassword: !!user.stationPassword,
       },
     });
   } catch (error) {
@@ -320,7 +341,7 @@ const getAllUsers = async (req, res) => {
 // @access  Private
 const updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName, phone, role } = req.body;
+    const { fullName, phone, location, favoriteSport, bio, role } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -340,6 +361,9 @@ const updateUserProfile = async (req, res, next) => {
 
     if (fullName !== undefined) user.fullName = fullName.trim();
     if (phone !== undefined) user.phone = phone.trim();
+    if (location !== undefined) user.location = location.trim();
+    if (favoriteSport !== undefined) user.favoriteSport = favoriteSport.trim();
+    if (bio !== undefined) user.bio = bio.trim();
     if (role !== undefined && ['User', 'GroundOwner', 'ShopOwner', 'Admin'].includes(role)) {
       user.role = role;
       if (role === 'GroundOwner' || role === 'ShopOwner') {
@@ -363,8 +387,14 @@ const updateUserProfile = async (req, res, next) => {
         fullName: user.fullName,
         email: user.email,
         role: user.role,
-        phone: user.phone,
+        phone: user.phone || '',
+        location: user.location || '',
+        favoriteSport: user.favoriteSport || '',
+        bio: user.bio || '',
         profileImage: user.profileImage,
+        approvalStatus: user.approvalStatus || 'Approved',
+        isApproved: user.isApproved !== undefined ? user.isApproved : true,
+        stationPortalUrl: process.env.STATION_OWNER_PORTAL_URL || 'http://localhost:5174',
         createdAt: user.createdAt,
       },
     });
@@ -428,15 +458,23 @@ const approveUser = async (req, res, next) => {
       console.error('⚠️ Failed to update owner grounds status:', gErr.message);
     }
 
-    // ── Create In-App Notification in MongoDB ──
+    // ── Create In-App Notification in MongoDB with explicit Portal URL and New Password ──
     if (newStatus === 'Approved') {
       try {
         const { createInAppNotification } = require('./notificationController');
+        const notifMsg = generatedPassword
+          ? `🎉 Congratulations ${user.fullName}! Your SportVerse Station Owner account has been APPROVED by Admin!\n\n🌐 Station Portal URL: ${portalUrl}\n🔑 Station Login Password: ${generatedPassword}\n📧 Login Email: ${user.email}\n\nYou can access your Station Owner Dashboard anytime at ${portalUrl} to manage your arenas, courts, time slots, and player check-ins.`
+          : `🎉 Congratulations ${user.fullName}! Your SportVerse registration has been APPROVED by Admin.`;
         await createInAppNotification({
           userId: user._id,
-          title: '🎉 Station Owner Registration Approved!',
-          message: `Congratulations ${user.fullName}! Your SportVerse Station Owner account and arenas have been approved by Admin. Your station dashboard login details have been sent to ${user.email}.`,
-          notificationType: 'Approval'
+          title: '🎉 Station Owner Approved & Credentials',
+          message: notifMsg,
+          notificationType: 'Approval',
+          data: {
+            portalUrl,
+            stationPassword: generatedPassword,
+            email: user.email,
+          }
         });
       } catch (nErr) {
         console.error('⚠️ Failed to create in-app notification:', nErr.message);

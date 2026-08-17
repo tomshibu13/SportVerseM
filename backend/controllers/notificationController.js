@@ -55,7 +55,7 @@ exports.markAsRead = async (req, res) => {
 };
 
 // @desc    Helper to create an in-app notification
-exports.createInAppNotification = async ({ userId, title, message, notificationType = 'Approval' }) => {
+exports.createInAppNotification = async ({ userId, title, message, notificationType = 'Approval', data = {} }) => {
   try {
     const notif = new Notification({
       notification_id: Date.now() + Math.floor(Math.random() * 1000),
@@ -63,6 +63,7 @@ exports.createInAppNotification = async ({ userId, title, message, notificationT
       title,
       message,
       notification_type: notificationType,
+      data: data || {},
       is_read: false,
       created_at: new Date()
     });

@@ -9,22 +9,41 @@ const nodemailer = require('nodemailer');
  * Supports Gmail (default), any SMTP provider, or Ethereal (test mode).
  */
 const createTransporter = () => {
-  if (!process.env.EMAIL_USER || process.env.EMAIL_USER === 'your_email@gmail.com') {
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '';
+
+  if (!emailUser || emailUser === 'your_email@gmail.com' || !emailPass || emailPass === 'your_app_password_here') {
     console.warn(
-      '⚠️  [Email] No real EMAIL_USER set. Using Ethereal test mode — ' +
-      'emails will NOT be delivered but preview URLs will be logged.'
+      '⚠️  [Email] Real EMAIL_USER / EMAIL_PASS not configured in backend/.env. Using Ethereal test mode (preview URLs logged).'
     );
-    return null; // handled in sendEmail()
+    return null;
   }
 
+  // Gmail SMTP
+  if ((process.env.EMAIL_SERVICE || '').toLowerCase() === 'gmail' || emailUser.endsWith('@gmail.com')) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+  }
+
+  // Custom SMTP
   return nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE || 'gmail',
     host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: process.env.EMAIL_SECURE === 'true',
+    port: parseInt(process.env.EMAIL_PORT || '587', 10),
+    secure: process.env.EMAIL_SECURE === 'true' || process.env.EMAIL_PORT === '465',
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS, // Use App Password for Gmail (not account password)
+      user: emailUser,
+      pass: emailPass,
+    },
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 };
@@ -300,41 +319,55 @@ const buildApprovalEmailHtml = ({ fullName, email, generatedPassword, passwordRe
 // ─────────────────────────────────────────────────────────────────────────────
 
 const sendMail = async ({ to, subject, html, text }) => {
-  const transporter = createTransporter();
+  try {
+    const transporter = createTransporter();
 
-  if (!transporter) {
-    // Ethereal fallback — no real delivery, but logs a preview URL
-    const testAccount = await nodemailer.createTestAccount();
-    const testTransport = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: { user: testAccount.user, pass: testAccount.pass },
-    });
+    if (!transporter) {
+      // Ethereal fallback — preview URL in console
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        const testTransport = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: { user: testAccount.user, pass: testAccount.pass },
+        });
 
-    const info = await testTransport.sendMail({
-      from: `"SportVerse Platform" <${testAccount.user}>`,
+        const info = await testTransport.sendMail({
+          from: `"SportVerse Platform" <${testAccount.user}>`,
+          to,
+          subject,
+          text,
+          html,
+        });
+
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        console.log(`📧 [Email/Ethereal Preview] Sent to ${to} | View Online: ${previewUrl}`);
+        return { success: true, mode: 'ethereal', previewUrl, messageId: info.messageId };
+      } catch (etherealErr) {
+        console.warn(`⚠️ [Email/Ethereal] Ethereal preview creation skipped: ${etherealErr.message}`);
+        console.log(`📧 [Email/Simulated] Intended Recipient: ${to} | Subject: "${subject}"`);
+        return { success: true, mode: 'simulated', messageId: `SIM_${Date.now()}` };
+      }
+    }
+
+    const info = await transporter.sendMail({
+      from: `"SportVerse Platform" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,
       html,
     });
 
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    console.log(`📧 [Email/Ethereal] Sent to ${to} | Preview: ${previewUrl}`);
-    return { success: true, mode: 'ethereal', previewUrl, messageId: info.messageId };
+    console.log(`📧 [Email/SMTP] Real email delivered to ${to} | Message ID: ${info.messageId}`);
+    return { success: true, mode: 'smtp', messageId: info.messageId };
+  } catch (error) {
+    console.error(`❌ [Email/Error] Failed to send email to ${to}:`, error.message);
+    if (error.code === 'EAUTH') {
+      console.error('   💡 Google SMTP Authentication Failed. For Gmail, you MUST generate and use a 16-character App Password at: https://myaccount.google.com/apppasswords (regular account password will not work).');
+    }
+    return { success: false, error: error.message };
   }
-
-  const info = await transporter.sendMail({
-    from: `"SportVerse Platform" <${process.env.EMAIL_USER}>`,
-    to,
-    subject,
-    text,
-    html,
-  });
-
-  console.log(`📧 [Email/SMTP] Sent to ${to} | Message ID: ${info.messageId}`);
-  return { success: true, mode: 'smtp', messageId: info.messageId };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

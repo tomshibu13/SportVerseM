@@ -26,13 +26,12 @@ const registerValidation = [
     .notEmpty()
     .withMessage('Email is required')
     .isEmail()
-    .withMessage('Please enter a valid email address')
-    .normalizeEmail(),
+    .withMessage('Please enter a valid email address'),
   body('password')
     .notEmpty()
     .withMessage('Password is required')
-    .isLength({ min: 8, max: 128 })
-    .withMessage('Password must be between 8 and 128 characters'),
+    .isLength({ min: 6, max: 128 })
+    .withMessage('Password must be between 6 and 128 characters'),
   body('phone')
     .optional({ checkFalsy: true })
     .matches(/^[6-9]\d{9}$/)
@@ -46,8 +45,7 @@ const loginValidation = [
     .notEmpty()
     .withMessage('Email is required')
     .isEmail()
-    .withMessage('Please enter a valid email address')
-    .normalizeEmail(),
+    .withMessage('Please enter a valid email address'),
   body('password').notEmpty().withMessage('Password is required'),
 ];
 

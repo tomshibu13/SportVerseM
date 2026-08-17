@@ -6,6 +6,7 @@ const notifSchema = new mongoose.Schema({
   title: { type: String, required: true },
   message: { type: String, required: true },
   notification_type: { type: String, required: true },
+  data: { type: mongoose.Schema.Types.Mixed, default: {} },
   is_read: { type: Boolean, default: false },
   created_at: { type: Date, default: Date.now }
 });

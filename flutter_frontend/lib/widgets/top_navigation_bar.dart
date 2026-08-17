@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'custom_graphics.dart';
+import '../screens/inbox_screen.dart';
+import '../screens/become_ground_owner_screen.dart';
+import '../screens/ai_assistant_screen.dart';
 
 /// Standalone Top Navigation Bar Component matching the design system
 class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
@@ -24,6 +27,78 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(60);
 
+  void _showQuickMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Quick Navigation',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryBlack,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  leading: const Icon(Icons.notifications_outlined, color: AppColors.warmAccent),
+                  title: const Text('Notifications & Alerts', style: TextStyle(fontWeight: FontWeight.w600)),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const InboxScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.medical_services_outlined, color: Color(0xFFEF4444)),
+                  title: const Text('AI Injury Assistant', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Get AI-powered sports injury guidance', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AIAssistantScreen(initialQuery: 'I have a sports injury and need advice')));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.add_business_outlined, color: Color(0xFF10B981)),
+                  title: const Text('Register Arena as Ground Owner', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('List your courts and start earning', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BecomeGroundOwnerScreen()));
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -35,7 +110,7 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
             // Left Menu Icon Button
             IconButton(
               icon: const Icon(Icons.menu, size: 24, color: AppColors.primaryBlack),
-              onPressed: onMenuPressed ?? () {},
+              onPressed: onMenuPressed ?? () => _showQuickMenu(context),
             ),
 
             // Center Logo Header (SportVerse AI)
@@ -58,7 +133,12 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
                     IconButton(
                       icon: const Icon(Icons.notifications_outlined,
                           size: 24, color: AppColors.primaryBlack),
-                      onPressed: onNotificationPressed ?? () {},
+                      onPressed: onNotificationPressed ?? () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const InboxScreen()),
+                        );
+                      },
                     ),
                     Positioned(
                       right: 10,

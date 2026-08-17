@@ -20,12 +20,21 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters'],
+      minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
     stationPassword: {
       type: String,
       select: false,
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google', 'station'],
+      default: 'local',
+    },
+    isGoogleAuth: {
+      type: Boolean,
+      default: false,
     },
     role: {
       type: String,
@@ -33,6 +42,21 @@ const userSchema = new mongoose.Schema(
       default: 'User',
     },
     phone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    location: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    favoriteSport: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    bio: {
       type: String,
       default: '',
       trim: true,

@@ -69,13 +69,13 @@ exports.createBooking = async (req, res) => {
     if (!isNaN(parsedGroundId)) {
       groundDoc = await Ground.findOne({ ground_id: parsedGroundId });
     }
-    if (!groundDoc && ground_id && mongoose.Types.ObjectId.isValid(ground_id)) {
+    if (!groundDoc && ground_id && typeof ground_id === 'string' && /^[0-9a-fA-F]{24}$/.test(ground_id)) {
       groundDoc = await Ground.findById(ground_id);
     }
 
     // 2. Look up normalized User document
     let userDoc = null;
-    if (user_id && mongoose.Types.ObjectId.isValid(user_id)) {
+    if (user_id && typeof user_id === 'string' && /^[0-9a-fA-F]{24}$/.test(user_id)) {
       userDoc = await User.findById(user_id);
     }
 
