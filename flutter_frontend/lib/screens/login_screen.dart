@@ -178,216 +178,218 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktopOrWeb ? 450 : double.infinity,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: FadeTransition(
-                          opacity: _fadeAnim,
-                          child: SlideTransition(
-                            position: _slideAnim,
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                  // ── Top Navigation Row (Back Arrow) ──
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 8, bottom: 12),
-                                    child: GestureDetector(
-                                      onTap: () => Navigator.maybePop(context),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(6),
-                                        color: Colors.transparent,
-                                        child: const Icon(
-                                          Icons.arrow_back_ios_new,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                      minWidth: constraints.maxWidth,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isDesktopOrWeb ? 450 : double.infinity,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                          child: FadeTransition(
+                            opacity: _fadeAnim,
+                            child: SlideTransition(
+                              position: _slideAnim,
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // ── Top Navigation Row (Back Arrow) ──
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: GestureDetector(
+                                        onTap: () => Navigator.maybePop(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          color: Colors.transparent,
+                                          child: const Icon(
+                                            Icons.arrow_back_ios_new,
+                                            size: 18,
+                                            color: Color(0xFF222222),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // ── Header Text Section ──
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 2),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Welcome Back!',
+                                            style: TextStyle(
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF111111),
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                          SizedBox(height: 6),
+                                          Text(
+                                            'Login to continue\nto SportVerse AI',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w400,
+                                              color: AppColors.secondaryText,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 24),
+
+                                    // ── Email Input Field ──
+                                    CustomTextField(
+                                      controller: _emailController,
+                                      hintText: 'Email Address',
+                                      prefixIcon: Icons.email_outlined,
+                                      keyboardType: TextInputType.emailAddress,
+                                    ),
+
+                                    const SizedBox(height: 12),
+
+                                    // ── Password Input Field ──
+                                    CustomTextField(
+                                      controller: _passwordController,
+                                      hintText: 'Password',
+                                      prefixIcon: Icons.lock_outline,
+                                      obscureText: _obscurePassword,
+                                      suffixIcon: GestureDetector(
+                                        onTap: () => setState(
+                                            () => _obscurePassword = !_obscurePassword),
+                                        child: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
                                           size: 18,
-                                          color: Color(0xFF222222),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  // ── Header Text Section ──
-                                  const Padding(
-                                    padding: EdgeInsets.only(left: 2),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Welcome Back!',
-                                          style: TextStyle(
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.w800,
-                                            color: Color(0xFF111111),
-                                            letterSpacing: -0.3,
-                                          ),
-                                        ),
-                                        SizedBox(height: 6),
-                                        Text(
-                                          'Login to continue\nto SportVerse AI',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w400,
-                                            color: AppColors.secondaryText,
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 24),
-
-                                  // ── Email Input Field ──
-                                  CustomTextField(
-                                    controller: _emailController,
-                                    hintText: 'Email Address',
-                                    prefixIcon: Icons.email_outlined,
-                                    keyboardType: TextInputType.emailAddress,
-                                  ),
-
-                                  const SizedBox(height: 12),
-
-                                  // ── Password Input Field ──
-                                  CustomTextField(
-                                    controller: _passwordController,
-                                    hintText: 'Password',
-                                    prefixIcon: Icons.lock_outline,
-                                    obscureText: _obscurePassword,
-                                    suffixIcon: GestureDetector(
-                                      onTap: () => setState(
-                                          () => _obscurePassword = !_obscurePassword),
-                                      child: Icon(
-                                        _obscurePassword
-                                            ? Icons.visibility_outlined
-                                            : Icons.visibility_off_outlined,
-                                        size: 18,
-                                        color: AppColors.secondaryText,
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 8),
-
-                                  // ── Forgot Password Link ──
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: GestureDetector(
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const ForgotPasswordScreen()),
-                                      ),
-                                      child: const Text(
-                                        'Forgot Password?',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.warmAccent,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 20),
-
-                                  // ── Primary Black Log In Button ──
-                                  PrimaryButton(
-                                    text: 'Log In',
-                                    isLoading: _isLoading,
-                                    onPressed: _handleLogin,
-                                  ),
-
-                                  const SizedBox(height: 18),
-
-                                  // ── Google Sign-In ──────────────────────
-                                  // Web:     GIS SDK renderButton() — required by google_sign_in_web 1.1.3
-                                  //          authenticate() is NOT supported on web and will throw.
-                                  // Android: our custom button calling signInWithGoogle()
-                                  if (kIsWeb)
-                                    SizedBox(
-                                      height: 52,
-                                      width: double.infinity,
-                                      child: google_sign_in_web.renderButton(),
-                                    )
-                                  else
-                                    SizedBox(
-                                      width: double.infinity,
-                                      height: 52,
-                                      child: OutlinedButton.icon(
-                                        onPressed: _isLoading ? null : () async {
-                                          setState(() => _isLoading = true);
-                                          final result = await AuthService.signInWithGoogle();
-                                          if (!mounted) return;
-                                          setState(() => _isLoading = false);
-                                          _showSnackBar(result['message'] as String);
-                                          if (result['success'] == true) {
-                                            final isNewUser = result['data']?['isNewUser'] == true;
-                                            Navigator.pushReplacement(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                        style: OutlinedButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          side: const BorderSide(color: AppColors.border),
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(12)),
-                                        ),
-                                        icon: Image.asset('assets/images/google_logo.png', height: 24),
-                                        label: const Text(
-                                          'Continue with Google',
-                                          style: TextStyle(
-                                            color: AppColors.primaryBlack,
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 15,
-                                          ),
+                                          color: AppColors.secondaryText,
                                         ),
                                       ),
                                     ),
 
-                                  const SizedBox(height: 16),
+                                    const SizedBox(height: 8),
 
-                                  // ── Create Account Navigation Link ──
-                                  Center(
-                                    child: GestureDetector(
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) => const RegisterScreen()),
-                                      ),
-                                      child: const Text.rich(
-                                        TextSpan(
+                                    // ── Forgot Password Link ──
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: GestureDetector(
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const ForgotPasswordScreen()),
+                                        ),
+                                        child: const Text(
+                                          'Forgot Password?',
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: Color(0xFF777777),
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.warmAccent,
                                           ),
-                                          children: [
-                                            TextSpan(text: "Don't have an account? "),
-                                            TextSpan(
-                                              text: 'Create Account',
-                                              style: TextStyle(
-                                                color: AppColors.warmAccent,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
                                         ),
                                       ),
                                     ),
-                                  ),
 
-                                  const SizedBox(height: 60),
-                                ],
+                                    const SizedBox(height: 20),
+
+                                    // ── Primary Black Log In Button ──
+                                    PrimaryButton(
+                                      text: 'Log In',
+                                      isLoading: _isLoading,
+                                      onPressed: _handleLogin,
+                                    ),
+
+                                    const SizedBox(height: 18),
+
+                                    // ── Google Sign-In ──────────────────────
+                                    if (kIsWeb)
+                                      SizedBox(
+                                        height: 52,
+                                        width: double.infinity,
+                                        child: google_sign_in_web.renderButton(),
+                                      )
+                                    else
+                                      SizedBox(
+                                        width: double.infinity,
+                                        height: 52,
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isLoading ? null : () async {
+                                            setState(() => _isLoading = true);
+                                            final result = await AuthService.signInWithGoogle();
+                                            if (!mounted) return;
+                                            setState(() => _isLoading = false);
+                                            _showSnackBar(result['message'] as String);
+                                            if (result['success'] == true) {
+                                              final isNewUser = result['data']?['isNewUser'] == true;
+                                              Navigator.pushReplacement(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            side: const BorderSide(color: AppColors.border),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(12)),
+                                          ),
+                                          icon: Image.asset('assets/images/google_logo.png', height: 24),
+                                          label: const Text(
+                                            'Continue with Google',
+                                            style: TextStyle(
+                                              color: AppColors.primaryBlack,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+
+                                    const SizedBox(height: 16),
+
+                                    // ── Create Account Navigation Link ──
+                                    Center(
+                                      child: GestureDetector(
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) => const RegisterScreen()),
+                                        ),
+                                        child: const Text.rich(
+                                          TextSpan(
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF777777),
+                                            ),
+                                            children: [
+                                              TextSpan(text: "Don't have an account? "),
+                                              TextSpan(
+                                                text: 'Create Account',
+                                                style: TextStyle(
+                                                  color: AppColors.warmAccent,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

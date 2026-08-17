@@ -206,185 +206,190 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         backgroundColor: Colors.white,
-        contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 68,
-              height: 68,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE8F5E9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check_circle_rounded,
-                color: Color(0xFF2E7D32),
-                size: 48,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Booking Confirmed!',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: AppColors.primaryBlack,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Your slot at ${widget.ground.title} is secured.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.secondaryText,
-              ),
-            ),
-            const SizedBox(height: 18),
-
-            // Booking Ticket Card with QR
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9F7F4),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Booking ID',
-                        style: TextStyle(fontSize: 11, color: AppColors.mutedText),
-                      ),
-                      Text(
-                        bookingId,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.warmAccent,
-                        ),
-                      ),
-                    ],
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE8F5E9),
+                    shape: BoxShape.circle,
                   ),
-                  const Divider(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Date:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                      Text(dateStr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF2E7D32),
+                    size: 48,
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Time:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                      Expanded(
-                        child: Text(
-                          slotTimeStr,
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Total Paid:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                      Text(
-                        '₹${_totalBookingPrice.toInt()}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF2E7D32),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // Real QR code visual
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Column(
-                      children: [
-                        QrImageView(
-                          data: 'SPORTVERSE_QR_$bookingId',
-                          version: QrVersions.auto,
-                          size: 110.0,
-                          backgroundColor: Colors.white,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: Color(0xFF0F1116),
-                          ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.square,
-                            color: Color(0xFF0F1116),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'SPORTVERSE_QR_$bookingId',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(ctx); // Close dialog
-                  Navigator.pop(context); // Pop booking screen
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BookingsScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlack,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
                 ),
-                child: const Text('View in My Bookings', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Booking Confirmed!',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.primaryBlack,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Your slot at ${widget.ground.title} is secured.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Booking Ticket Card with QR
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9F7F4),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Booking ID',
+                            style: TextStyle(fontSize: 11, color: AppColors.mutedText),
+                          ),
+                          Text(
+                            bookingId,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warmAccent,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Date:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                          Text(dateStr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Time:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                          Expanded(
+                            child: Text(
+                              slotTimeStr,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Total Paid:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                          Text(
+                            '₹${_totalBookingPrice.toInt()}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Real QR code visual
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            QrImageView(
+                              data: 'SPORTVERSE_QR_$bookingId',
+                              version: QrVersions.auto,
+                              size: 110.0,
+                              backgroundColor: Colors.white,
+                              eyeStyle: const QrEyeStyle(
+                                eyeShape: QrEyeShape.square,
+                                color: Color(0xFF0F1116),
+                              ),
+                              dataModuleStyle: const QrDataModuleStyle(
+                                dataModuleShape: QrDataModuleShape.square,
+                                color: Color(0xFF0F1116),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'SPORTVERSE_QR_$bookingId',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Action Buttons
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx); // Close dialog
+                      Navigator.pop(context); // Pop booking screen
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const BookingsScreen()),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlack,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
+                    ),
+                    child: const Text('View in My Bookings', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Back to Grounds', style: TextStyle(color: AppColors.warmAccent)),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.pop(context);
-              },
-              child: const Text('Back to Grounds', style: TextStyle(color: AppColors.warmAccent)),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -868,40 +873,42 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
   // ── 4. Add-ons & Equipment ──
   Widget _buildAddonsSection() {
-    return Container(
+    return Material(
       color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '3. Add-ons & Equipment (Optional)',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryBlack,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '3. Add-ons & Equipment (Optional)',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryBlack,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          CheckboxListTile(
-            value: _addEquipmentRental,
-            onChanged: (v) => setState(() => _addEquipmentRental = v ?? false),
-            title: const Text('Sports Gear & Balls / Shuttlecocks', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Includes rackets/bats & tournament-grade balls (+₹100/slot)', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
-            activeColor: const Color(0xFFC8895B),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-          CheckboxListTile(
-            value: _addRefresherDrinks,
-            onChanged: (v) => setState(() => _addRefresherDrinks = v ?? false),
-            title: const Text('Energy Drinks & Mineral Water Pack', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-            subtitle: const Text('Cold electrolyte drinks waiting at court (+₹50)', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
-            activeColor: const Color(0xFFC8895B),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-          ),
-        ],
+            const SizedBox(height: 10),
+            CheckboxListTile(
+              value: _addEquipmentRental,
+              onChanged: (v) => setState(() => _addEquipmentRental = v ?? false),
+              title: const Text('Sports Gear & Balls / Shuttlecocks', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Includes rackets/bats & tournament-grade balls (+₹100/slot)', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
+              activeColor: const Color(0xFFC8895B),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            CheckboxListTile(
+              value: _addRefresherDrinks,
+              onChanged: (v) => setState(() => _addRefresherDrinks = v ?? false),
+              title: const Text('Energy Drinks & Mineral Water Pack', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Cold electrolyte drinks waiting at court (+₹50)', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
+              activeColor: const Color(0xFFC8895B),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ],
+        ),
       ),
     );
   }

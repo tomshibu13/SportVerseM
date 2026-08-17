@@ -31,20 +31,22 @@ async function request(endpoint, options = {}) {
 export function normalizeGround(g) {
   if (!g) return null;
   const id = g._id || g.id || g.ground_id || Date.now();
-  const title = g.title || 'Sports Complex';
-  const location = g.location || g.address || 'Kochi, Kerala';
-  const pricePerHour = Number(g.price_per_hour || g.pricePerHour) || 700;
-  const sportType = g.sport_type || (Array.isArray(g.sports) ? g.sports[0] : g.sports) || 'Football';
+  const title = g.title || 'Sports Arena';
+  const location = g.location || g.address || 'Kerala';
+  const pricePerHour = Number(g.price_per_hour ?? g.pricePerHour ?? 0);
+  const sportType = g.sport_type || (Array.isArray(g.sports) && g.sports[0]) || (typeof g.sports === 'string' ? g.sports : 'Sports');
   const sports = Array.isArray(g.sports) && g.sports.length > 0 ? g.sports : [sportType];
   const image = (g.images && g.images[0]) || g.image || 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=600&q=80';
-  const rating = Number(g.rating) || 4.8;
+  const rating = Number(g.rating || 0);
   const status = g.status || 'Active';
-  const totalSlots = g.totalSlots || (g.available_slots ? g.available_slots.length : 12);
+  const totalSlots = g.totalSlots !== undefined ? g.totalSlots : (g.available_slots ? g.available_slots.length : 0);
+  const available_slots = Array.isArray(g.available_slots) ? g.available_slots : [];
 
   return {
     ...g,
     id,
     _id: g._id || id,
+    ground_id: g.ground_id || id,
     title,
     location,
     address: g.address || location,
@@ -57,22 +59,25 @@ export function normalizeGround(g) {
     rating,
     status,
     totalSlots,
+    available_slots,
   };
 }
 
 export function normalizeBooking(b) {
   if (!b) return null;
-  const booking_id = b.booking_id || (b._id ? `SPV-BK-${String(b._id).slice(-4).toUpperCase()}` : 'SPV-BK-9999');
+  const booking_id = b.booking_id || (b._id ? `SPV-BK-${String(b._id).slice(-4).toUpperCase()}` : 'SPV-BK-0000');
   const user_name = b.user_name || (b.user && b.user.fullName) || 'Player';
+  const user_email = (b.user && b.user.email) || b.email || '';
+  const user_phone = (b.user && b.user.phone) || b.phone || '';
   const ground_name = b.ground_name || (b.ground && b.ground.title) || 'Sports Arena';
-  const sport_type = b.sport_type || b.sport || (b.ground && b.ground.sport_type) || 'Football';
+  const sport_type = b.sport_type || b.sport || (b.ground && b.ground.sport_type) || 'Sports';
   const sport = b.sport || sport_type;
-  const date = b.date || b.booking_date || new Date().toISOString().split('T')[0];
+  const date = b.date || b.booking_date || (b.created_at ? b.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
   const booking_date = b.booking_date || date;
-  const slot_time = b.slot_time || b.booking_time || '18:00 - 19:00';
+  const slot_time = b.slot_time || b.booking_time || 'General Slot';
   const booking_time = b.booking_time || slot_time;
-  const total_price = Number(b.total_price) || 800;
-  const booking_status = b.booking_status || 'Confirmed';
+  const total_price = Number(b.total_price !== undefined ? b.total_price : (b.price !== undefined ? b.price : 0));
+  const booking_status = b.booking_status || 'Upcoming';
   const admin_approval = b.admin_approval || 'Approved';
   const qr_code = b.qr_code || `SPORTVERSE_QR_${booking_id}`;
 
@@ -81,6 +86,8 @@ export function normalizeBooking(b) {
     _id: b._id || booking_id,
     booking_id,
     user_name,
+    user_email,
+    user_phone,
     ground_name,
     sport,
     sport_type,
@@ -100,14 +107,14 @@ export function normalizeProduct(p) {
   const id = p.product_id || p.id || p._id || Date.now();
   const name = p.title || p.name || 'Sports Equipment';
   const title = p.title || p.name || 'Sports Equipment';
-  const category = p.category || 'Gear';
+  const category = p.category || p.sport || 'Gear';
   const sport = p.sport || p.category || 'General';
-  const price = Number(p.price) || 999;
-  const original_price = Number(p.original_price || p.originalPrice) || Math.round(price * 1.25);
-  const stock = p.stock !== undefined ? Number(p.stock) : 10;
+  const price = Number(p.price || 0);
+  const original_price = Number(p.original_price || p.originalPrice || price);
+  const stock = p.stock !== undefined ? Number(p.stock) : 0;
   const image = p.image || 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?auto=format&fit=crop&w=400&q=80';
-  const rating = Number(p.rating) || 4.8;
-  const description = p.description || `High performance ${category} sports equipment.`;
+  const rating = Number(p.rating || 5.0);
+  const description = p.description || `${category} equipment.`;
 
   return {
     ...p,
@@ -132,10 +139,11 @@ export function normalizeUser(u) {
   const fullName = u.fullName || u.name || 'User';
   const email = u.email || '';
   const role = u.role || 'User';
-  const approvalStatus = u.approvalStatus || (u.isApproved ? 'Approved' : 'Pending');
+  const approvalStatus = u.approvalStatus || (u.isApproved ? 'Approved' : (role === 'GroundOwner' || role === 'ShopOwner' ? 'Pending' : 'Approved'));
   const isApproved = u.isApproved !== undefined ? u.isApproved : (approvalStatus === 'Approved');
-  const phone = u.phone || 'N/A';
-  const createdAt = u.createdAt ? (typeof u.createdAt === 'string' && u.createdAt.includes('T') ? u.createdAt.split('T')[0] : u.createdAt) : 'Recent';
+  const phone = u.phone || '';
+  const location = u.location || '';
+  const createdAt = u.createdAt ? (typeof u.createdAt === 'string' && u.createdAt.includes('T') ? u.createdAt.split('T')[0] : String(u.createdAt)) : 'Recent';
 
   return {
     ...u,
@@ -147,6 +155,7 @@ export function normalizeUser(u) {
     approvalStatus,
     isApproved,
     phone,
+    location,
     createdAt,
   };
 }
@@ -160,7 +169,6 @@ export async function loginApi(email, password) {
     });
     return data;
   } catch (err) {
-    // Offline / Demo credentials fallback
     const normEmail = (email || '').toLowerCase().trim();
     if (
       (normEmail === 'tomshibu666@gmail.com' && password === 'Admin@123') ||
@@ -194,16 +202,8 @@ export async function fetchUsers() {
     }
     return [];
   } catch (err) {
-    // Fallback Mock Users
-    const fallbackList = [
-      { id: 1, fullName: 'System Administrator', email: 'tomshibu666@gmail.com', role: 'Admin', approvalStatus: 'Approved', phone: '+91 9999999999', createdAt: '2026-07-01' },
-      { id: 2, fullName: 'Alex Arena Owner', email: 'alex.owner@arena.com', role: 'GroundOwner', approvalStatus: 'Approved', phone: '+91 9876543211', createdAt: '2026-07-10' },
-      { id: 3, fullName: 'Smash Turf Owner', email: 'owner@smashturf.in', role: 'GroundOwner', approvalStatus: 'Pending', phone: '+91 9876543212', createdAt: '2026-08-01' },
-      { id: 4, fullName: 'Sarah Pro-Shop', email: 'sarah@proshop.com', role: 'ShopOwner', approvalStatus: 'Approved', phone: '+91 9876543213', createdAt: '2026-07-15' },
-      { id: 5, fullName: 'Rahul Dravid', email: 'rahul@sports.com', role: 'User', approvalStatus: 'Approved', phone: '+91 9876543214', createdAt: '2026-08-05' },
-      { id: 6, fullName: 'Apex Arena Station', email: 'contact@apexarena.com', role: 'GroundOwner', approvalStatus: 'Pending', phone: '+91 9876543215', createdAt: '2026-08-12' },
-    ];
-    return fallbackList.map(normalizeUser);
+    console.warn('Could not fetch users from backend:', err.message);
+    return [];
   }
 }
 
@@ -241,42 +241,8 @@ export async function fetchGrounds() {
     }
     return [];
   } catch (err) {
-    const fallbackList = [
-      {
-        id: 1,
-        title: 'Metro Sports Complex',
-        location: 'Kochi Central, Kerala',
-        sports: ['Football', 'Cricket'],
-        pricePerHour: 1200,
-        rating: 4.8,
-        status: 'Active',
-        totalSlots: 14,
-        image: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=600&q=80',
-      },
-      {
-        id: 2,
-        title: 'Victory Badminton Arena',
-        location: 'North District, Kochi',
-        sports: ['Badminton'],
-        pricePerHour: 500,
-        rating: 4.6,
-        status: 'Active',
-        totalSlots: 10,
-        image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=600&q=80',
-      },
-      {
-        id: 3,
-        title: 'Smash Turf Arena',
-        location: 'Edappally, Kochi',
-        sports: ['Football', 'Padel'],
-        pricePerHour: 1500,
-        rating: 4.9,
-        status: 'Pending Approval',
-        totalSlots: 8,
-        image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=600&q=80',
-      },
-    ];
-    return fallbackList.map(normalizeGround);
+    console.warn('Could not fetch grounds from backend:', err.message);
+    return [];
   }
 }
 
@@ -363,7 +329,6 @@ export async function deleteGroundApi(groundId) {
 // ── Bookings ──
 export async function fetchBookings(userId = null) {
   try {
-    // If userId is provided and not admin, fetch user specific bookings; otherwise fetch all
     const endpoint = userId && userId !== 'admin' ? `/bookings/user/${userId}` : '/bookings';
     const data = await request(endpoint);
     const rawList = data.bookings || data;
@@ -372,14 +337,8 @@ export async function fetchBookings(userId = null) {
     }
     return [];
   } catch (err) {
-    const fallbackList = [
-      { booking_id: 'SPV-BK-9821', user_name: 'Rahul Dravid', ground_name: 'Metro Sports Complex', sport: 'Football (Turf #1)', sport_type: 'Football', booking_date: '2026-08-14', booking_time: '18:00 - 19:00', total_price: 1200, booking_status: 'Confirmed', admin_approval: 'Approved', qr_code: 'SPORTVERSE_QR_SPV-BK-9821' },
-      { booking_id: 'SPV-BK-9822', user_name: 'Anjali Menon', ground_name: 'Victory Badminton Arena', sport: 'Badminton (Court #2)', sport_type: 'Badminton', booking_date: '2026-08-14', booking_time: '19:00 - 20:00', total_price: 500, booking_status: 'Confirmed', admin_approval: 'Approved', qr_code: 'SPORTVERSE_QR_SPV-BK-9822' },
-      { booking_id: 'SPV-BK-9823', user_name: 'Vikram Seth', ground_name: 'Smash Turf Arena', sport: 'Padel (Court A)', sport_type: 'Padel', booking_date: '2026-08-13', booking_time: '20:00 - 21:00', total_price: 1500, booking_status: 'Completed', admin_approval: 'Approved', qr_code: 'SPORTVERSE_QR_SPV-BK-9823' },
-      { booking_id: 'SPV-BK-9824', user_name: 'Kiran Kumar', ground_name: 'Metro Sports Complex', sport: 'Cricket (Net #3)', sport_type: 'Cricket', booking_date: '2026-08-15', booking_time: '07:00 - 09:00', total_price: 1800, booking_status: 'Cancelled', admin_approval: 'Rejected', qr_code: 'SPORTVERSE_QR_SPV-BK-9824' },
-      { booking_id: 'SPV-BK-9825', user_name: 'Sneha Patel', ground_name: 'Victory Badminton Arena', sport: 'Badminton (Court #1)', sport_type: 'Badminton', booking_date: '2026-08-16', booking_time: '17:00 - 18:00', total_price: 600, booking_status: 'Confirmed', admin_approval: 'Pending', qr_code: 'SPORTVERSE_QR_SPV-BK-9825' },
-    ];
-    return fallbackList.map(normalizeBooking);
+    console.warn('Could not fetch bookings from backend:', err.message);
+    return [];
   }
 }
 
@@ -391,7 +350,6 @@ export async function checkInBookingApi(bookingId) {
     });
     return data;
   } catch (err) {
-    // Try POST fallback
     try {
       return await request('/bookings/checkin', {
         method: 'POST',
@@ -432,13 +390,8 @@ export async function fetchProducts() {
     }
     return [];
   } catch (err) {
-    const fallbackList = [
-      { id: 1, title: 'Yonex Astrox 99 Play Badminton Racket', category: 'Racket', sport: 'Badminton', price: 3490, stock: 15, rating: 4.8, image: 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?auto=format&fit=crop&w=400&q=80' },
-      { id: 2, title: 'Nike Vapor Pro Football Boots', category: 'Footwear', sport: 'Football', price: 6995, stock: 8, rating: 4.9, image: 'https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&w=400&q=80' },
-      { id: 3, title: 'Cosco FIFA Approved Football Size 5', category: 'Gear', sport: 'Football', price: 1250, stock: 24, rating: 4.7, image: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=400&q=80' },
-      { id: 4, title: 'MRF Genius Grand Edition Cricket Bat', category: 'Bat', sport: 'Cricket', price: 8500, stock: 5, rating: 5.0, image: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=400&q=80' },
-    ];
-    return fallbackList.map(normalizeProduct);
+    console.warn('Could not fetch products from backend:', err.message);
+    return [];
   }
 }
 

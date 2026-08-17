@@ -1431,9 +1431,12 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
           'Kochi, Kerala',
           'Trivandrum, Kerala',
         ];
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
+        return Material(
+          color: Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1458,10 +1461,11 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
               ),
             ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   // ── Filter Options Modal ──
   void _showFilterOptionsModal() {

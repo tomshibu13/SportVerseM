@@ -207,163 +207,260 @@ class _RegisterScreenState extends State<RegisterScreen> {
               builder: (context, constraints) {
                 return SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktopOrWeb ? 450 : double.infinity,
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                            // ── Top Navigation Row (Back Arrow) ──
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8, bottom: 12),
-                              child: GestureDetector(
-                                onTap: () => Navigator.maybePop(context),
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  color: Colors.transparent,
-                                  child: const Icon(
-                                    Icons.arrow_back_ios_new,
-                                    size: 18,
-                                    color: Color(0xFF222222),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                      minWidth: constraints.maxWidth,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isDesktopOrWeb ? 450 : double.infinity,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ── Top Navigation Row (Back Arrow) ──
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: GestureDetector(
+                                  onTap: () => Navigator.maybePop(context),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    color: Colors.transparent,
+                                    child: const Icon(
+                                      Icons.arrow_back_ios_new,
+                                      size: 18,
+                                      color: Color(0xFF222222),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
 
-                            // ── Title & Subtitle ──
-                            const Padding(
-                              padding: EdgeInsets.only(left: 2),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              // ── Title & Subtitle ──
+                              const Padding(
+                                padding: EdgeInsets.only(left: 2),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Create Account',
+                                      style: TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF111111),
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    Text(
+                                      'Join SportVerse AI and start your sports journey',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                        color: AppColors.secondaryText,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 24),
+
+                              // ── Form Fields Section ──
+                              CustomTextField(
+                                controller: _fullNameController,
+                                hintText: 'Full Name',
+                                prefixIcon: Icons.person_outline,
+                              ),
+                              const SizedBox(height: 12),
+                              CustomTextField(
+                                controller: _emailController,
+                                hintText: 'Email Address',
+                                prefixIcon: Icons.email_outlined,
+                                keyboardType: TextInputType.emailAddress,
+                              ),
+                              const SizedBox(height: 12),
+                              CustomTextField(
+                                controller: _phoneController,
+                                hintText: 'Phone Number',
+                                prefixIcon: Icons.phone_outlined,
+                                keyboardType: TextInputType.phone,
+                              ),
+                              const SizedBox(height: 12),
+                              CustomTextField(
+                                controller: _passwordController,
+                                hintText: 'Password',
+                                prefixIcon: Icons.lock_outline,
+                                obscureText: _obscurePassword,
+                                suffixIcon: GestureDetector(
+                                  onTap: () => setState(
+                                      () => _obscurePassword = !_obscurePassword),
+                                  child: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 18,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              CustomTextField(
+                                controller: _confirmPasswordController,
+                                hintText: 'Confirm Password',
+                                prefixIcon: Icons.lock_outline,
+                                obscureText: _obscureConfirmPassword,
+                                suffixIcon: GestureDetector(
+                                  onTap: () => setState(() =>
+                                      _obscureConfirmPassword = !_obscureConfirmPassword),
+                                  child: Icon(
+                                    _obscureConfirmPassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                    size: 18,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // ── Terms & Privacy Checkbox ──
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Text(
-                                    'Create Account',
-                                    style: TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF111111),
-                                      letterSpacing: -0.3,
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: Checkbox(
+                                      value: _agreedToTerms,
+                                      activeColor: AppColors.primaryBlack,
+                                      checkColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      side: const BorderSide(
+                                          color: AppColors.border, width: 1.2),
+                                      onChanged: (v) =>
+                                          setState(() => _agreedToTerms = v ?? false),
                                     ),
                                   ),
-                                  SizedBox(height: 6),
-                                  Text(
-                                    'Join SportVerse AI and start your sports journey',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400,
-                                      color: AppColors.secondaryText,
+                                  const SizedBox(width: 10),
+                                  const Expanded(
+                                    child: Text.rich(
+                                      TextSpan(
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.secondaryText,
+                                        ),
+                                        children: [
+                                          TextSpan(text: 'I agree to the '),
+                                          TextSpan(
+                                            text: 'Terms & Conditions',
+                                            style: TextStyle(
+                                              color: AppColors.warmAccent,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          TextSpan(text: ' and '),
+                                          TextSpan(
+                                            text: 'Privacy Policy',
+                                            style: TextStyle(
+                                              color: AppColors.warmAccent,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
 
-                            const SizedBox(height: 24),
+                              const SizedBox(height: 22),
 
-                            // ── Form Fields Section ──
-                            CustomTextField(
-                              controller: _fullNameController,
-                              hintText: 'Full Name',
-                              prefixIcon: Icons.person_outline,
-                            ),
-                            const SizedBox(height: 12),
-                            CustomTextField(
-                              controller: _emailController,
-                              hintText: 'Email Address',
-                              prefixIcon: Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 12),
-                            CustomTextField(
-                              controller: _phoneController,
-                              hintText: 'Phone Number',
-                              prefixIcon: Icons.phone_outlined,
-                              keyboardType: TextInputType.phone,
-                            ),
-                            const SizedBox(height: 12),
-                            CustomTextField(
-                              controller: _passwordController,
-                              hintText: 'Password',
-                              prefixIcon: Icons.lock_outline,
-                              obscureText: _obscurePassword,
-                              suffixIcon: GestureDetector(
-                                onTap: () => setState(
-                                    () => _obscurePassword = !_obscurePassword),
-                                child: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  size: 18,
-                                  color: AppColors.secondaryText,
-                                ),
+                              // ── Create Account Primary Button ──
+                              PrimaryButton(
+                                text: 'Create Account',
+                                isLoading: _isLoading,
+                                onPressed: _handleRegister,
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            CustomTextField(
-                              controller: _confirmPasswordController,
-                              hintText: 'Confirm Password',
-                              prefixIcon: Icons.lock_outline,
-                              obscureText: _obscureConfirmPassword,
-                              suffixIcon: GestureDetector(
-                                onTap: () => setState(() =>
-                                    _obscureConfirmPassword = !_obscureConfirmPassword),
-                                child: Icon(
-                                  _obscureConfirmPassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  size: 18,
-                                  color: AppColors.secondaryText,
-                                ),
-                              ),
-                            ),
 
-                            const SizedBox(height: 16),
+                              const SizedBox(height: 18),
 
-                            // ── Terms & Privacy Checkbox ──
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
+                              // ── Google Sign-In ──────────────────────
+                              if (kIsWeb)
                                 SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: Checkbox(
-                                    value: _agreedToTerms,
-                                    activeColor: AppColors.primaryBlack,
-                                    checkColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
+                                  height: 52,
+                                  width: double.infinity,
+                                  child: google_sign_in_web.renderButton(),
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: OutlinedButton.icon(
+                                    onPressed: _isLoading ? null : () async {
+                                      if (!_agreedToTerms) {
+                                        _showSnackBar('Please accept the Terms & Conditions');
+                                        return;
+                                      }
+                                      setState(() => _isLoading = true);
+                                      final result = await AuthService.signInWithGoogle();
+                                      if (!mounted) return;
+                                      setState(() => _isLoading = false);
+                                      _showSnackBar(result['message'] as String);
+                                      if (result['success'] == true) {
+                                        final isNewUser = result['data']?['isNewUser'] == true;
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      side: const BorderSide(color: AppColors.border),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     ),
-                                    side: const BorderSide(
-                                        color: AppColors.border, width: 1.2),
-                                    onChanged: (v) =>
-                                        setState(() => _agreedToTerms = v ?? false),
+                                    icon: Image.asset('assets/images/google_logo.png', height: 24),
+                                    label: const Text(
+                                      'Continue with Google',
+                                      style: TextStyle(
+                                        color: AppColors.primaryBlack,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                const Expanded(
-                                  child: Text.rich(
+
+                              const SizedBox(height: 16),
+
+                              // ── Log In Link ──
+                              Center(
+                                child: GestureDetector(
+                                  onTap: () => Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  ),
+                                  child: const Text.rich(
                                     TextSpan(
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: AppColors.secondaryText,
+                                        color: Color(0xFF777777),
                                       ),
                                       children: [
-                                        TextSpan(text: 'I agree to the '),
+                                        TextSpan(text: 'Already have an account? '),
                                         TextSpan(
-                                          text: 'Terms & Conditions',
-                                          style: TextStyle(
-                                            color: AppColors.warmAccent,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        TextSpan(text: ' and '),
-                                        TextSpan(
-                                          text: 'Privacy Policy',
+                                          text: 'Log In',
                                           style: TextStyle(
                                             color: AppColors.warmAccent,
                                             fontWeight: FontWeight.w700,
@@ -373,101 +470,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 22),
-
-                            // ── Create Account Primary Button ──
-                            PrimaryButton(
-                              text: 'Create Account',
-                              isLoading: _isLoading,
-                              onPressed: _handleRegister,
-                            ),
-
-                            const SizedBox(height: 18),
-
-                            // ── Google Sign-In ──────────────────────
-                            if (kIsWeb)
-                              SizedBox(
-                                height: 52,
-                                width: double.infinity,
-                                child: google_sign_in_web.renderButton(),
-                              )
-                            else
-                              SizedBox(
-                                width: double.infinity,
-                                height: 52,
-                                child: OutlinedButton.icon(
-                                  onPressed: _isLoading ? null : () async {
-                                    if (!_agreedToTerms) {
-                                      _showSnackBar('Please accept the Terms & Conditions');
-                                      return;
-                                    }
-                                    setState(() => _isLoading = true);
-                                    final result = await AuthService.signInWithGoogle();
-                                    if (!mounted) return;
-                                    setState(() => _isLoading = false);
-                                    _showSnackBar(result['message'] as String);
-                                    if (result['success'] == true) {
-                                      final isNewUser = result['data']?['isNewUser'] == true;
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => isNewUser ? const RoleSelectionScreen() : const HomeScreen(),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    side: const BorderSide(color: AppColors.border),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                  icon: Image.asset('assets/images/google_logo.png', height: 24),
-                                  label: const Text(
-                                    'Continue with Google',
-                                    style: TextStyle(
-                                      color: AppColors.primaryBlack,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
                               ),
-
-                            const SizedBox(height: 16),
-
-                            // ── Log In Link ──
-                            Center(
-                              child: GestureDetector(
-                                onTap: () => Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                                ),
-                                child: const Text.rich(
-                                  TextSpan(
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF777777),
-                                    ),
-                                    children: [
-                                      TextSpan(text: 'Already have an account? '),
-                                      TextSpan(
-                                        text: 'Log In',
-                                        style: TextStyle(
-                                          color: AppColors.warmAccent,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 40),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),

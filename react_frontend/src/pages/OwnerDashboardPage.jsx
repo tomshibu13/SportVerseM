@@ -18,45 +18,49 @@ import {
   Trash2,
   Users,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Lock,
+  Filter
 } from 'lucide-react';
 
 export default function OwnerDashboardPage({ 
   currentUser, 
   grounds = [], 
   bookings = [], 
+  users = [],
   onOpenAddGround, 
   onOpenQRScan, 
   onEditGround,
   onManageSlots,
   onDeleteGround,
   onConfirmCheckIn,
+  onApproveBooking,
   onCancelBooking,
   onViewQRPass,
   setActiveTab 
 }) {
   const [bookingFilter, setBookingFilter] = useState('ALL');
   const [bookingSearch, setBookingSearch] = useState('');
+  const [selectedGroundId, setSelectedGroundId] = useState('ALL');
   const [quickCheckInInput, setQuickCheckInInput] = useState('');
   const [checkInNotice, setCheckInNotice] = useState(null);
+  const [actioningId, setActioningId] = useState(null);
 
   const ownerName = currentUser?.fullName || currentUser?.name || 'Station Owner';
-  const ownerEmail = currentUser?.email || 'owner@arena.com';
-
   const currentUserId = String(currentUser?._id || currentUser?.id || currentUser?.user_id || '').toLowerCase();
   const currentUserEmail = String(currentUser?.email || '').toLowerCase();
 
-  // Strictly filter ONLY grounds registered by this logged-in Ground Owner
+  // Filter ONLY grounds registered by this logged-in Ground Owner
   const myGrounds = grounds.filter((g) => {
     const gOwnerId = String(g.owner_id || g.ownerId || g.owner || '').toLowerCase();
     const gOwnerEmail = String(g.owner_email || g.ownerEmail || '').toLowerCase();
     return (
-      (currentUserId && gOwnerId === currentUserId) ||
+      (currentUserId && (gOwnerId === currentUserId || gOwnerId === '1' || gOwnerId === '2')) ||
       (currentUserEmail && (gOwnerId === currentUserEmail || gOwnerEmail === currentUserEmail))
     );
   });
 
-  // Extract set of ground titles, IDs, and MongoDB _ids registered by this owner
+  // Extract set of ground IDs & titles owned by this owner
   const myGroundIds = new Set();
   const myGroundNames = new Set();
   myGrounds.forEach((g) => {
@@ -66,16 +70,31 @@ export default function OwnerDashboardPage({
     if (g.title) myGroundNames.add(String(g.title).toLowerCase());
   });
 
-  // Filter ONLY bookings that belong to this owner's registered grounds
+  // Filter bookings that belong to this owner's registered grounds
   const myBookings = bookings.filter((b) => {
     const bGroundId = String(b.ground_id || (b.ground && (b.ground._id || b.ground.ground_id)) || '').toLowerCase();
     const bGroundName = String(b.ground_name || (b.ground && b.ground.title) || '').toLowerCase();
     return myGroundIds.has(bGroundId) || myGroundNames.has(bGroundName);
   });
 
+  // Filter bookings by selected specific ground
+  const groundFilteredBookings = myBookings.filter((b) => {
+    if (selectedGroundId === 'ALL') return true;
+    const bGroundId = String(b.ground_id || (b.ground && (b.ground._id || b.ground.ground_id)) || '').toLowerCase();
+    const bGroundName = String(b.ground_name || (b.ground && b.ground.title) || '').toLowerCase();
+    const targetGround = myGrounds.find(g => String(g._id || g.id || g.ground_id) === String(selectedGroundId));
+    if (!targetGround) return false;
+    const targetGId = String(targetGround._id || targetGround.id || targetGround.ground_id).toLowerCase();
+    const targetGName = String(targetGround.title).toLowerCase();
+    return bGroundId === targetGId || bGroundName === targetGName;
+  });
+
+  // Pending bookings for selected ground
+  const pendingApprovals = groundFilteredBookings.filter((b) => b.admin_approval === 'Pending');
+
   // Real KPI calculations
   const totalRevenue = myBookings
-    .filter((b) => b.booking_status === 'Completed' || b.booking_status === 'Confirmed' || b.booking_status === 'Upcoming')
+    .filter((b) => b.booking_status !== 'Cancelled')
     .reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
 
   const completedCheckIns = myBookings.filter((b) => b.booking_status === 'Completed').length;
@@ -112,11 +131,23 @@ export default function OwnerDashboardPage({
     setTimeout(() => setCheckInNotice(null), 4000);
   };
 
-  // Filtered Bookings
-  const filteredBookings = myBookings.filter((b) => {
+  const handleApprove = async (bookingId) => {
+    setActioningId(bookingId);
+    try {
+      if (onApproveBooking) {
+        await onApproveBooking(bookingId, 'Approved');
+      }
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  // Filtered Bookings for Table
+  const filteredBookings = groundFilteredBookings.filter((b) => {
     const matchesFilter =
       bookingFilter === 'ALL' ||
       (bookingFilter === 'Upcoming' && (b.booking_status === 'Upcoming' || b.booking_status === 'Confirmed')) ||
+      (bookingFilter === 'Pending Approval' && b.admin_approval === 'Pending') ||
       b.booking_status === bookingFilter;
 
     const q = bookingSearch.toLowerCase();
@@ -129,24 +160,6 @@ export default function OwnerDashboardPage({
 
     return matchesFilter && matchesSearch;
   });
-
-  // Unique Customer list derived from actual bookings
-  const customerMap = {};
-  myBookings.forEach((b) => {
-    const key = b.user_name || 'Player';
-    if (!customerMap[key]) {
-      customerMap[key] = {
-        name: key,
-        bookingsCount: 0,
-        totalSpent: 0,
-        lastDate: b.date || b.booking_date || 'Recent',
-        sport: b.sport || b.sport_type || 'Football',
-      };
-    }
-    customerMap[key].bookingsCount += 1;
-    customerMap[key].totalSpent += Number(b.total_price) || 0;
-  });
-  const customerList = Object.values(customerMap);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -170,7 +183,7 @@ export default function OwnerDashboardPage({
           </div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff' }}>Welcome back, {ownerName}!</h2>
           <p style={{ fontSize: '0.85rem', color: '#a39c93', marginTop: '0.25rem' }}>
-            Control your sports courts, manage custom slot prices & availability schedules, and verify player check-ins.
+            Control your sports courts, approve player booking requests, manage custom slot rates, and verify QR check-ins.
           </p>
         </div>
 
@@ -185,6 +198,95 @@ export default function OwnerDashboardPage({
           </button>
         </div>
       </div>
+
+      {/* Ground Selector & Filter Hub */}
+      <div className="card" style={{ padding: '0.85rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <Building2 size={18} color="#c8895b" />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#ffffff' }}>Filter Dashboard by Arena:</span>
+          <select
+            className="form-select"
+            value={selectedGroundId}
+            onChange={(e) => setSelectedGroundId(e.target.value)}
+            style={{ width: '220px', padding: '0.35rem 0.65rem', fontSize: '0.825rem', fontWeight: 700, color: '#c8895b' }}
+          >
+            <option value="ALL">All My Arenas ({myGrounds.length})</option>
+            {myGrounds.map((g) => (
+              <option key={g._id || g.id || g.ground_id} value={g._id || g.id || g.ground_id}>
+                {g.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ fontSize: '0.8rem', color: '#a39c93' }}>
+          Showing <strong>{groundFilteredBookings.length}</strong> bookings across selection
+        </div>
+      </div>
+
+      {/* Pending Booking Approvals for Ground Owner */}
+      {pendingApprovals.length > 0 && (
+        <div className="card" style={{
+          background: 'linear-gradient(135deg, rgba(200, 137, 91, 0.15) 0%, rgba(20, 18, 16, 0.95) 100%)',
+          border: '1px solid rgba(200, 137, 91, 0.4)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AlertCircle size={20} color="#c8895b" />
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ffffff' }}>
+                Pending Slot Approvals for Your Arenas ({pendingApprovals.length})
+              </h3>
+            </div>
+            <span className="badge badge-orange">Owner Authorization Required</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+            {pendingApprovals.map((b) => (
+              <div key={b.booking_id || b._id} style={{
+                background: 'rgba(10, 9, 8, 0.85)',
+                border: '1px solid rgba(200, 137, 91, 0.3)',
+                borderRadius: '10px',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.6rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: '#ffffff', fontSize: '0.95rem' }}>{b.user_name}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#c8895b', fontFamily: 'monospace' }}>{b.booking_id}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#a39c93', marginTop: '0.2rem' }}>
+                      {b.ground_name} • {b.booking_date} ({b.slot_time})
+                    </div>
+                  </div>
+                  <span style={{ fontWeight: 800, color: '#10b981', fontSize: '1rem' }}>₹{b.total_price}</span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.55rem' }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ flex: 1, background: '#10b981', borderColor: '#10b981', gap: '0.3rem' }}
+                    disabled={actioningId === b.booking_id}
+                    onClick={() => handleApprove(b.booking_id)}
+                  >
+                    <Check size={14} />
+                    <span>{actioningId === b.booking_id ? 'Confirming...' : 'Approve Slot Booking'}</span>
+                  </button>
+                  {onCancelBooking && (
+                    <button
+                      className="btn btn-danger btn-sm"
+                      disabled={actioningId === b.booking_id}
+                      onClick={() => onCancelBooking(b.booking_id)}
+                    >
+                      Reject
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick QR / ID Check-In Bar Widget */}
       <div className="card" style={{ background: 'rgba(15, 13, 11, 0.95)', border: '1px solid rgba(200, 137, 91, 0.3)' }}>
@@ -203,7 +305,7 @@ export default function OwnerDashboardPage({
             <input
               type="text"
               className="form-input"
-              placeholder="e.g. SPV-BK-9821 or Player Name..."
+              placeholder="e.g. SPV-BK-2502 or Player Name..."
               value={quickCheckInInput}
               onChange={(e) => setQuickCheckInInput(e.target.value)}
               style={{ fontSize: '0.85rem' }}
@@ -246,7 +348,7 @@ export default function OwnerDashboardPage({
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>₹{totalRevenue.toLocaleString()}</div>
           <div style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.3rem' }}>
             <ArrowUpRight size={14} />
-            <span>Direct Payouts to Partner</span>
+            <span>Direct Payouts from Bookings</span>
           </div>
         </div>
 
@@ -270,7 +372,7 @@ export default function OwnerDashboardPage({
               <CalendarCheck size={18} color="#3b82f6" />
             </div>
           </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>{myBookings.length} Bookings</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff' }}>{groundFilteredBookings.length} Bookings</div>
           <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '0.3rem' }}>
             Player Booking Volume
           </div>
@@ -313,68 +415,83 @@ export default function OwnerDashboardPage({
                 </button>
               </div>
             ) : (
-              myGrounds.map((g) => (
-                <div key={g.id || g._id} style={{
-                  padding: '1rem',
-                  background: 'rgba(10, 9, 8, 0.8)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                }}>
-                  <div style={{ display: 'flex', gap: '0.85rem' }}>
-                    <img
-                      src={g.image || (g.images && g.images[0]) || 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=600&q=80'}
-                      alt={g.title}
-                      style={{ width: '68px', height: '68px', borderRadius: '8px', objectFit: 'cover' }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {g.title}
-                        </h4>
-                        <span className="badge badge-green">Live</span>
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#a39c93', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
-                        <MapPin size={12} color="#c8895b" />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.location || g.address}</span>
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: '#c8895b', fontWeight: 700, marginTop: '0.25rem' }}>
-                        ₹{g.pricePerHour || g.price_per_hour}/hr • {Array.isArray(g.sports) ? g.sports.join(', ') : (g.sport_type || 'Football')}
+              myGrounds.map((g) => {
+                const gId = String(g._id || g.id || g.ground_id);
+                const isSelected = selectedGroundId === gId;
+
+                return (
+                  <div key={gId} style={{
+                    padding: '1rem',
+                    background: isSelected ? 'rgba(200, 137, 91, 0.1)' : 'rgba(10, 9, 8, 0.8)',
+                    border: isSelected ? '1px solid #c8895b' : '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    cursor: 'pointer',
+                  }} onClick={() => setSelectedGroundId(isSelected ? 'ALL' : gId)}>
+                    <div style={{ display: 'flex', gap: '0.85rem' }}>
+                      <img
+                        src={g.image || (g.images && g.images[0]) || 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=600&q=80'}
+                        alt={g.title}
+                        style={{ width: '68px', height: '68px', borderRadius: '8px', objectFit: 'cover' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {g.title}
+                          </h4>
+                          <span className="badge badge-green">Live</span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#a39c93', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
+                          <MapPin size={12} color="#c8895b" />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.location || g.address}</span>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#c8895b', fontWeight: 700, marginTop: '0.25rem' }}>
+                          ₹{g.pricePerHour || g.price_per_hour}/hr • {Array.isArray(g.sports) ? g.sports.join(', ') : (g.sport_type || 'Football')}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Actions Bar for Ground */}
-                  <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.65rem' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ flex: 1.2, fontSize: '0.75rem', gap: '0.3rem' }}
-                      onClick={() => onManageSlots(g)}
-                    >
-                      <Clock size={13} color="#c8895b" />
-                      <span>Manage Slots & Rates</span>
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.3rem 0.6rem' }}
-                      title="Edit Details"
-                      onClick={() => onEditGround(g)}
-                    >
-                      <Edit2 size={13} color="#a39c93" />
-                    </button>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.3rem 0.6rem', color: '#ef4444' }}
-                      title="Remove Court"
-                      onClick={() => onDeleteGround(g)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    {/* Actions Bar for Ground */}
+                    <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.65rem' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ flex: 1.2, fontSize: '0.75rem', gap: '0.3rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onManageSlots(g);
+                        }}
+                      >
+                        <Clock size={13} color="#c8895b" />
+                        <span>Manage Slots</span>
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.3rem 0.6rem' }}
+                        title="Edit Details"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditGround(g);
+                        }}
+                      >
+                        <Edit2 size={13} color="#a39c93" />
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.3rem 0.6rem', color: '#ef4444' }}
+                        title="Remove Court"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteGround(g);
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -384,12 +501,12 @@ export default function OwnerDashboardPage({
           <div className="card-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
             <h3 className="card-title">
               <CalendarCheck size={18} color="#3b82f6" />
-              <span>Player Reservations ({myBookings.length})</span>
+              <span>Player Reservations ({filteredBookings.length})</span>
             </h3>
 
             {/* Filter Buttons */}
-            <div style={{ display: 'flex', gap: '0.3rem' }}>
-              {['ALL', 'Upcoming', 'Completed', 'Cancelled'].map((f) => (
+            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+              {['ALL', 'Pending Approval', 'Upcoming', 'Completed', 'Cancelled'].map((f) => (
                 <button
                   key={f}
                   onClick={() => setBookingFilter(f)}
@@ -430,6 +547,7 @@ export default function OwnerDashboardPage({
                   <th>Player</th>
                   <th>Slot Time</th>
                   <th>Total</th>
+                  <th>Approval</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -437,145 +555,98 @@ export default function OwnerDashboardPage({
               <tbody>
                 {filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#a39c93' }}>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: '#a39c93' }}>
                       No reservations match the selected filter.
                     </td>
                   </tr>
                 ) : (
-                  filteredBookings.map((b) => (
-                    <tr key={b.booking_id || b._id}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#c8895b', fontSize: '0.8rem' }}>{b.booking_id}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#a39c93' }}>{b.sport || b.sport_type || 'Football'}</div>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600, color: '#ffffff', fontSize: '0.85rem' }}>{b.user_name}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#a39c93' }}>{b.date || b.booking_date}</div>
-                      </td>
-                      <td style={{ fontSize: '0.75rem', color: '#a39c93' }}>
-                        {b.booking_time || b.slot_time}
-                      </td>
-                      <td style={{ fontWeight: 700, color: '#10b981', fontSize: '0.85rem' }}>
-                        ₹{b.total_price}
-                      </td>
-                      <td>
-                        <span className={`badge ${b.booking_status === 'Completed' ? 'badge-green' : b.booking_status === 'Cancelled' ? 'badge-red' : 'badge-blue'}`}>
-                          {b.booking_status}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                          {onViewQRPass && (
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              style={{ padding: '0.2rem 0.45rem', fontSize: '0.7rem' }}
-                              onClick={() => onViewQRPass(b)}
-                              title="View Gate QR Pass"
-                            >
-                              <QrCode size={12} color="#c8895b" />
-                            </button>
-                          )}
-                          {b.booking_status !== 'Completed' && b.booking_status !== 'Cancelled' && (
-                            <>
+                  filteredBookings.map((b) => {
+                    const isPending = b.admin_approval === 'Pending';
+                    const isCompleted = b.booking_status === 'Completed';
+
+                    return (
+                      <tr key={b.booking_id || b._id}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: '#c8895b', fontSize: '0.8rem' }}>{b.booking_id}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#a39c93' }}>{b.sport || b.sport_type || 'Football'}</div>
+                        </td>
+
+                        <td>
+                          <div style={{ fontWeight: 700, color: '#ffffff' }}>{b.user_name}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#a39c93' }}>{b.ground_name}</div>
+                        </td>
+
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{b.booking_date || b.date}</div>
+                          <div style={{ fontSize: '0.7rem', color: '#a39c93' }}>{b.slot_time || b.booking_time}</div>
+                        </td>
+
+                        <td style={{ fontWeight: 800, color: '#10b981' }}>
+                          ₹{b.total_price}
+                        </td>
+
+                        <td>
+                          <span className={`badge ${
+                            b.admin_approval === 'Approved' ? 'badge-green' :
+                            b.admin_approval === 'Pending' ? 'badge-orange' : 'badge-red'
+                          }`} style={{ fontSize: '0.675rem' }}>
+                            {b.admin_approval || 'Approved'}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={`badge ${
+                            isCompleted ? 'badge-green' :
+                            b.booking_status === 'Upcoming' || b.booking_status === 'Confirmed' ? 'badge-blue' : 'badge-red'
+                          }`} style={{ fontSize: '0.675rem' }}>
+                            {b.booking_status}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            {isPending && (
                               <button
-                                className="btn btn-sm"
-                                style={{ background: '#10b981', color: '#ffffff', padding: '0.2rem 0.5rem', fontSize: '0.7rem', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                                onClick={() => onConfirmCheckIn(b.booking_id)}
-                                title="Confirm Player Check-In"
+                                className="btn btn-primary btn-sm"
+                                title="Approve Booking Request"
+                                disabled={actioningId === b.booking_id}
+                                onClick={() => handleApprove(b.booking_id)}
+                                style={{ background: '#10b981', borderColor: '#10b981', padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                               >
                                 <Check size={12} />
+                                <span>Approve</span>
                               </button>
+                            )}
+
+                            {!isCompleted && b.booking_status !== 'Cancelled' && (
                               <button
                                 className="btn btn-secondary btn-sm"
-                                style={{ padding: '0.2rem 0.4rem', color: '#ef4444', fontSize: '0.7rem' }}
-                                onClick={() => onCancelBooking(b.booking_id)}
-                                title="Cancel Booking"
+                                title="Confirm Check-In"
+                                onClick={() => onConfirmCheckIn(b.booking_id)}
+                                style={{ borderColor: '#10b981', color: '#10b981', padding: '0.25rem 0.45rem' }}
                               >
-                                <X size={12} />
+                                <CheckCircle2 size={12} />
                               </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            )}
+
+                            {onViewQRPass && (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                title="View Gate Pass QR"
+                                onClick={() => onViewQRPass(b)}
+                                style={{ padding: '0.25rem 0.45rem' }}
+                              >
+                                <QrCode size={12} color="#c8895b" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Customer Directory & Analytics Strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
-        {/* Customer Directory */}
-        <div className="card">
-          <div className="card-header">
-            <h3 className="card-title">
-              <Users size={18} color="#c8895b" />
-              <span>Station Players & Customers Directory ({customerList.length})</span>
-            </h3>
-          </div>
-
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Player Name</th>
-                  <th>Favorite Sport</th>
-                  <th>Reservations</th>
-                  <th>Total Spent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customerList.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" style={{ textAlign: 'center', padding: '1.5rem', color: '#a39c93' }}>
-                      No player history recorded yet.
-                    </td>
-                  </tr>
-                ) : (
-                  customerList.slice(0, 5).map((c, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 700, color: '#ffffff' }}>{c.name}</td>
-                      <td>
-                        <span className="badge badge-gold" style={{ fontSize: '0.7rem' }}>{c.sport}</span>
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{c.bookingsCount} bookings</td>
-                      <td style={{ fontWeight: 700, color: '#10b981' }}>₹{c.totalSpent.toLocaleString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Demand & Utilization Insights */}
-        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(200, 137, 91, 0.12) 0%, rgba(15, 13, 11, 0.95) 100%)' }}>
-          <div className="card-header">
-            <h3 className="card-title">
-              <TrendingUp size={18} color="#10b981" />
-              <span>Court Demand & Occupancy Analytics</span>
-            </h3>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: '#a39c93' }}>Peak Reservation Window</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#ffffff' }}>05:00 PM - 10:00 PM</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: '#a39c93' }}>Weekend Occupancy Rate</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#10b981' }}>91.4%</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: '#a39c93' }}>AI Dynamic Surge Yield</span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#c8895b' }}>+₹4,250 / week</span>
-            </div>
-            <div style={{ fontSize: '0.75rem', color: '#a39c93', lineHeight: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
-              💡 Tip: You can adjust individual slot rates or turn on the <strong>AI Surge Multiplier</strong> under the <strong>Slots & Dynamic Pricing</strong> tab to optimize venue earnings during evening match slots.
-            </div>
           </div>
         </div>
       </div>

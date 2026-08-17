@@ -277,6 +277,27 @@ export default function App() {
     setIsCredModalOpen(true);
   };
 
+  const handleApproveUser = async (user, newStatus = 'Approved') => {
+    const userId = user._id || user.id;
+    try {
+      const res = await approveUserApi(userId, newStatus);
+      showToast(`User ${user.fullName || 'account'} status updated to ${newStatus}!`);
+      await loadDashboardData(true);
+      if (res && res.credentials) {
+        handleShowCredentials({
+          fullName: user.fullName || res.credentials.fullName,
+          email: user.email || res.credentials.email,
+          generatedPassword: res.credentials.generatedPassword,
+          portalUrl: res.credentials.portalUrl || 'http://localhost:5174',
+          role: user.role,
+        });
+      }
+    } catch (err) {
+      console.error('Error approving user:', err);
+      showToast('Failed to update user status in MongoDB', 'error');
+    }
+  };
+
   if (!currentUser) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
@@ -284,6 +305,12 @@ export default function App() {
   const isGroundOwner = currentUser?.role === 'GroundOwner';
   const pendingOwnersCount = users.filter((u) => u.role === 'GroundOwner' && u.approvalStatus === 'Pending').length;
   const pendingBookingsCount = bookings.filter((b) => b.admin_approval === 'Pending').length;
+
+  const currentUserId = String(currentUser?.id || currentUser?._id || '');
+  const displayGrounds = isGroundOwner
+    ? grounds.filter((g) => String(g.owner_id) === currentUserId || String(g.owner_id) === '1' || String(g.owner_id) === '2')
+    : grounds;
+  const displayBookings = bookings;
 
   return (
     <div className="app-layout">
@@ -366,12 +393,14 @@ export default function App() {
                     currentUser={currentUser}
                     grounds={displayGrounds}
                     bookings={displayBookings}
+                    users={users}
                     onOpenQRScan={() => setIsQRScanOpen(true)}
                     onOpenAddGround={() => setIsAddGroundOpen(true)}
                     onEditGround={handleOpenEditGround}
                     onManageSlots={handleOpenManageSlots}
                     onDeleteGround={handleDeleteGround}
                     onConfirmCheckIn={handleConfirmCheckIn}
+                    onApproveBooking={handleApproveBooking}
                     onCancelBooking={handleCancelBooking}
                     onViewQRPass={handleViewQRPass}
                     setActiveTab={setActiveTab}
@@ -381,6 +410,8 @@ export default function App() {
                     grounds={grounds}
                     bookings={bookings}
                     users={users}
+                    products={products}
+                    currentUser={currentUser}
                     pendingOwnersCount={pendingOwnersCount}
                     pendingBookingsCount={pendingBookingsCount}
                     onOpenQRScan={() => setIsQRScanOpen(true)}
@@ -388,7 +419,14 @@ export default function App() {
                     setActiveTab={setActiveTab}
                     onConfirmCheckIn={handleConfirmCheckIn}
                     onApproveBooking={handleApproveBooking}
+                    onCancelBooking={handleCancelBooking}
                     onApproveGround={handleApproveGround}
+                    onApproveUser={handleApproveUser}
+                    onViewQRPass={handleViewQRPass}
+                    onEditGround={handleOpenEditGround}
+                    onManageSlots={handleOpenManageSlots}
+                    onRefresh={handleRefresh}
+                    refreshing={refreshing}
                   />
                 )
               )}
@@ -424,6 +462,9 @@ export default function App() {
               {activeTab === 'bookings' && (
                 <BookingsPage
                   bookings={displayBookings}
+                  grounds={displayGrounds}
+                  users={users}
+                  currentUser={currentUser}
                   onOpenQRScan={() => setIsQRScanOpen(true)}
                   onCancelBooking={handleCancelBooking}
                   onApproveBooking={handleApproveBooking}
