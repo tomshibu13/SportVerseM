@@ -13,7 +13,7 @@ const bookingSchema = new mongoose.Schema({
   slot_time: { type: String, required: true },
   total_price: { type: Number, required: true },
   payment_status: { type: String, enum: ['Paid', 'Pending', 'Failed'], default: 'Paid' },
-  booking_status: { type: String, enum: ['Upcoming', 'Completed', 'Cancelled'], default: 'Upcoming' },
+  booking_status: { type: String, enum: ['Upcoming', 'Confirmed', 'Completed', 'Cancelled'], default: 'Upcoming' },
   admin_approval: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
   approved_at: { type: Date },
   qr_code: { type: String },

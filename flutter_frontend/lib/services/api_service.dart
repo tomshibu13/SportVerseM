@@ -6,11 +6,12 @@ import 'package:http/http.dart' as http;
 import '../models/ground_model.dart';
 import '../models/booking_model.dart';
 import '../models/product_model.dart';
+import 'auth_service.dart';
 
 class ApiService {
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://192.168.57.228:5000/api';
     }
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
@@ -135,27 +136,53 @@ class ApiService {
     required double totalPrice,
     String? slotId,
   }) async {
+    final curUser = AuthService.currentUser;
+    final realUserId = (curUser?['_id'] ?? curUser?['id'] ?? curUser?['user_id'] ?? userId).toString();
+    final realUserName = (userName.isNotEmpty && userName != 'Player' && userName != 'Player One')
+        ? userName
+        : ((curUser?['full_name'] ?? curUser?['fullName'] ?? curUser?['name'] ?? userName).toString());
+    final realEmail = curUser?['email'];
+
+    final payload = {
+      'user_id': realUserId,
+      'user_name': realUserName,
+      if (realEmail != null) 'email': realEmail,
+      'ground_id': groundId,
+      'ground_name': groundName,
+      'sport_type': sportType,
+      'date': date,
+      'slot_time': slotTime,
+      'total_price': totalPrice,
+      if (slotId != null) 'slot_id': slotId,
+    };
+
     try {
+      debugPrint('POST $baseUrl/bookings: ${jsonEncode(payload)}');
+      final headers = {
+        'Content-Type': 'application/json',
+        if (AuthService.currentToken != null) 'Authorization': 'Bearer ${AuthService.currentToken}',
+      };
       final res = await http.post(
         Uri.parse('$baseUrl/bookings'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': userId,
-          'user_name': userName,
-          'ground_id': groundId,
-          'ground_name': groundName,
-          'sport_type': sportType,
-          'date': date,
-          'slot_time': slotTime,
-          'total_price': totalPrice,
-          if (slotId != null) 'slot_id': slotId,
-        }),
-      ).timeout(const Duration(seconds: 4));
+        headers: headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 8));
+
+      debugPrint('POST /bookings response (${res.statusCode}): ${res.body}');
 
       if (res.statusCode == 201 || res.statusCode == 200) {
         return jsonDecode(res.body);
+      } else {
+        try {
+          final err = jsonDecode(res.body);
+          return {'success': false, 'message': err['message'] ?? 'Failed to book slot'};
+        } catch (_) {
+          return {'success': false, 'message': 'HTTP ${res.statusCode} Error'};
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('createBooking exception: $e');
+    }
 
     final bkId = 'SPV-BK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     return {
@@ -181,7 +208,7 @@ class ApiService {
   // Fetch Bookings for a Specific User
   static Future<List<BookingModel>> fetchUserBookings(dynamic userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 6));
+      final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 8));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['bookings'] is List) {

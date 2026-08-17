@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Clock, Sparkles, TrendingUp, Zap, CheckCircle2 } from 'lucide-react';
+import { Clock, Sparkles, TrendingUp, Zap, CheckCircle2, Settings2 } from 'lucide-react';
 
-export default function SlotsPage({ grounds = [] }) {
+export default function SlotsPage({ grounds = [], onManageSlots }) {
   const [surgeMultiplier, setSurgeMultiplier] = useState(1.25);
-  const [activeSurge, setActiveSurge] = useState(true);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -67,7 +66,8 @@ export default function SlotsPage({ grounds = [] }) {
                 <th>Peak Surge Rate ({surgeMultiplier}x)</th>
                 <th>Peak Hours</th>
                 <th>Demand Level</th>
-                <th>Slot Allocation</th>
+                <th>Daily Slots</th>
+                {onManageSlots && <th>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -95,9 +95,21 @@ export default function SlotsPage({ grounds = [] }) {
                     </td>
                     <td>
                       <span style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: 600 }}>
-                        {g.totalSlots || 12} slots/day
+                        {g.totalSlots || (g.available_slots ? g.available_slots.length : 12)} slots
                       </span>
                     </td>
+                    {onManageSlots && (
+                      <td>
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.75rem', gap: '0.3rem' }}
+                          onClick={() => onManageSlots(g)}
+                        >
+                          <Settings2 size={13} color="#c8895b" />
+                          <span>Custom Slots</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

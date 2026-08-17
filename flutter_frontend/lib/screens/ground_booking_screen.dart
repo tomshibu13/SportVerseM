@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../theme/app_theme.dart';
 import '../models/ground_model.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import 'bookings_screen.dart';
 
 class GroundBookingScreen extends StatefulWidget {
@@ -28,7 +30,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
   bool _addRefresherDrinks = false;
   bool _isSubmitting = false;
 
-  final TextEditingController _nameController = TextEditingController(text: 'Player One');
+  final TextEditingController _nameController = TextEditingController(text: 'Player');
   final TextEditingController _phoneController = TextEditingController(text: '+91 98765 43210');
   final TextEditingController _notesController = TextEditingController();
 
@@ -39,6 +41,17 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
+    final user = AuthService.currentUser;
+    if (user != null) {
+      final name = user['full_name'] ?? user['fullName'] ?? user['name'];
+      if (name != null && name.toString().isNotEmpty) {
+        _nameController.text = name.toString();
+      }
+      final phone = user['phone'];
+      if (phone != null && phone.toString().isNotEmpty) {
+        _phoneController.text = phone.toString();
+      }
+    }
     _generateSlotsForGround();
   }
 
@@ -139,16 +152,24 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
     final combinedSlotTime = _selectedSlots.map((s) => s.time).join(', ');
 
+    final user = AuthService.currentUser;
+    final userId = user?['_id'] ?? user?['id'] ?? user?['user_id'] ?? 1;
+    final userName = _nameController.text.trim().isNotEmpty
+        ? _nameController.text.trim()
+        : (user?['full_name'] ?? user?['fullName'] ?? user?['name'] ?? 'Player');
+    final slotId = _selectedSlots.isNotEmpty ? _selectedSlots.first.slotId : 'sl_1';
+
     try {
       final res = await ApiService.createBooking(
+        userId: userId,
         groundId: widget.ground.groundId,
         groundName: widget.ground.title,
         sportType: widget.ground.sportType,
         date: dateStr,
         slotTime: combinedSlotTime,
         totalPrice: _totalBookingPrice,
-        userName: _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : 'Player',
-        slotId: _selectedSlots.first.slotId,
+        userName: userName,
+        slotId: slotId,
       );
 
       setState(() => _isSubmitting = false);
@@ -162,8 +183,8 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(res['message'] ?? 'Booking confirmed successfully!'),
-              backgroundColor: const Color(0xFF2E7D32),
+              content: Text(res['message'] ?? 'Unable to complete reservation. Please try again.'),
+              backgroundColor: const Color(0xFFDC2626),
             ),
           );
         }
@@ -291,22 +312,39 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // Mock QR code visual
+                  // Real QR code visual
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.border),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Column(
                       children: [
-                        const Icon(Icons.qr_code_2_rounded, size: 36, color: AppColors.primaryBlack),
-                        const SizedBox(width: 8),
+                        QrImageView(
+                          data: 'SPORTVERSE_QR_$bookingId',
+                          version: QrVersions.auto,
+                          size: 110.0,
+                          backgroundColor: Colors.white,
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square,
+                            color: Color(0xFF0F1116),
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.square,
+                            color: Color(0xFF0F1116),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
                         Text(
-                          'Scan QR at ground entry',
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                          'SPORTVERSE_QR_$bookingId',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade800,
+                          ),
                         ),
                       ],
                     ),
@@ -932,23 +970,61 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
               color: AppColors.primaryBlack,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           ...methods.map((m) {
             final name = m['name'] as String;
+            final icon = m['icon'] as IconData;
             final isSel = _selectedPaymentMethod == name;
-            return RadioListTile<String>(
-              value: name,
-              groupValue: _selectedPaymentMethod,
-              onChanged: (val) => setState(() => _selectedPaymentMethod = val!),
-              activeColor: const Color(0xFFC8895B),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Row(
-                children: [
-                  Icon(m['icon'] as IconData, size: 18, color: isSel ? const Color(0xFFC8895B) : AppColors.mutedText),
-                  const SizedBox(width: 10),
-                  Text(name, style: TextStyle(fontSize: 13, fontWeight: isSel ? FontWeight.bold : FontWeight.normal)),
-                ],
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                color: isSel ? const Color(0xFFFDF8F4) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: () => setState(() => _selectedPaymentMethod = name),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isSel ? const Color(0xFFC8895B) : AppColors.border,
+                        width: isSel ? 1.5 : 1.0,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          icon,
+                          size: 20,
+                          color: isSel ? const Color(0xFFC8895B) : AppColors.secondaryText,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                              color: isSel ? AppColors.primaryBlack : AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          width: 18,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSel ? const Color(0xFFC8895B) : const Color(0xFFD1D5DB),
+                              width: isSel ? 5 : 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             );
           }),

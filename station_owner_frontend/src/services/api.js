@@ -84,16 +84,10 @@ export async function fetchMyGrounds() {
 // ── Bookings ──
 export async function fetchMyBookings() {
   try {
-    const data = await request('/bookings/user/2');
+    const data = await request('/bookings');
     return data.bookings || data;
   } catch (_) {
-    return [
-      { booking_id: 'BK-9821', user_name: 'Rahul Dravid', sport: 'Football (Turf A)', booking_date: '2026-08-14', booking_time: '18:00 - 19:00', total_price: 1200, booking_status: 'Confirmed' },
-      { booking_id: 'BK-9822', user_name: 'Anjali Menon', sport: 'Badminton (Hall 1)', booking_date: '2026-08-14', booking_time: '19:00 - 20:00', total_price: 500, booking_status: 'Confirmed' },
-      { booking_id: 'BK-9823', user_name: 'Vikram Seth', sport: 'Football (Turf A)', booking_date: '2026-08-13', booking_time: '20:00 - 21:00', total_price: 1200, booking_status: 'Completed' },
-      { booking_id: 'BK-9824', user_name: 'Kiran Kumar', sport: 'Badminton (Hall 1)', booking_date: '2026-08-15', booking_time: '07:00 - 08:00', total_price: 500, booking_status: 'Confirmed' },
-      { booking_id: 'BK-9825', user_name: 'Priya Nair', sport: 'Football (Turf A)', booking_date: '2026-08-15', booking_time: '17:00 - 18:00', total_price: 1200, booking_status: 'Cancelled' },
-    ];
+    return [];
   }
 }
 
@@ -103,6 +97,13 @@ export async function cancelBookingApi(bookingId) {
   } catch (_) {
     return { success: true };
   }
+}
+
+export async function checkInBookingApi(bookingIdOrQr) {
+  return await request('/bookings/checkin', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingIdOrQr }),
+  });
 }
 
 // ── Products ──

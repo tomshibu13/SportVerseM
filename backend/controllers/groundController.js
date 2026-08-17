@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Ground = require('../models/Ground');
 const User = require('../models/User');
 
+const isObjectIdString = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(String(val).trim());
+
 const seedGroundsIfEmpty = async () => {
   // Seeding disabled
 };
@@ -36,11 +38,11 @@ exports.getGroundById = async (req, res) => {
     await seedGroundsIfEmpty();
 
     let ground = null;
-    if (!isNaN(numId)) {
-      ground = await Ground.findOne({ ground_id: numId });
-    }
-    if (!ground && mongoose.Types.ObjectId.isValid(paramId)) {
+    if (isObjectIdString(paramId)) {
       ground = await Ground.findById(paramId);
+    }
+    if (!ground && !isNaN(numId)) {
+      ground = await Ground.findOne({ ground_id: numId });
     }
 
     if (!ground) {
@@ -116,12 +118,14 @@ exports.approveGround = async (req, res) => {
     const normalizedStatus = targetStatus === 'Active' ? 'Approved' : targetStatus;
 
     let ground = null;
-    const numId = parseInt(groundId, 10);
-    if (!isNaN(numId)) {
-      ground = await Ground.findOne({ ground_id: numId });
-    }
-    if (!ground && mongoose.Types.ObjectId.isValid(groundId)) {
+    if (isObjectIdString(groundId)) {
       ground = await Ground.findById(groundId);
+    }
+    if (!ground) {
+      const numId = parseInt(groundId, 10);
+      if (!isNaN(numId)) {
+        ground = await Ground.findOne({ ground_id: numId });
+      }
     }
 
     if (!ground) {
@@ -132,7 +136,7 @@ exports.approveGround = async (req, res) => {
     await ground.save();
 
     // Also update owner approval if ground is approved
-    if (ground.owner_id && mongoose.Types.ObjectId.isValid(ground.owner_id)) {
+    if (ground.owner_id && isObjectIdString(ground.owner_id)) {
       const owner = await User.findById(ground.owner_id);
       if (owner && normalizedStatus === 'Approved') {
         owner.approvalStatus = 'Approved';
@@ -161,12 +165,14 @@ exports.deleteGround = async (req, res) => {
   try {
     const groundId = req.params.id;
     let deleted = null;
-    const numId = parseInt(groundId, 10);
-    if (!isNaN(numId)) {
-      deleted = await Ground.findOneAndDelete({ ground_id: numId });
-    }
-    if (!deleted && mongoose.Types.ObjectId.isValid(groundId)) {
+    if (isObjectIdString(groundId)) {
       deleted = await Ground.findByIdAndDelete(groundId);
+    }
+    if (!deleted) {
+      const numId = parseInt(groundId, 10);
+      if (!isNaN(numId)) {
+        deleted = await Ground.findOneAndDelete({ ground_id: numId });
+      }
     }
 
     if (!deleted) {
@@ -188,12 +194,14 @@ exports.updateGround = async (req, res) => {
   try {
     const groundId = req.params.id;
     let ground = null;
-    const numId = parseInt(groundId, 10);
-    if (!isNaN(numId)) {
-      ground = await Ground.findOne({ ground_id: numId });
-    }
-    if (!ground && mongoose.Types.ObjectId.isValid(groundId)) {
+    if (isObjectIdString(groundId)) {
       ground = await Ground.findById(groundId);
+    }
+    if (!ground) {
+      const numId = parseInt(groundId, 10);
+      if (!isNaN(numId)) {
+        ground = await Ground.findOne({ ground_id: numId });
+      }
     }
 
     if (!ground) {

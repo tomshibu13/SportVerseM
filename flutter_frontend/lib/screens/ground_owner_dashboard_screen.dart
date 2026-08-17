@@ -57,15 +57,35 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     setState(() => _isLoading = true);
     try {
       final user = AuthService.currentUser;
-      final ownerId = user?['id'] ?? user?['user_id'] ?? 2;
+      final ownerId = (user?['_id'] ?? user?['id'] ?? user?['user_id'] ?? '').toString();
+      final ownerEmail = (user?['email'] ?? '').toString().toLowerCase();
 
       final allGrounds = await ApiService.fetchGrounds();
       final bookingsList = await ApiService.fetchAllBookings();
 
+      final filtered = allGrounds.where((g) {
+        final gOwner = g.ownerId.toString().toLowerCase();
+        return (ownerId.isNotEmpty && gOwner == ownerId.toLowerCase()) ||
+               (ownerEmail.isNotEmpty && gOwner == ownerEmail);
+      }).toList();
+
+      final myGroundNames = filtered.map((g) => g.title.toLowerCase()).toSet();
+      final myGroundIds = <String>{};
+      for (final g in filtered) {
+        myGroundIds.add(g.groundId.toString().toLowerCase());
+        final rawId = g['_id'];
+        if (rawId != null) myGroundIds.add(rawId.toString().toLowerCase());
+      }
+
+      final ownerBookings = bookingsList.where((b) {
+        final bGroundId = (b.groundId ?? '').toString().toLowerCase();
+        final bGroundName = b.groundName.toLowerCase();
+        return myGroundIds.contains(bGroundId) || myGroundNames.contains(bGroundName);
+      }).toList();
+
       setState(() {
-        final filtered = allGrounds.where((g) => g.ownerId.toString() == ownerId.toString()).toList();
-        _myGrounds = filtered.isNotEmpty ? filtered : allGrounds;
-        _allBookings = bookingsList.isNotEmpty ? bookingsList : [];
+        _myGrounds = filtered;
+        _allBookings = ownerBookings;
         _isLoading = false;
       });
     } catch (e) {
@@ -113,6 +133,150 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
         );
       }
     }
+  }
+
+  void _showQRScannerModal() {
+    final searchCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final pendingBookings = _allBookings.where((b) => b.bookingStatus != 'Completed' && b.bookingStatus != 'Cancelled').take(4).toList();
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+                ),
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    Icon(Icons.qr_code_scanner, color: Color(0xFF16A34A), size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'QR Check-In Scanner',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F1116),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF16A34A), width: 2),
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      const Icon(Icons.qr_code_2, size: 80, color: Colors.white24),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF16A34A)),
+                            ),
+                            child: const Text(
+                              '📷 Scanning Active / Camera Ready',
+                              style: TextStyle(color: Color(0xFF4ADE80), fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Point scanner at player QR ticket or select below',
+                            style: TextStyle(color: Colors.white70, fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (pendingBookings.isNotEmpty) ...[
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Quick Select Pending Ticket:',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.secondaryText),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: pendingBookings.map((b) {
+                      return ActionChip(
+                        avatar: const Icon(Icons.confirmation_number_outlined, size: 14, color: AppColors.warmAccent),
+                        label: Text('${b.bookingId} (${b.userName})', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _performCheckIn(b.bookingId);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: searchCtrl,
+                        decoration: InputDecoration(
+                          hintText: 'Enter Booking ID or QR string...',
+                          hintStyle: const TextStyle(fontSize: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+                        onSubmitted: (val) async {
+                          Navigator.pop(ctx);
+                          await _performCheckIn(val);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF16A34A),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await _performCheckIn(searchCtrl.text);
+                      },
+                      child: const Text('Verify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void _cancelBooking(BookingModel booking) {
@@ -768,6 +932,18 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                     ),
                   ),
                   const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF16A34A),
+                      side: const BorderSide(color: Color(0xFF16A34A)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _showQRScannerModal,
+                    icon: const Icon(Icons.qr_code_scanner, size: 16),
+                    label: const Text('Scan QR', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF16A34A),

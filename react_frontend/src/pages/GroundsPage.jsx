@@ -3,7 +3,15 @@ import { MapPin, Plus, Star, IndianRupee, Layers, Search, Filter, CheckCircle2, 
 
 const SPORT_FILTERS = ['ALL', 'Football', 'Badminton', 'Cricket', 'Tennis', 'Padel'];
 
-export default function GroundsPage({ grounds = [], onOpenAddGround, onApproveGround, searchTerm: globalSearchTerm = '' }) {
+export default function GroundsPage({ 
+  grounds = [], 
+  onOpenAddGround, 
+  onApproveGround, 
+  onEditGround,
+  onManageSlots,
+  onDeleteGround,
+  searchTerm: globalSearchTerm = '' 
+}) {
   const [selectedSport, setSelectedSport] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [localSearch, setLocalSearch] = useState('');
@@ -191,9 +199,40 @@ export default function GroundsPage({ grounds = [], onOpenAddGround, onApproveGr
                     </div>
                   </div>
 
+                  {/* Direct Action Buttons */}
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {onManageSlots && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ flex: 1, fontSize: '0.75rem', padding: '0.35rem 0.5rem' }}
+                        onClick={() => onManageSlots(g)}
+                      >
+                        Slots & Rates
+                      </button>
+                    )}
+                    {onEditGround && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}
+                        onClick={() => onEditGround(g)}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {onDeleteGround && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.6rem', color: '#ef4444' }}
+                        onClick={() => onDeleteGround(g)}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+
                   {/* Direct Approve Action for Pending Grounds */}
                   {isPending && (
-                    <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                    <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(245, 158, 11, 0.2)' }}>
                       <button
                         className="btn btn-primary"
                         style={{ width: '100%', background: '#10b981', borderColor: '#10b981', fontSize: '0.825rem', padding: '0.45rem' }}

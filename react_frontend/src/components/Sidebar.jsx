@@ -25,9 +25,10 @@ export default function Sidebar({
   const userName = currentUser?.fullName || currentUser?.name || 'System Admin';
   const roleTitle = currentUser?.role || 'Super Admin';
   const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
+  const isGroundOwner = currentUser?.role === 'GroundOwner';
 
   const allNavItems = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'overview', label: isGroundOwner ? 'Station Overview' : 'Overview', icon: LayoutDashboard },
     { 
       id: 'users', 
       label: 'User & Owner DB', 
@@ -36,7 +37,7 @@ export default function Sidebar({
       badgeColor: '#f59e0b',
       adminOnly: true 
     },
-    { id: 'grounds', label: 'Venues & Courts', icon: MapPin },
+    { id: 'grounds', label: isGroundOwner ? 'My Venues & Courts' : 'Venues & Courts', icon: MapPin },
     { id: 'slots', label: 'Slots & Dynamic Pricing', icon: Clock, badge: 'AI Surge' },
     { 
       id: 'bookings', 
@@ -50,7 +51,11 @@ export default function Sidebar({
     { id: 'settings', label: 'Platform Settings', icon: Settings },
   ];
 
-  const navItems = allNavItems.filter((item) => !item.adminOnly || isAdmin);
+  const navItems = allNavItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.id === 'shop' && isGroundOwner) return false;
+    return true;
+  });
 
   return (
     <aside style={styles.sidebar}>

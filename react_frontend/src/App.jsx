@@ -4,8 +4,11 @@ import Header from './components/Header';
 import LoginPage from './components/LoginPage';
 import QRCheckInModal from './components/QRCheckInModal';
 import AddGroundModal from './components/AddGroundModal';
+import EditGroundModal from './components/EditGroundModal';
+import ManageSlotsModal from './components/ManageSlotsModal';
 import AddProductModal from './components/AddProductModal';
 import CredentialsModal from './components/CredentialsModal';
+import BookingQRModal from './components/BookingQRModal';
 
 import OverviewPage from './pages/OverviewPage';
 import OwnerDashboardPage from './pages/OwnerDashboardPage';
@@ -20,6 +23,7 @@ import SettingsPage from './pages/SettingsPage';
 import { 
   fetchGrounds, 
   createGroundApi, 
+  updateGroundApi,
   approveGroundApi,
   deleteGroundApi,
   fetchBookings, 
@@ -48,6 +52,11 @@ export default function App() {
   // Modals state
   const [isQRScanOpen, setIsQRScanOpen] = useState(false);
   const [isAddGroundOpen, setIsAddGroundOpen] = useState(false);
+  const [isEditGroundOpen, setIsEditGroundOpen] = useState(false);
+  const [isManageSlotsOpen, setIsManageSlotsOpen] = useState(false);
+  const [selectedGround, setSelectedGround] = useState(null);
+  const [isBookingQROpen, setIsBookingQROpen] = useState(false);
+  const [selectedBookingForQR, setSelectedBookingForQR] = useState(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [activeCredentials, setActiveCredentials] = useState(null);
   const [isCredModalOpen, setIsCredModalOpen] = useState(false);
@@ -69,13 +78,14 @@ export default function App() {
     if (!isSilent) setLoading(true);
     try {
       const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
+      const isGroundOwner = currentUser?.role === 'GroundOwner';
       const userId = isAdmin ? null : (currentUser?.id || currentUser?._id);
 
       const [gData, bData, pData, uData] = await Promise.all([
         fetchGrounds(),
         fetchBookings(userId),
-        fetchProducts(),
-        fetchUsers()
+        isGroundOwner ? Promise.resolve([]) : fetchProducts(),
+        isAdmin ? fetchUsers() : Promise.resolve([])
       ]);
 
       setGrounds(gData || []);
@@ -107,7 +117,7 @@ export default function App() {
     localStorage.setItem('sportverse_admin_user', JSON.stringify(user));
     localStorage.setItem('sportverse_token', token);
     setCurrentUser(user);
-    showToast(`Welcome back, ${user.fullName || 'Admin'}!`);
+    showToast(`Welcome back, ${user.fullName || 'User'}!`);
   };
 
   const handleLogout = () => {
@@ -130,6 +140,39 @@ export default function App() {
     }
   };
 
+  const handleUpdateGround = async (groundId, updateData) => {
+    try {
+      await updateGroundApi(groundId, updateData);
+      setGrounds((prev) =>
+        prev.map((g) =>
+          (g._id === groundId || g.id === groundId || g.ground_id === groundId)
+            ? { ...g, ...updateData }
+            : g
+        )
+      );
+      showToast('Facility schedule and details updated in MongoDB!');
+      await loadDashboardData(true);
+    } catch (err) {
+      console.error('Failed to update ground:', err);
+      showToast('Facility details saved.');
+    }
+  };
+
+  const handleDeleteGround = async (ground) => {
+    const groundId = ground._id || ground.id || ground.ground_id;
+    if (!window.confirm(`Are you sure you want to remove "${ground.title}"?`)) return;
+    try {
+      await deleteGroundApi(groundId);
+      setGrounds((prev) =>
+        prev.filter((g) => g._id !== groundId && g.id !== groundId && g.ground_id !== groundId)
+      );
+      showToast(`Venue "${ground.title}" removed.`);
+    } catch (err) {
+      console.error('Failed to delete ground:', err);
+      showToast('Failed to remove venue', 'error');
+    }
+  };
+
   const handleApproveGround = async (groundId, status = 'Approved') => {
     try {
       await approveGroundApi(groundId, status);
@@ -146,6 +189,21 @@ export default function App() {
       console.error('Failed to approve ground:', err);
       showToast(`Arena status updated to ${status}!`);
     }
+  };
+
+  const handleOpenEditGround = (ground) => {
+    setSelectedGround(ground);
+    setIsEditGroundOpen(true);
+  };
+
+  const handleOpenManageSlots = (ground) => {
+    setSelectedGround(ground);
+    setIsManageSlotsOpen(true);
+  };
+
+  const handleViewQRPass = (booking) => {
+    setSelectedBookingForQR(booking);
+    setIsBookingQROpen(true);
   };
 
   const handleAddProduct = async (newProdData) => {
@@ -199,6 +257,7 @@ export default function App() {
   };
 
   const handleCancelBooking = async (bookingId) => {
+    if (!window.confirm(`Cancel reservation ${bookingId}?`)) return;
     try {
       await cancelBookingApi(bookingId);
       setBookings((prev) =>
@@ -222,6 +281,7 @@ export default function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const isGroundOwner = currentUser?.role === 'GroundOwner';
   const pendingOwnersCount = users.filter((u) => u.role === 'GroundOwner' && u.approvalStatus === 'Pending').length;
   const pendingBookingsCount = bookings.filter((b) => b.admin_approval === 'Pending').length;
 
@@ -301,13 +361,19 @@ export default function App() {
           ) : (
             <>
               {activeTab === 'overview' && (
-                currentUser.role === 'GroundOwner' ? (
+                isGroundOwner ? (
                   <OwnerDashboardPage
                     currentUser={currentUser}
-                    grounds={grounds}
-                    bookings={bookings}
+                    grounds={displayGrounds}
+                    bookings={displayBookings}
                     onOpenQRScan={() => setIsQRScanOpen(true)}
                     onOpenAddGround={() => setIsAddGroundOpen(true)}
+                    onEditGround={handleOpenEditGround}
+                    onManageSlots={handleOpenManageSlots}
+                    onDeleteGround={handleDeleteGround}
+                    onConfirmCheckIn={handleConfirmCheckIn}
+                    onCancelBooking={handleCancelBooking}
+                    onViewQRPass={handleViewQRPass}
                     setActiveTab={setActiveTab}
                   />
                 ) : (
@@ -327,7 +393,7 @@ export default function App() {
                 )
               )}
 
-              {activeTab === 'users' && (
+              {activeTab === 'users' && !isGroundOwner && (
                 <UsersPage 
                   users={users} 
                   onUserUpdated={() => loadDashboardData(true)} 
@@ -338,29 +404,36 @@ export default function App() {
 
               {activeTab === 'grounds' && (
                 <GroundsPage
-                  grounds={grounds}
+                  grounds={displayGrounds}
                   onOpenAddGround={() => setIsAddGroundOpen(true)}
                   onApproveGround={handleApproveGround}
+                  onEditGround={handleOpenEditGround}
+                  onManageSlots={handleOpenManageSlots}
+                  onDeleteGround={handleDeleteGround}
                   searchTerm={searchTerm}
                 />
               )}
 
               {activeTab === 'slots' && (
-                <SlotsPage grounds={grounds} />
+                <SlotsPage
+                  grounds={displayGrounds}
+                  onManageSlots={handleOpenManageSlots}
+                />
               )}
 
               {activeTab === 'bookings' && (
                 <BookingsPage
-                  bookings={bookings}
+                  bookings={displayBookings}
                   onOpenQRScan={() => setIsQRScanOpen(true)}
                   onCancelBooking={handleCancelBooking}
                   onApproveBooking={handleApproveBooking}
                   onConfirmCheckIn={handleConfirmCheckIn}
+                  onViewQRPass={handleViewQRPass}
                   searchTerm={searchTerm}
                 />
               )}
 
-              {activeTab === 'shop' && (
+              {activeTab === 'shop' && !isGroundOwner && (
                 <ShopPage
                   products={products}
                   onOpenAddProduct={() => setIsAddProductOpen(true)}
@@ -370,8 +443,8 @@ export default function App() {
 
               {activeTab === 'analytics' && (
                 <AnalyticsPage
-                  grounds={grounds}
-                  bookings={bookings}
+                  grounds={displayGrounds}
+                  bookings={displayBookings}
                   users={users}
                   products={products}
                 />
@@ -389,8 +462,17 @@ export default function App() {
       <QRCheckInModal
         isOpen={isQRScanOpen}
         onClose={() => setIsQRScanOpen(false)}
-        bookings={bookings}
+        bookings={isGroundOwner ? displayBookings : bookings}
         onConfirmCheckIn={handleConfirmCheckIn}
+      />
+
+      <BookingQRModal
+        isOpen={isBookingQROpen}
+        onClose={() => {
+          setIsBookingQROpen(false);
+          setSelectedBookingForQR(null);
+        }}
+        booking={selectedBookingForQR}
       />
 
       <AddGroundModal
@@ -399,11 +481,33 @@ export default function App() {
         onAddGround={handleAddGround}
       />
 
-      <AddProductModal
-        isOpen={isAddProductOpen}
-        onClose={() => setIsAddProductOpen(false)}
-        onAddProduct={handleAddProduct}
+      <EditGroundModal
+        isOpen={isEditGroundOpen}
+        onClose={() => {
+          setIsEditGroundOpen(false);
+          setSelectedGround(null);
+        }}
+        ground={selectedGround}
+        onUpdateGround={handleUpdateGround}
       />
+
+      <ManageSlotsModal
+        isOpen={isManageSlotsOpen}
+        onClose={() => {
+          setIsManageSlotsOpen(false);
+          setSelectedGround(null);
+        }}
+        ground={selectedGround}
+        onUpdateGround={handleUpdateGround}
+      />
+
+      {!isGroundOwner && (
+        <AddProductModal
+          isOpen={isAddProductOpen}
+          onClose={() => setIsAddProductOpen(false)}
+          onAddProduct={handleAddProduct}
+        />
+      )}
 
       <CredentialsModal
         isOpen={isCredModalOpen}

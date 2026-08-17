@@ -1,17 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QrCode, CheckCircle2, XCircle, User, Clock, MapPin, Scan } from 'lucide-react';
-
-const mockDB = {
-  'BK-9821': { name: 'Rahul Dravid', court: 'Metro Sports Complex – Turf A', time: '18:00 - 19:00', status: 'Confirmed', sport: 'Football' },
-  'BK-9822': { name: 'Anjali Menon', court: 'Victory Badminton Arena – Hall 1', time: '19:00 - 20:00', status: 'Confirmed', sport: 'Badminton' },
-  'BK-9824': { name: 'Kiran Kumar', court: 'Victory Badminton Arena – Hall 1', time: '07:00 - 08:00', status: 'Confirmed', sport: 'Badminton' },
-  'BK-9825': { name: 'Priya Nair', court: 'Metro Sports Complex – Turf A', time: '17:00 - 18:00', status: 'Cancelled', sport: 'Football' },
-};
+import { checkInBookingApi, fetchMyBookings } from '../services/api';
 
 const checkinLog = [
-  { id: 'BK-9820', name: 'Dev S.', time: '08:45 AM', status: 'success', sport: 'Football' },
-  { id: 'BK-9819', name: 'Rita K.', time: '08:00 AM', status: 'success', sport: 'Badminton' },
-  { id: 'BK-9818', name: 'Unknown', time: '07:30 AM', status: 'failed', sport: '—' },
+  { id: 'SPV-BK-9820', name: 'Dev S.', time: '08:45 AM', status: 'success', sport: 'Football' },
+  { id: 'SPV-BK-9819', name: 'Rita K.', time: '08:00 AM', status: 'success', sport: 'Badminton' },
 ];
 
 export default function CheckInPage() {
@@ -19,35 +12,97 @@ export default function CheckInPage() {
   const [result, setResult] = useState(null);
   const [log, setLog] = useState(checkinLog);
   const [scanning, setScanning] = useState(false);
+  const [liveBookings, setLiveBookings] = useState([]);
 
-  const handleScan = (code) => {
-    const bk = (code || inputCode).trim().toUpperCase();
+  useEffect(() => {
+    fetchMyBookings().then(data => {
+      if (Array.isArray(data)) setLiveBookings(data);
+    }).catch(() => {});
+  }, []);
+
+  const handleScan = async (code) => {
+    const bk = (code || inputCode).trim();
     if (!bk) return;
-    const booking = mockDB[bk];
-    if (!booking) {
-      setResult({ status: 'failed', message: `Booking ID "${bk}" not found in system.`, code: bk });
-      setLog(prev => [{ id: bk, name: 'Unknown', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), status: 'failed', sport: '—' }, ...prev]);
-      return;
+    setScanning(true);
+    setResult(null);
+
+    try {
+      const res = await checkInBookingApi(bk);
+      setScanning(false);
+      if (res.success) {
+        const b = res.booking || {};
+        const bookingDetail = {
+          name: b.user_name || 'Verified Player',
+          court: b.ground_name || 'Sports Arena',
+          time: b.slot_time || 'Booked Slot',
+          sport: b.sport_type || 'Sports',
+          status: b.booking_status || 'Completed',
+        };
+
+        setResult({
+          status: 'success',
+          message: res.alreadyCheckedIn ? `Already Checked In: ${res.message}` : (res.message || 'Player verified! Entry approved.'),
+          code: b.booking_id || bk,
+          booking: bookingDetail,
+        });
+
+        setLog(prev => [{
+          id: b.booking_id || bk,
+          name: bookingDetail.name,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'success',
+          sport: bookingDetail.sport,
+        }, ...prev]);
+
+        setInputCode('');
+      } else {
+        setResult({ status: 'failed', message: res.message || `Booking ID "${bk}" not found in system.`, code: bk });
+        setLog(prev => [{
+          id: bk,
+          name: 'Unknown',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'failed',
+          sport: '—',
+        }, ...prev]);
+      }
+    } catch (err) {
+      setScanning(false);
+      const errMsg = err.message || `Booking ID "${bk}" not found in system.`;
+      setResult({ status: 'failed', message: errMsg, code: bk });
+      setLog(prev => [{
+        id: bk,
+        name: 'Unknown',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'failed',
+        sport: '—',
+      }, ...prev]);
     }
-    if (booking.status === 'Cancelled') {
-      setResult({ status: 'failed', message: `Booking ${bk} was CANCELLED. Entry denied.`, code: bk, booking });
-      setLog(prev => [{ id: bk, name: booking.name, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), status: 'failed', sport: booking.sport }, ...prev]);
-      return;
-    }
-    setResult({ status: 'success', message: 'Player verified! Entry approved.', code: bk, booking });
-    setLog(prev => [{ id: bk, name: booking.name, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), status: 'success', sport: booking.sport }, ...prev]);
-    setInputCode('');
   };
 
-  const simulateScan = () => {
+  const simulateScan = async () => {
     setScanning(true);
-    setTimeout(() => {
-      const ids = Object.keys(mockDB);
-      const randId = ids[Math.floor(Math.random() * ids.length)];
-      setInputCode(randId);
-      setScanning(false);
-      handleScan(randId);
-    }, 1800);
+    try {
+      const data = await fetchMyBookings();
+      const active = Array.isArray(data) ? data.filter(b => b.booking_status !== 'Cancelled') : [];
+      if (active.length > 0) {
+        const rand = active[Math.floor(Math.random() * active.length)];
+        const code = rand.qr_code || rand.booking_id;
+        setInputCode(rand.booking_id || code);
+        setTimeout(() => {
+          handleScan(code);
+        }, 1200);
+      } else {
+        setInputCode('SPV-BK-8961');
+        setTimeout(() => {
+          handleScan('SPV-BK-8961');
+        }, 1200);
+      }
+    } catch (_) {
+      setInputCode('SPV-BK-8961');
+      setTimeout(() => {
+        handleScan('SPV-BK-8961');
+      }, 1200);
+    }
   };
 
   return (

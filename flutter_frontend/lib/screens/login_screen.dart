@@ -182,21 +182,19 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxWidth: isDesktopOrWeb ? 450 : double.infinity,
-                        minHeight: constraints.maxHeight,
                       ),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: IntrinsicHeight(
-                          child: FadeTransition(
-                            opacity: _fadeAnim,
-                            child: SlideTransition(
-                              position: _slideAnim,
-                              child: Form(
-                                key: _formKey,
-                                child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                        child: FadeTransition(
+                          opacity: _fadeAnim,
+                          child: SlideTransition(
+                            position: _slideAnim,
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                   // ── Top Navigation Row (Back Arrow) ──
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8, bottom: 12),
@@ -397,8 +395,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       ),
                     ),
                   ),
-                ),
-              );
+                );
               },
             ),
           ),

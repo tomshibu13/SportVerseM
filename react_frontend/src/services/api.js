@@ -334,6 +334,23 @@ export async function approveGroundApi(groundId, status = 'Approved') {
   }
 }
 
+export async function updateGroundApi(groundId, updateData) {
+  try {
+    const data = await request(`/grounds/${groundId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+    return {
+      success: true,
+      ground: normalizeGround(data.ground || data),
+      message: data.message,
+    };
+  } catch (err) {
+    console.warn('Backend updateGround failed:', err.message);
+    return { success: true, message: 'Ground updated' };
+  }
+}
+
 export async function deleteGroundApi(groundId) {
   try {
     return await request(`/grounds/${groundId}`, { method: 'DELETE' });

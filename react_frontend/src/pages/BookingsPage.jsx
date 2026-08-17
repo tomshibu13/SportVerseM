@@ -9,6 +9,7 @@ export default function BookingsPage({
   onCancelBooking, 
   onApproveBooking,
   onConfirmCheckIn,
+  onViewQRPass,
   searchTerm: globalSearch = '' 
 }) {
   const [localSearch, setLocalSearch] = useState('');
@@ -51,7 +52,7 @@ export default function BookingsPage({
             <span>Bookings & QR Verification ({bookings.length})</span>
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#a39c93', marginTop: '0.2rem' }}>
-            Track player reservations, process QR check-ins, approve slots, and manage cancellations.
+            Track player reservations, process QR check-ins, approve slots, and view gate entry QR passes.
           </p>
         </div>
 
@@ -164,9 +165,22 @@ export default function BookingsPage({
                     </td>
 
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {/* View QR Ticket Pass */}
+                        {onViewQRPass && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            title="View Gate QR Entry Pass"
+                            onClick={() => onViewQRPass(b)}
+                            style={{ padding: '0.3rem 0.55rem', gap: '0.25rem', fontSize: '0.75rem' }}
+                          >
+                            <QrCode size={13} color="#c8895b" />
+                            <span>QR Pass</span>
+                          </button>
+                        )}
+
                         {/* Check-In Action */}
-                        {b.booking_status === 'Confirmed' && (
+                        {b.booking_status !== 'Completed' && b.booking_status !== 'Cancelled' && (
                           <button
                             className="btn btn-secondary btn-sm"
                             title="Confirm Player QR Check-In"
