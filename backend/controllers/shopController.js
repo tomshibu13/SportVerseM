@@ -1,6 +1,9 @@
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const OrderItem = require('../models/OrderItem');
+
+const isObjectIdString = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(String(val).trim());
 
 const initialProducts = [
   {
@@ -241,13 +244,16 @@ exports.getAllProducts = async (req, res) => {
 // ── GET /api/products/:id ──
 exports.getProductById = async (req, res) => {
   try {
-    const id = req.params.id;
-    const product = await Product.findOne({
-      $or: [
-        { product_id: Number(id) || 0 },
-        { _id: id }
-      ]
-    });
+    const paramId = req.params.id;
+    const numId = parseInt(paramId, 10);
+
+    let product = null;
+    if (isObjectIdString(paramId)) {
+      product = await Product.findById(paramId);
+    }
+    if (!product && !isNaN(numId)) {
+      product = await Product.findOne({ product_id: numId });
+    }
 
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -267,16 +273,17 @@ exports.createProduct = async (req, res) => {
     const productSport = req.body.sport || req.body.category || 'All';
     const productPrice = Number(req.body.price) || 999;
     const originalPrice = Number(req.body.original_price || req.body.originalPrice) || Math.round(productPrice * 1.25);
-    const stockQty = Number(req.body.stock) || 10;
+    const stockQty = req.body.stock !== undefined ? Number(req.body.stock) : 10;
 
     const newProd = {
       product_id: Date.now(),
       title: productTitle,
+      name: productTitle,
       category: productCategory,
       sport: productSport,
       price: productPrice,
       original_price: originalPrice,
-      rating: 4.8,
+      rating: req.body.rating ? Number(req.body.rating) : 4.8,
       reviews: 1,
       image: req.body.image || 'https://images.unsplash.com/photo-1614632537197-38a17061c2bd?auto=format&fit=crop&w=600&q=80',
       description: req.body.description || `High performance ${productCategory} sports equipment.`,
@@ -292,6 +299,58 @@ exports.createProduct = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ── PUT /api/products/:id ──
+exports.updateProduct = async (req, res) => {
+  try {
+    const paramId = req.params.id;
+    const numId = parseInt(paramId, 10);
+    const updates = { ...req.body };
+
+    // Normalize field types and aliases
+    if (updates.name && !updates.title) {
+      updates.title = updates.name;
+    }
+    if (updates.title && !updates.name) {
+      updates.name = updates.title;
+    }
+    if (updates.price !== undefined) {
+      updates.price = Number(updates.price);
+    }
+    if (updates.original_price !== undefined) {
+      updates.original_price = Number(updates.original_price);
+    }
+    if (updates.stock !== undefined) {
+      updates.stock = Number(updates.stock);
+    }
+
+    let product = null;
+    if (isObjectIdString(paramId)) {
+      product = await Product.findByIdAndUpdate(paramId, { $set: updates }, { new: true });
+    }
+    if (!product && !isNaN(numId)) {
+      product = await Product.findOneAndUpdate({ product_id: numId }, { $set: updates }, { new: true });
+    }
+    if (!product) {
+      product = await Product.findOneAndUpdate(
+        { $or: [{ product_id: paramId }, { title: updates.title || updates.name }] },
+        { $set: updates },
+        { new: true }
+      ).catch(() => null);
+    }
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    return res.json({ success: true, message: 'Product updated successfully', product });
+  } catch (error) {
+    console.error('Error in updateProduct:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 
 // ── POST /api/orders (Create Order) ──
 exports.createOrder = async (req, res) => {
@@ -351,17 +410,41 @@ exports.createOrder = async (req, res) => {
     const newOrder = new Order(orderData);
     await newOrder.save();
 
-    // Optionally save items to OrderItem collection
+    // Reduce units of each purchased product from MongoDB
     for (const item of orderData.items) {
       try {
-        await OrderItem.create({
-          order_item_id: Date.now() + Math.floor(Math.random() * 1000),
-          order_id: orderId,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_price: item.price
-        });
-      } catch (_) {}
+        const qty = Math.max(1, Number(item.quantity) || 1);
+        const rawId = item.product_id || item.productId || item.id || item._id;
+        const isObjId = isObjectIdString(rawId);
+        const numId = parseInt(rawId, 10);
+        const itemTitle = item.title || item.name;
+
+        let product = null;
+        if (isObjId) {
+          product = await Product.findById(rawId);
+        }
+        if (!product && !isNaN(numId)) {
+          product = await Product.findOne({ product_id: numId });
+        }
+        if (!product && itemTitle) {
+          product = await Product.findOne({
+            $or: [
+              { title: { $regex: new RegExp(`^${itemTitle.trim()}$`, 'i') } },
+              { name: { $regex: new RegExp(`^${itemTitle.trim()}$`, 'i') } }
+            ]
+          });
+        }
+
+        if (product) {
+          const currentStock = typeof product.stock === 'number' ? product.stock : 25;
+          const newStock = Math.max(0, currentStock - qty);
+          product.stock = newStock;
+          await product.save();
+          console.log(`📉 Stock reduced for "${product.title}" by ${qty} unit(s). Remaining stock: ${newStock}`);
+        }
+      } catch (stockErr) {
+        console.warn('Failed to decrement product stock for item:', item, stockErr.message);
+      }
     }
 
     return res.status(201).json({

@@ -1,28 +1,28 @@
 :root {
-  --bg-dark: #0a0908;
-  --bg-card: #141210;
-  --bg-card-hover: #1c1916;
-  --bg-sidebar: #0f0d0b;
-  --bg-header: rgba(15, 13, 11, 0.85);
+  --bg-dark: #0f1115;
+  --bg-card: #181b21;
+  --bg-card-hover: #1f232b;
+  --bg-sidebar: #181b21;
+  --bg-header: rgba(24, 27, 33, 0.9);
 
   --primary: #c8895b;
-  --primary-hover: #b3774b;
-  --primary-light: rgba(200, 137, 91, 0.15);
+  --primary-hover: #e09f6f;
+  --primary-light: rgba(200, 137, 91, 0.2);
 
-  --accent-green: #10b981;
-  --accent-green-bg: rgba(16, 185, 129, 0.15);
-  --accent-orange: #f59e0b;
-  --accent-orange-bg: rgba(245, 158, 11, 0.15);
-  --accent-red: #ef4444;
-  --accent-red-bg: rgba(239, 68, 68, 0.15);
-  --accent-blue: #3b82f6;
-  --accent-blue-bg: rgba(59, 130, 246, 0.15);
+  --accent-green: #34d399;
+  --accent-green-bg: rgba(16, 185, 129, 0.2);
+  --accent-orange: #fbbf24;
+  --accent-orange-bg: rgba(245, 158, 11, 0.2);
+  --accent-red: #f87171;
+  --accent-red-bg: rgba(239, 68, 68, 0.2);
+  --accent-blue: #60a5fa;
+  --accent-blue-bg: rgba(59, 130, 246, 0.2);
 
-  --text-main: #f3f4f6;
-  --text-muted: #a39c93;
-  --text-dim: #6e675f;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --text-dim: #94a3b8;
 
-  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.1);
   --border-highlight: rgba(200, 137, 91, 0.3);
 
   --radius-sm: 8px;
@@ -30,7 +30,7 @@
   --radius-lg: 16px;
   --radius-xl: 24px;
 
-  --shadow-card: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.05);
   --gold-gradient: linear-gradient(135deg, #c8895b 0%, #a86c43 100%);
   --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -189,13 +189,13 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
   border: 1px solid var(--border-color);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -231,7 +231,7 @@ body {
 
 .form-input, .form-select, .form-textarea {
   width: 100%;
-  background: rgba(10, 9, 8, 0.8);
+  background: #12141a;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.65rem 0.85rem;
@@ -263,7 +263,7 @@ body {
 }
 
 .data-table th {
-  background: rgba(20, 18, 16, 0.95);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-muted);
   font-weight: 600;
   padding: 0.85rem 1rem;
@@ -286,7 +286,7 @@ body {
 }
 
 .data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Modals */

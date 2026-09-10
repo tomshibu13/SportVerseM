@@ -9,21 +9,22 @@ const protect = (req, res, next) => {
   ) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      if (token === 'mock_jwt_token_sportverse' || token.startsWith('mock_')) {
-        req.user = {
-          userId: '6a81b9d9117904f01f408645',
-          role: 'User',
-        };
-        return next();
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: 'Not authorized, no token provided',
+        });
       }
+
       const decoded = jwt.verify(
         token,
         process.env.JWT_SECRET || 'sportverse_default_secret_key'
       );
 
       req.user = {
-        userId: decoded.userId,
+        userId: decoded.userId || decoded.id || decoded._id,
         role: decoded.role,
+        email: decoded.email,
       };
 
       return next();
@@ -35,12 +36,10 @@ const protect = (req, res, next) => {
     }
   }
 
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized, no token provided',
-    });
-  }
+  return res.status(401).json({
+    success: false,
+    message: 'Not authorized, no token provided',
+  });
 };
 
 const authorizeRoles = (...roles) => {
@@ -48,7 +47,7 @@ const authorizeRoles = (...roles) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied',
+        message: 'Access denied: Insufficient permissions',
       });
     }
     next();

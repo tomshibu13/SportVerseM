@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/razorpay_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/top_navigation_bar.dart';
+import '../utils/validators.dart';
 
 class ShopScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -1542,6 +1543,7 @@ class _CheckoutBottomSheet extends StatefulWidget {
 }
 
 class _CheckoutBottomSheetState extends State<_CheckoutBottomSheet> {
+  final _checkoutFormKey = GlobalKey<FormState>();
   final _addressController = TextEditingController(text: 'Flat 402, Elite Residency, Stadium Road, Bangalore');
   final _phoneController = TextEditingController(text: '+91 98765 43210');
   final _nameController = TextEditingController(text: 'SportVerse Athlete');
@@ -1556,11 +1558,12 @@ class _CheckoutBottomSheetState extends State<_CheckoutBottomSheet> {
   }
 
   Future<void> _handlePlaceOrder() async {
-    final shop = Provider.of<ShopProvider>(context, listen: false);
-    if (_addressController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter delivery address.')));
+    if (!(_checkoutFormKey.currentState?.validate() ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please correct the delivery details.')));
       return;
     }
+
+    final shop = Provider.of<ShopProvider>(context, listen: false);
 
     String? razorpayTxnId;
 
@@ -1673,74 +1676,83 @@ class _CheckoutBottomSheetState extends State<_CheckoutBottomSheet> {
       ),
       padding: const EdgeInsets.all(20),
       child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Checkout & Delivery Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-
-            // Delivery Address
-            const Text('Delivery Address', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _addressController,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Enter complete street address & pincode',
-                prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.warmAccent),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Contact Info
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Recipient Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                          hintText: 'Name',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
+        child: Form(
+          key: _checkoutFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Phone Number', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                      const SizedBox(height: 6),
-                      TextField(
-                        controller: _phoneController,
-                        decoration: InputDecoration(
-                          hintText: 'Phone',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Checkout & Delivery Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+
+              // Delivery Address
+              const Text('Delivery Address', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _addressController,
+                maxLines: 2,
+                validator: Validators.address,
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: InputDecoration(
+                  hintText: 'Enter complete street address & pincode',
+                  prefixIcon: const Icon(Icons.location_on_outlined, color: AppColors.warmAccent),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
+              ),
+              const SizedBox(height: 16),
+
+              // Contact Info
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Recipient Name', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _nameController,
+                          validator: Validators.name,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: InputDecoration(
+                            hintText: 'Name',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Phone Number', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _phoneController,
+                          validator: Validators.phone,
+                          keyboardType: TextInputType.phone,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: InputDecoration(
+                            hintText: 'Phone',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
             // Payment Options
             const Text('Select Payment Method', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -1817,8 +1829,9 @@ class _CheckoutBottomSheetState extends State<_CheckoutBottomSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // ─────────────────────────────────────────────────────────────

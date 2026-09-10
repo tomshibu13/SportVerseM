@@ -7,6 +7,7 @@ import AddGroundModal from './components/AddGroundModal';
 import EditGroundModal from './components/EditGroundModal';
 import ManageSlotsModal from './components/ManageSlotsModal';
 import AddProductModal from './components/AddProductModal';
+import EditProductModal from './components/EditProductModal';
 import CredentialsModal from './components/CredentialsModal';
 import BookingQRModal from './components/BookingQRModal';
 
@@ -32,6 +33,7 @@ import {
   checkInBookingApi,
   fetchProducts, 
   createProductApi,
+  updateProductApi,
   fetchUsers 
 } from './services/api';
 
@@ -58,6 +60,8 @@ export default function App() {
   const [isBookingQROpen, setIsBookingQROpen] = useState(false);
   const [selectedBookingForQR, setSelectedBookingForQR] = useState(null);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isEditProductOpen, setIsEditProductOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [activeCredentials, setActiveCredentials] = useState(null);
   const [isCredModalOpen, setIsCredModalOpen] = useState(false);
 
@@ -226,6 +230,30 @@ export default function App() {
     } catch (err) {
       console.error('Failed to add product:', err);
       showToast('Failed to add item', 'error');
+    }
+  };
+
+  const handleUpdateProduct = async (productId, updateData) => {
+    try {
+      const res = await updateProductApi(productId, updateData);
+      if (res && res.product) {
+        setProducts((prev) =>
+          prev.map((p) =>
+            (p.id === productId ||
+             p._id === productId ||
+             p.product_id === productId ||
+             (res.product._id && p._id === res.product._id) ||
+             (res.product.product_id && p.product_id === res.product.product_id) ||
+             (res.product.id && p.id === res.product.id))
+              ? { ...p, ...res.product }
+              : p
+          )
+        );
+        showToast(`Item "${res.product.name || res.product.title}" updated successfully!`);
+      }
+    } catch (err) {
+      console.error('Failed to update product:', err);
+      showToast(err.message || 'Failed to update item', 'error');
     }
   };
 
@@ -517,6 +545,7 @@ export default function App() {
                 <ShopPage
                   products={products}
                   onOpenAddProduct={() => setIsAddProductOpen(true)}
+                  onOpenEditProduct={(product) => { setSelectedProduct(product); setIsEditProductOpen(true); }}
                   searchTerm={searchTerm}
                 />
               )}
@@ -586,6 +615,15 @@ export default function App() {
           isOpen={isAddProductOpen}
           onClose={() => setIsAddProductOpen(false)}
           onAddProduct={handleAddProduct}
+        />
+      )}
+
+      {!isGroundOwner && (
+        <EditProductModal
+          isOpen={isEditProductOpen}
+          onClose={() => setIsEditProductOpen(false)}
+          onUpdateProduct={handleUpdateProduct}
+          product={selectedProduct}
         />
       )}
 

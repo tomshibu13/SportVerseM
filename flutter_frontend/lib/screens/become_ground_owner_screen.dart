@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/razorpay_service.dart';
+import '../utils/validators.dart';
 import 'registration_submitted_screen.dart';
 
 class BecomeGroundOwnerScreen extends StatefulWidget {
@@ -22,6 +23,10 @@ class BecomeGroundOwnerScreen extends StatefulWidget {
 
 class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
   int _currentStep = 1; // Step 1 to 4
+
+  final _step1FormKey = GlobalKey<FormState>();
+  final _step2FormKey = GlobalKey<FormState>();
+  final _step3FormKey = GlobalKey<FormState>();
 
   // ── Step 1 Controllers ──
   final _groundNameController = TextEditingController(text: 'Smash Arena');
@@ -461,8 +466,7 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
     if (!authenticated || !mounted) return;
 
     if (_currentStep == 1) {
-      if (_groundNameController.text.trim().isEmpty) {
-        _showSnackBar('Please enter your ground name');
+      if (!(_step1FormKey.currentState?.validate() ?? false)) {
         return;
       }
       if (_selectedGroundTypes.isEmpty) {
@@ -471,14 +475,25 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
       }
       setState(() => _currentStep = 2);
     } else if (_currentStep == 2) {
-      if (_addressController.text.trim().isEmpty) {
-        _showSnackBar('Please enter complete address');
+      if (!(_step2FormKey.currentState?.validate() ?? false)) {
         return;
       }
       setState(() => _currentStep = 3);
     } else if (_currentStep == 3) {
-      if (_priceController.text.trim().isEmpty) {
-        _showSnackBar('Please enter price per hour');
+      if (!(_step3FormKey.currentState?.validate() ?? false)) {
+        return;
+      }
+      final timeErr = Validators.timeRange(_openingTime, _closingTime);
+      if (timeErr != null) {
+        _showSnackBar(timeErr);
+        return;
+      }
+      if (_selectedFacilities.isEmpty) {
+        _showSnackBar('Please select at least one facility');
+        return;
+      }
+      if (_groundImages.isEmpty) {
+        _showSnackBar('Please add at least one ground image');
         return;
       }
       setState(() => _currentStep = 4);
@@ -488,10 +503,19 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
   }
 
   Future<void> _submitGroundRegistration() async {
+    if (!AuthService.isLoggedIn) {
+      final authenticated = await AuthService.requireAuth(
+        context,
+        message: 'Please sign in to complete your facility registration.',
+      );
+      if (!authenticated || !mounted) return;
+    }
+
     final user = AuthService.currentUser;
+    final ownerId = (user?['_id'] ?? user?['id'] ?? user?['userId'] ?? user?['user_id'] ?? '').toString();
     final groundName = _groundNameController.text.trim();
-    final ownerName = user?['full_name'] ?? user?['name'] ?? 'Facility Owner';
-    final ownerPhone = user?['phone'] ?? '+91 98765 43210';
+    final ownerName = user?['full_name'] ?? user?['name'] ?? user?['fullName'] ?? 'Facility Owner';
+    final ownerPhone = user?['phone'] ?? '';
     const double registrationFee = 499.0;
 
     // 1. Process One-time Verification & Onboarding fee via Razorpay
@@ -523,7 +547,7 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
         'price_per_hour': double.tryParse(_priceController.text.trim()) ?? 500,
         'facilities': _selectedFacilities,
         'images': _groundImages,
-        'owner_id': user?['id'] ?? 2,
+        'owner_id': ownerId,
         'description': _descriptionController.text.trim(),
         'court_count': _courtCountController.text.trim(),
         'latitude': _latController.text.trim(),
@@ -704,381 +728,397 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
 
   // ── STEP 1: Ground Info ──
   Widget _buildStep1GroundInfo() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Ground Information',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Tell us about your sports ground',
-          style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
-        ),
-        const SizedBox(height: 24),
-
-        // Ground Name
-        _buildSectionLabel('Ground Name'),
-        _buildTextField(
-          controller: _groundNameController,
-          hint: 'Enter ground name',
-          prefixIcon: Icons.domain_outlined,
-        ),
-        const SizedBox(height: 20),
-
-        // Ground Type Multi-Select
-        _buildSectionLabel('Ground Type (Select all that apply)'),
-        const SizedBox(height: 8),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 3.2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
+    return Form(
+      key: _step1FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ground Information',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
           ),
-          itemCount: _groundTypeOptions.length,
-          itemBuilder: (context, index) {
-            final item = _groundTypeOptions[index];
-            final name = item['name'] as String;
-            final icon = item['icon'] as IconData;
-            final isSelected = _selectedGroundTypes.contains(name);
+          const SizedBox(height: 4),
+          const Text(
+            'Tell us about your sports ground',
+            style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
+          ),
+          const SizedBox(height: 24),
 
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  if (isSelected) {
-                    _selectedGroundTypes.remove(name);
-                  } else {
-                    _selectedGroundTypes.add(name);
-                  }
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFFFF3E0) : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFFE5E5E5),
-                    width: isSelected ? 1.5 : 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 18, color: isSelected ? const Color(0xFFFF6B00) : Colors.black54),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFF333333),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+          // Ground Name
+          _buildSectionLabel('Ground Name'),
+          _buildTextField(
+            controller: _groundNameController,
+            hint: 'Enter ground name',
+            prefixIcon: Icons.domain_outlined,
+            validator: Validators.groundTitle,
+          ),
+          const SizedBox(height: 20),
+
+          // Ground Type Multi-Select
+          _buildSectionLabel('Ground Type (Select all that apply)'),
+          const SizedBox(height: 8),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 3.2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: _groundTypeOptions.length,
+            itemBuilder: (context, index) {
+              final item = _groundTypeOptions[index];
+              final name = item['name'] as String;
+              final icon = item['icon'] as IconData;
+              final isSelected = _selectedGroundTypes.contains(name);
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedGroundTypes.remove(name);
+                    } else {
+                      _selectedGroundTypes.add(name);
+                    }
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFFFF3E0) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFFE5E5E5),
+                      width: isSelected ? 1.5 : 1,
                     ),
-                    if (isSelected)
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(0xFFFF6B00),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, size: 18, color: isSelected ? const Color(0xFFFF6B00) : Colors.black54),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? const Color(0xFFFF6B00) : const Color(0xFF333333),
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        child: const Icon(Icons.check, size: 10, color: Colors.white),
                       ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-
-        // Number of Courts
-        _buildSectionLabel('Number of Courts / Grounds'),
-        _buildTextField(
-          controller: _courtCountController,
-          hint: 'Enter number',
-          prefixIcon: Icons.grid_view_rounded,
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 20),
-
-        // Description with Counter
-        _buildSectionLabel('Description'),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E5E5)),
-          ),
-          child: Column(
-            children: [
-              TextField(
-                controller: _descriptionController,
-                maxLines: 4,
-                maxLength: 300,
-                buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF111111)),
-                decoration: const InputDecoration(
-                  hintText: 'Tell users about your ground, facilities and special features...',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.all(14),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12, bottom: 8),
-                child: Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text(
-                    '${_descriptionController.text.length}/300',
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+                      if (isSelected)
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFFFF6B00),
+                          ),
+                          child: const Icon(Icons.check, size: 10, color: Colors.white),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
-        ),
-      ],
+          const SizedBox(height: 20),
+
+          // Number of Courts
+          _buildSectionLabel('Number of Courts / Grounds'),
+          _buildTextField(
+            controller: _courtCountController,
+            hint: 'Enter number',
+            prefixIcon: Icons.grid_view_rounded,
+            keyboardType: TextInputType.number,
+            validator: Validators.courtCount,
+          ),
+          const SizedBox(height: 20),
+
+          // Description with Counter
+          _buildSectionLabel('Description'),
+          TextFormField(
+            controller: _descriptionController,
+            maxLines: 4,
+            maxLength: 300,
+            validator: (v) => Validators.minLength(v, 20, 'Description'),
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF111111)),
+            decoration: InputDecoration(
+              hintText: 'Tell users about your ground, facilities and special features...',
+              hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF999999)),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFFF6B00), width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.red, width: 1),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.red, width: 1.5),
+              ),
+              errorStyle: const TextStyle(fontSize: 11, color: Colors.red),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   // ── STEP 2: Location ──
   Widget _buildStep2Location() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Location',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Where is your ground located?',
-          style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
-        ),
-        const SizedBox(height: 24),
-
-        // Address
-        _buildSectionLabel('Address'),
-        _buildTextField(
-          controller: _addressController,
-          hint: 'Enter complete address',
-          prefixIcon: Icons.location_on_outlined,
-        ),
-        const SizedBox(height: 16),
-
-        // City & State Side-by-Side
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionLabel('City'),
-                  _buildTextField(
-                    controller: _cityController,
-                    hint: 'Enter city',
-                    prefixIcon: Icons.location_city_outlined,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionLabel('State'),
-                  _buildTextField(
-                    controller: _stateController,
-                    hint: 'Enter state',
-                    prefixIcon: Icons.map_outlined,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // PIN Code
-        _buildSectionLabel('PIN Code'),
-        _buildTextField(
-          controller: _pinController,
-          hint: 'Enter PIN code',
-          prefixIcon: Icons.markunread_mailbox_outlined,
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 20),
-
-        // Map Preview Section
-        _buildSectionLabel('Locate your ground'),
-        const SizedBox(height: 8),
-        Container(
-          height: 180,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E5E5)),
+    return Form(
+      key: _step2FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Location',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _mapCenter,
-                    initialZoom: 14.0,
-                    onTap: (tapPos, point) => _reverseGeocodeAndFill(point),
-                  ),
+          const SizedBox(height: 4),
+          const Text(
+            'Where is your ground located?',
+            style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
+          ),
+          const SizedBox(height: 24),
+
+          // Address
+          _buildSectionLabel('Address'),
+          _buildTextField(
+            controller: _addressController,
+            hint: 'Enter complete address',
+            prefixIcon: Icons.location_on_outlined,
+            validator: Validators.address,
+          ),
+          const SizedBox(height: 16),
+
+          // City & State Side-by-Side
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.sportverse.app',
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: _mapCenter,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(
-                            Icons.location_on,
-                            size: 40,
-                            color: Color(0xFFEF4444),
-                          ),
-                        ),
-                      ],
+                    _buildSectionLabel('City'),
+                    _buildTextField(
+                      controller: _cityController,
+                      hint: 'Enter city',
+                      prefixIcon: Icons.location_city_outlined,
+                      validator: Validators.city,
                     ),
                   ],
                 ),
-
-                // Overlay Select on Map button
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      elevation: 3,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel('State'),
+                    _buildTextField(
+                      controller: _stateController,
+                      hint: 'Enter state',
+                      prefixIcon: Icons.map_outlined,
+                      validator: Validators.state,
                     ),
-                    onPressed: _openFullMapPicker,
-                    icon: const Icon(Icons.center_focus_strong, size: 16, color: Color(0xFFFF6B00)),
-                    label: const Text('Select on Map', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
+                  ],
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
 
-                if (_isReverseGeocoding)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black26,
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
+          // PIN Code
+          _buildSectionLabel('PIN Code'),
+          _buildTextField(
+            controller: _pinController,
+            hint: 'Enter PIN code',
+            prefixIcon: Icons.markunread_mailbox_outlined,
+            keyboardType: TextInputType.number,
+            validator: Validators.pincode,
+          ),
+          const SizedBox(height: 20),
+
+          // Map Preview Section
+          _buildSectionLabel('Locate your ground'),
+          const SizedBox(height: 8),
+          Container(
+            height: 180,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE5E5E5)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _mapCenter,
+                      initialZoom: 14.0,
+                      onTap: (tapPos, point) => _reverseGeocodeAndFill(point),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.sportverse.app',
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _mapCenter,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(
+                              Icons.location_on,
+                              size: 40,
+                              color: Color(0xFFEF4444),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  // Overlay Select on Map button
+                  Positioned(
+                    bottom: 12,
+                    right: 12,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        elevation: 3,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                      onPressed: _openFullMapPicker,
+                      icon: const Icon(Icons.center_focus_strong, size: 16, color: Color(0xFFFF6B00)),
+                      label: const Text('Select on Map', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+
+                  if (_isReverseGeocoding)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Color(0xFFFF6B00)),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Use Current Location Button
-        SizedBox(
-          width: double.infinity,
-          height: 46,
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFFFF6B00)),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: _isFetchingGps ? null : _fetchCurrentLocation,
-            icon: _isFetchingGps
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B00)),
-                  )
-                : const Icon(Icons.my_location, size: 18, color: Color(0xFFFF6B00)),
-            label: const Text(
-              'Use Current Location',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFFF6B00)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Latitude & Longitude Side-by-Side
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionLabel('Latitude'),
-                  _buildTextField(
-                    controller: _latController,
-                    hint: '11.2588',
-                    prefixIcon: Icons.location_searching,
-                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionLabel('Longitude'),
-                  _buildTextField(
-                    controller: _lngController,
-                    hint: '75.7804',
-                    prefixIcon: Icons.location_searching,
-                  ),
-                ],
+          ),
+          const SizedBox(height: 12),
+
+          // Use Current Location Button
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFFF6B00)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: _isFetchingGps ? null : _fetchCurrentLocation,
+              icon: _isFetchingGps
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF6B00)),
+                    )
+                  : const Icon(Icons.my_location, size: 18, color: Color(0xFFFF6B00)),
+              label: const Text(
+                'Use Current Location',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFFF6B00)),
               ),
             ),
-          ],
-        ),
-      ],
+          ),
+          const SizedBox(height: 16),
+
+          // Latitude & Longitude Side-by-Side
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel('Latitude'),
+                    _buildTextField(
+                      controller: _latController,
+                      hint: '11.2588',
+                      prefixIcon: Icons.location_searching,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel('Longitude'),
+                    _buildTextField(
+                      controller: _lngController,
+                      hint: '75.7804',
+                      prefixIcon: Icons.location_searching,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   // ── STEP 3: Facilities & Pricing ──
   Widget _buildStep3FacilitiesPricing() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Facilities & Pricing',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Set your pricing and add facilities',
-          style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
-        ),
-        const SizedBox(height: 24),
+    return Form(
+      key: _step3FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Facilities & Pricing',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Set your pricing and add facilities',
+            style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
+          ),
+          const SizedBox(height: 24),
 
-        // Price per Hour
-        _buildSectionLabel('Price per Hour'),
-        _buildTextField(
-          controller: _priceController,
-          hint: 'Enter price per hour',
-          prefixText: '₹  ',
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 16),
+          // Price per Hour
+          _buildSectionLabel('Price per Hour'),
+          _buildTextField(
+            controller: _priceController,
+            hint: 'Enter price per hour',
+            prefixText: '₹  ',
+            keyboardType: TextInputType.number,
+            validator: Validators.price,
+          ),
+          const SizedBox(height: 16),
 
         // Opening & Closing Times Side-by-Side
         Row(
@@ -1190,8 +1230,9 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
         // ── Ground Photos & Gallery Management (Upload & URL) ──
         _buildGroundImagesSection(),
       ],
-    );
-  }
+    ),
+  );
+}
 
   // ── STEP 4: Review Your Details ──
   Widget _buildStep4ReviewDetails() {
@@ -1498,27 +1539,48 @@ class _BecomeGroundOwnerScreenState extends State<BecomeGroundOwnerScreen> {
     IconData? prefixIcon,
     String? prefixText,
     TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
+    List<TextInputFormatter>? inputFormatters,
+    void Function(String)? onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E5E5)),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: const TextStyle(fontSize: 13, color: Color(0xFF111111)),
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18, color: Colors.black54) : null,
-          prefixText: prefixText,
-          prefixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFFF6B00)),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      validator: validator,
+      inputFormatters: inputFormatters,
+      onChanged: onChanged,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      style: const TextStyle(fontSize: 13, color: Color(0xFF111111)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF999999)),
+        prefixIcon: prefixIcon != null ? Icon(prefixIcon, size: 18, color: Colors.black54) : null,
+        prefixText: prefixText,
+        prefixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFFF6B00)),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E5E5)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFFF6B00), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        ),
+        errorStyle: const TextStyle(fontSize: 11, color: Colors.red),
       ),
     );
   }

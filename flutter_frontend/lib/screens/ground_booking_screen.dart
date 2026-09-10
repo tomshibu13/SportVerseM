@@ -6,6 +6,7 @@ import '../models/ground_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/razorpay_service.dart';
+import '../utils/validators.dart';
 import 'bookings_screen.dart';
 
 class GroundBookingScreen extends StatefulWidget {
@@ -21,24 +22,25 @@ class GroundBookingScreen extends StatefulWidget {
 }
 
 class _GroundBookingScreenState extends State<GroundBookingScreen> {
+  final _formKey = GlobalKey<FormState>();
   late DateTime _selectedDate;
   final List<String> _selectedSlotTimes = [];
   final List<GroundSlot> _selectedSlots = [];
 
   String _selectedTimeOfDay = 'All'; // 'All', 'Morning', 'Afternoon', 'Evening'
+  String _selectedCourt = 'Court 1';
+  List<String> _availableCourts = ['Court 1'];
   String _selectedPaymentMethod = 'UPI / GPay';
   bool _addEquipmentRental = false;
   bool _addRefresherDrinks = false;
   bool _isSubmitting = false;
   bool _isLoadingSlots = false;
-  Set<String> _bookedSlotsFromApi = {};
 
   final TextEditingController _nameController = TextEditingController(text: 'Player');
   final TextEditingController _phoneController = TextEditingController(text: '+91 98765 43210');
   final TextEditingController _notesController = TextEditingController();
 
-  // Generated default slot schedule for ground if available_slots is sparse
-  late List<GroundSlot> _slotsForSelectedDay;
+  List<GroundSlot> _slotsForSelectedDay = [];
 
   @override
   void initState() {
@@ -55,23 +57,101 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         _phoneController.text = phone.toString();
       }
     }
-    _generateSlotsForGround();
-    _fetchBookedSlotsForSelectedDate();
+    _loadSlotsFromBackend();
   }
 
-  Future<void> _fetchBookedSlotsForSelectedDate() async {
+  int _parseSlotMinutes(GroundSlot slot) {
+    try {
+      final str = slot.startTime.isNotEmpty ? slot.startTime : slot.time.split('-').first.trim();
+      final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false).firstMatch(str);
+      if (match != null) {
+        int hour = int.parse(match.group(1)!);
+        final minute = int.parse(match.group(2)!);
+        final ampm = match.group(3)?.toUpperCase();
+        if (ampm == 'PM' && hour < 12) hour += 12;
+        if (ampm == 'AM' && hour == 12) hour = 0;
+        return hour * 60 + minute;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  List<GroundSlot> _generateDefaultSlotsForGround(DateTime date, String court) {
+    final basePrice = widget.ground.pricePerHour > 0 ? widget.ground.pricePerHour : 500.0;
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    final schedule = [
+      {'start': '06:00 AM', 'end': '07:00 AM', 'm': 1.0},
+      {'start': '07:00 AM', 'end': '08:00 AM', 'm': 1.0},
+      {'start': '08:00 AM', 'end': '09:00 AM', 'm': 1.0},
+      {'start': '09:00 AM', 'end': '10:00 AM', 'm': 1.0},
+      {'start': '10:00 AM', 'end': '11:00 AM', 'm': 1.0},
+      {'start': '11:00 AM', 'end': '12:00 PM', 'm': 1.0},
+      {'start': '12:00 PM', 'end': '01:00 PM', 'm': 1.0},
+      {'start': '03:00 PM', 'end': '04:00 PM', 'm': 1.0},
+      {'start': '04:00 PM', 'end': '05:00 PM', 'm': 1.0},
+      {'start': '05:00 PM', 'end': '06:00 PM', 'm': 1.15},
+      {'start': '06:00 PM', 'end': '07:00 PM', 'm': 1.25},
+      {'start': '07:00 PM', 'end': '08:00 PM', 'm': 1.25},
+      {'start': '08:00 PM', 'end': '09:00 PM', 'm': 1.25},
+      {'start': '09:00 PM', 'end': '10:00 PM', 'm': 1.15},
+      {'start': '10:00 PM', 'end': '11:00 PM', 'm': 1.0},
+    ];
+
+    return schedule.map((s) {
+      final slotTime = '${s['start']} - ${s['end']}';
+      return GroundSlot(
+        slotId: 'slot_${widget.ground.groundId}_${dateStr}_${s['start']}'.replaceAll(' ', '_'),
+        time: slotTime,
+        courtId: court,
+        date: dateStr,
+        startTime: s['start'] as String,
+        endTime: s['end'] as String,
+        price: (basePrice * (s['m'] as double)).roundToDouble(),
+        isBooked: false,
+        status: 'Available',
+      );
+    }).toList();
+  }
+
+  Future<void> _loadSlotsFromBackend() async {
     setState(() => _isLoadingSlots = true);
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      final bookedList = await ApiService.fetchBookedSlotsForGround(widget.ground.groundId, date: dateStr);
+      final res = await ApiService.fetchSlots(
+        groundId: widget.ground.groundId,
+        date: dateStr,
+        courtId: _selectedCourt,
+      );
       if (mounted) {
+        List<GroundSlot> fetchedSlots = (res['slots'] as List<GroundSlot>?) ?? [];
+        final List<String> fetchedCourts = (res['courts'] as List<String>?) ?? ['Court 1'];
+
+        // If backend returned empty, use graceful fallback generator so the user always sees available slots
+        if (fetchedSlots.isEmpty) {
+          fetchedSlots = _generateDefaultSlotsForGround(_selectedDate, _selectedCourt);
+        }
+
+        // Sort chronologically from morning to evening
+        fetchedSlots.sort((a, b) => _parseSlotMinutes(a).compareTo(_parseSlotMinutes(b)));
+
         setState(() {
-          _bookedSlotsFromApi = bookedList.toSet();
+          _slotsForSelectedDay = fetchedSlots;
+          _availableCourts = fetchedCourts.isNotEmpty ? fetchedCourts : ['Court 1'];
+          if (!_availableCourts.contains(_selectedCourt)) {
+            _selectedCourt = _availableCourts.first;
+          }
           _isLoadingSlots = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingSlots = false);
+      if (mounted) {
+        final fallbackSlots = _generateDefaultSlotsForGround(_selectedDate, _selectedCourt);
+        fallbackSlots.sort((a, b) => _parseSlotMinutes(a).compareTo(_parseSlotMinutes(b)));
+        setState(() {
+          _slotsForSelectedDay = fallbackSlots;
+          _isLoadingSlots = false;
+        });
+      }
     }
   }
 
@@ -83,45 +163,17 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     super.dispose();
   }
 
-  void _generateSlotsForGround() {
-    final basePrice = widget.ground.pricePerHour > 0 ? widget.ground.pricePerHour : 500.0;
-
-    // Use ground's available slots if populated, or generate full daily schedule
-    if (widget.ground.availableSlots.isNotEmpty && widget.ground.availableSlots.length >= 6) {
-      _slotsForSelectedDay = List.from(widget.ground.availableSlots);
-    } else {
-      _slotsForSelectedDay = [
-        GroundSlot(slotId: 'sl_1', time: '06:00 AM - 07:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_2', time: '07:00 AM - 08:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_3', time: '08:00 AM - 09:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_4', time: '09:00 AM - 10:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_5', time: '10:00 AM - 11:00 AM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_6', time: '11:00 AM - 12:00 PM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_7', time: '03:00 PM - 04:00 PM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_8', time: '04:00 PM - 05:00 PM', isBooked: false, price: basePrice),
-        GroundSlot(slotId: 'sl_9', time: '05:00 PM - 06:00 PM', isBooked: false, price: (basePrice * 1.15).roundToDouble()),
-        GroundSlot(slotId: 'sl_10', time: '06:00 PM - 07:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
-        GroundSlot(slotId: 'sl_11', time: '07:00 PM - 08:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
-        GroundSlot(slotId: 'sl_12', time: '08:00 PM - 09:00 PM', isBooked: false, price: (basePrice * 1.25).roundToDouble()),
-        GroundSlot(slotId: 'sl_13', time: '09:00 PM - 10:00 PM', isBooked: false, price: (basePrice * 1.15).roundToDouble()),
-        GroundSlot(slotId: 'sl_14', time: '10:00 PM - 11:00 PM', isBooked: false, price: basePrice),
-      ];
-    }
-  }
-
   List<GroundSlot> get _filteredSlots {
     return _slotsForSelectedDay.where((slot) {
       if (_selectedTimeOfDay == 'All') return true;
-      final t = slot.time.toUpperCase();
+      final minutes = _parseSlotMinutes(slot);
+      final hour = minutes ~/ 60;
       if (_selectedTimeOfDay == 'Morning') {
-        return t.contains('06:00 AM') || t.contains('07:00 AM') || t.contains('08:00 AM') ||
-               t.contains('09:00 AM') || t.contains('10:00 AM') || t.contains('11:00 AM');
+        return hour >= 5 && hour < 12;
       } else if (_selectedTimeOfDay == 'Afternoon') {
-        return t.contains('12:00 PM') || t.contains('01:00 PM') || t.contains('02:00 PM') ||
-               t.contains('03:00 PM') || t.contains('04:00 PM');
+        return hour >= 12 && hour < 17;
       } else if (_selectedTimeOfDay == 'Evening') {
-        return t.contains('05:00 PM') || t.contains('06:00 PM') || t.contains('07:00 PM') ||
-               t.contains('08:00 PM') || t.contains('09:00 PM') || t.contains('10:00 PM');
+        return hour >= 17 && hour <= 23;
       }
       return true;
     }).toList();
@@ -152,37 +204,14 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     // If selected date is in the future
     if (bookingDay.isAfter(today)) return false;
 
-    // Selected date is Today: Parse slot starting time
-    // Formats: "06:00 AM - 07:00 AM", "6:00 AM", "18:00", "06:00 PM - 07:00 PM"
-    try {
-      final timePart = slot.time.split('-').first.trim();
-      final regex = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false);
-      final match = regex.firstMatch(timePart);
-
-      if (match != null) {
-        int hour = int.parse(match.group(1)!);
-        final minute = int.parse(match.group(2)!);
-        final ampm = match.group(3)?.toUpperCase();
-
-        if (ampm != null) {
-          if (ampm == 'PM' && hour < 12) hour += 12;
-          if (ampm == 'AM' && hour == 12) hour = 0;
-        }
-
-        final slotDateTime = DateTime(now.year, now.month, now.day, hour, minute);
-        return slotDateTime.isBefore(now);
-      }
-    } catch (_) {}
-
-    return false;
+    // Selected date is Today: Compare slot minutes with current time minutes
+    final slotMinutes = _parseSlotMinutes(slot);
+    final currentMinutes = now.hour * 60 + now.minute;
+    return slotMinutes <= currentMinutes;
   }
 
   void _toggleSlotSelection(GroundSlot slot) {
-    final isBookedInApi = _bookedSlotsFromApi.contains(slot.time) ||
-        _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(slot.time));
-    final isBooked = slot.isBooked || isBookedInApi;
-
-    if (isBooked) {
+    if (slot.isBooked) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -196,7 +225,21 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
       return;
     }
 
-    if (_isSlotPastTime(slot)) {
+    if (slot.isBlocked) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🔒 Slot "${slot.time}" is currently unavailable/blocked by the venue.'),
+          backgroundColor: const Color(0xFF64748B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    if (slot.isExpired || _isSlotPastTime(slot)) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -236,6 +279,16 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     );
     if (!authenticated || !mounted) return;
 
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Please fill out all required player contact fields correctly.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     if (_selectedSlots.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -246,9 +299,9 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
       return;
     }
 
-    // Check that none of selected slots have passed or are booked
+    // Check that none of selected slots have passed or are booked/blocked
     for (final s in _selectedSlots) {
-      if (_isSlotPastTime(s)) {
+      if (s.isExpired || _isSlotPastTime(s)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('⚠️ Slot "${s.time}" has already passed. Please select an upcoming slot.'),
@@ -257,9 +310,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         );
         return;
       }
-      final isAlreadyBooked = _bookedSlotsFromApi.contains(s.time) ||
-          _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(s.time));
-      if (isAlreadyBooked) {
+      if (s.isBooked) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('⚠️ Slot "${s.time}" has already been booked. Please choose another slot.'),
@@ -268,6 +319,23 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         );
         return;
       }
+      if (s.isBlocked) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Slot "${s.time}" is unavailable.'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
+    }
+
+    if (!AuthService.isLoggedIn) {
+      final authenticated = await AuthService.requireAuth(
+        context,
+        message: 'Please sign in to book your court slots.',
+      );
+      if (!authenticated || !mounted) return;
     }
 
     setState(() => _isSubmitting = true);
@@ -276,14 +344,14 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     final combinedSlotTime = _selectedSlots.map((s) => s.time).join(', ');
 
     final user = AuthService.currentUser;
-    final userId = user?['_id'] ?? user?['id'] ?? user?['user_id'] ?? 1;
+    final userId = user?['_id'] ?? user?['id'] ?? user?['userId'] ?? user?['user_id'];
     final userName = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : (user?['full_name'] ?? user?['fullName'] ?? user?['name'] ?? 'Player');
     final userPhone = _phoneController.text.trim().isNotEmpty
         ? _phoneController.text.trim()
-        : '+91 98765 43210';
-    final slotId = _selectedSlots.isNotEmpty ? _selectedSlots.first.slotId : 'sl_1';
+        : (user?['phone'] ?? '');
+    final slotId = _selectedSlots.isNotEmpty ? _selectedSlots.map((s) => s.slotId).join(',') : '';
     final generatedBookingId = 'SPV-BK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
 
     // 1. Process payment via Razorpay Gateway
@@ -333,17 +401,15 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         final bookingData = res['booking'] is Map ? res['booking'] as Map<String, dynamic> : <String, dynamic>{};
         final bookingId = bookingData['booking_id'] ?? generatedBookingId;
         final txnId = rzpResult.paymentId ?? 'pay_${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
+        final amountPaid = _totalBookingPrice;
 
         setState(() {
-          for (final s in _selectedSlots) {
-            _bookedSlotsFromApi.add(s.time);
-          }
           _selectedSlotTimes.clear();
           _selectedSlots.clear();
         });
-        _fetchBookedSlotsForSelectedDate();
+        _loadSlotsFromBackend();
 
-        _showBookingSuccessDialog(bookingId, dateStr, combinedSlotTime, txnId);
+        _showBookingSuccessDialog(bookingId, dateStr, combinedSlotTime, amountPaid, txnId);
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -367,7 +433,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     }
   }
 
-  void _showBookingSuccessDialog(String bookingId, String dateStr, String slotTimeStr, [String? txnId]) {
+  void _showBookingSuccessDialog(String bookingId, String dateStr, String slotTimeStr, double amountPaid, [String? txnId]) {
     final transactionId = txnId ?? 'pay_${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
     showDialog(
       context: context,
@@ -490,7 +556,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                         children: [
                           const Text('Total Paid:', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
                           Text(
-                            '₹${_totalBookingPrice.toInt()}',
+                            '₹${amountPaid.toInt()}',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w900,
@@ -806,7 +872,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                       _selectedSlotTimes.clear();
                       _selectedSlots.clear();
                     });
-                    _fetchBookedSlotsForSelectedDate();
+                    _loadSlotsFromBackend();
                   },
                   borderRadius: BorderRadius.circular(16),
                   child: AnimatedContainer(
@@ -885,8 +951,8 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
               ),
               if (_isLoadingSlots)
                 const SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC8895B)),
                 )
               else if (_selectedSlots.isNotEmpty)
@@ -908,6 +974,49 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
             ],
           ),
           const SizedBox(height: 12),
+
+          // Court / Pitch Selector
+          if (_availableCourts.isNotEmpty) ...[
+            const Text(
+              'Court / Turf Area',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondaryText),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              children: _availableCourts.map((court) {
+                final isSel = _selectedCourt == court;
+                return ChoiceChip(
+                  avatar: Icon(
+                    Icons.sports_tennis_rounded,
+                    size: 15,
+                    color: isSel ? Colors.white : AppColors.primaryBlack,
+                  ),
+                  label: Text(court),
+                  selected: isSel,
+                  selectedColor: AppColors.primaryBlack,
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                    color: isSel ? Colors.white : AppColors.primaryBlack,
+                  ),
+                  backgroundColor: const Color(0xFFF9F7F4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (val) {
+                    if (val && _selectedCourt != court) {
+                      setState(() {
+                        _selectedCourt = court;
+                        _selectedSlotTimes.clear();
+                        _selectedSlots.clear();
+                      });
+                      _loadSlotsFromBackend();
+                    }
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 14),
+          ],
 
           // Time Filter Chips (All, Morning, Afternoon, Evening)
           Wrap(
@@ -934,7 +1043,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
           const SizedBox(height: 14),
 
-          // Legend Indicators (Available, Selected, Booked, Past Time)
+          // Legend Indicators (Available, Selected, Booked, Blocked, Past Time)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -945,6 +1054,8 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                 const SizedBox(width: 8),
                 _buildLegendPill(Colors.grey.shade100, Colors.grey.shade400, 'Booked'),
                 const SizedBox(width: 8),
+                _buildLegendPill(const Color(0xFFF1F5F9), const Color(0xFF64748B), 'Blocked'),
+                const SizedBox(width: 8),
                 _buildLegendPill(const Color(0xFFFFF1F2), const Color(0xFFE11D48), 'Past Time'),
               ],
             ),
@@ -952,153 +1063,222 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
           const SizedBox(height: 16),
 
-          // Slots Grid View
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: slots.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 2.0,
-            ),
-            itemBuilder: (context, index) {
-              final slot = slots[index];
-              final isPast = _isSlotPastTime(slot);
-              final isBookedInApi = _bookedSlotsFromApi.contains(slot.time) ||
-                  _bookedSlotsFromApi.any((b) => b.split(',').map((x) => x.trim()).contains(slot.time));
-              final isBooked = slot.isBooked || isBookedInApi;
-              final isUnavailable = isBooked || isPast;
-              final isSelected = _selectedSlotTimes.contains(slot.time);
-
-              return InkWell(
-                onTap: isUnavailable
-                    ? () {
-                        if (isPast) {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Row(
-                                children: [
-                                  Icon(Icons.history_toggle_off, color: Colors.amberAccent, size: 18),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text('This time slot has already passed for today. Please select an upcoming slot.'),
-                                  ),
-                                ],
-                              ),
-                              backgroundColor: const Color(0xFF1E293B),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        } else if (isBooked) {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('⚠️ Slot "${slot.time}" is already booked for ${DateFormat('dd MMM').format(_selectedDate)}.'),
-                              backgroundColor: const Color(0xFFDC2626),
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      }
-                    : () => _toggleSlotSelection(slot),
+          // Slots Grid or Loading/Empty State
+          if (_isLoadingSlots)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 36),
+              alignment: Alignment.center,
+              child: const Column(
+                children: [
+                  CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFC8895B)),
+                  SizedBox(height: 12),
+                  Text('Loading live court slots...', style: TextStyle(fontSize: 12, color: AppColors.mutedText)),
+                ],
+              ),
+            )
+          else if (slots.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF9F7F4),
                 borderRadius: BorderRadius.circular(12),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isPast
-                        ? const Color(0xFFF9FAFB)
-                        : isBooked
-                        ? Colors.grey.shade100
-                        : (isSelected ? const Color(0xFFC8895B) : Colors.white),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.event_busy_rounded, size: 36, color: AppColors.mutedText),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'No slots available for this filter/court.',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Try selecting a different date or time category above.',
+                    style: TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                  ),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() => _selectedTimeOfDay = 'All');
+                      _loadSlotsFromBackend();
+                    },
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Reset filter & Reload'),
+                  ),
+                ],
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: slots.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.0,
+              ),
+              itemBuilder: (context, index) {
+                final slot = slots[index];
+                final isPast = slot.isExpired || _isSlotPastTime(slot);
+                final isBooked = slot.isBooked;
+                final isBlocked = slot.isBlocked;
+                final isUnavailable = isBooked || isBlocked || isPast;
+                final isSelected = _selectedSlotTimes.contains(slot.time);
+
+                return InkWell(
+                  onTap: isUnavailable
+                      ? () {
+                          if (isPast) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Row(
+                                  children: [
+                                    Icon(Icons.history_toggle_off, color: Colors.amberAccent, size: 18),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text('This time slot has already passed for today. Please select an upcoming slot.'),
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: const Color(0xFF1E293B),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else if (isBooked) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('⚠️ Slot "${slot.time}" is already booked for ${DateFormat('dd MMM').format(_selectedDate)}.'),
+                                backgroundColor: const Color(0xFFDC2626),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else if (isBlocked) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('🔒 Slot "${slot.time}" is currently unavailable/blocked by the venue.'),
+                                backgroundColor: const Color(0xFF64748B),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        }
+                      : () => _toggleSlotSelection(slot),
+                  borderRadius: BorderRadius.circular(12),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
                       color: isPast
-                          ? Colors.grey.shade200
+                          ? const Color(0xFFF9FAFB)
                           : isBooked
-                          ? Colors.grey.shade300
-                          : (isSelected ? const Color(0xFFC8895B) : AppColors.border),
-                      width: isSelected ? 2 : 1,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFC8895B).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ]
-                        : [],
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              slot.time,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: isUnavailable
-                                    ? Colors.grey.shade400
-                                    : (isSelected ? Colors.white : AppColors.primaryBlack),
-                                decoration: isUnavailable ? TextDecoration.lineThrough : null,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isPast
-                                  ? 'Past Time'
-                                  : isBooked
-                                  ? 'Booked'
-                                  : '₹${slot.price.toInt()}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                                color: isPast
-                                    ? const Color(0xFFE11D48)
-                                    : isBooked
-                                    ? Colors.grey.shade400
-                                    : (isSelected ? Colors.white70 : const Color(0xFF2E7D32)),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        isPast
-                            ? Icons.history_toggle_off
-                            : isBooked
-                            ? Icons.block_rounded
-                            : (isSelected ? Icons.check_circle : Icons.radio_button_unchecked),
-                        size: 18,
+                          ? Colors.grey.shade100
+                          : isBlocked
+                          ? const Color(0xFFF1F5F9)
+                          : (isSelected ? const Color(0xFFC8895B) : Colors.white),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
                         color: isPast
-                            ? const Color(0xFFE11D48)
+                            ? Colors.grey.shade200
                             : isBooked
-                            ? Colors.grey.shade400
-                            : (isSelected ? Colors.white : AppColors.mutedText),
+                            ? Colors.grey.shade300
+                            : isBlocked
+                            ? const Color(0xFFCBD5E1)
+                            : (isSelected ? const Color(0xFFC8895B) : AppColors.border),
+                        width: isSelected ? 2 : 1,
                       ),
-                    ],
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFFC8895B).withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                slot.time,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isUnavailable
+                                      ? Colors.grey.shade400
+                                      : (isSelected ? Colors.white : AppColors.primaryBlack),
+                                  decoration: isUnavailable ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isPast
+                                    ? 'Past Time'
+                                    : isBooked
+                                    ? 'Booked'
+                                    : isBlocked
+                                    ? 'Blocked'
+                                    : '₹${slot.price.toInt()}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                                  color: isPast
+                                      ? const Color(0xFFE11D48)
+                                      : isBooked
+                                      ? Colors.grey.shade400
+                                      : isBlocked
+                                      ? const Color(0xFF64748B)
+                                      : (isSelected ? Colors.white70 : const Color(0xFF2E7D32)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          isPast
+                              ? Icons.history_toggle_off
+                              : isBooked
+                              ? Icons.block_rounded
+                              : isBlocked
+                              ? Icons.do_not_disturb_on_outlined
+                              : (isSelected ? Icons.check_circle : Icons.radio_button_unchecked),
+                          size: 18,
+                          color: isPast
+                              ? const Color(0xFFE11D48)
+                              : isBooked
+                              ? Colors.grey.shade400
+                              : isBlocked
+                              ? const Color(0xFF64748B)
+                              : (isSelected ? Colors.white : AppColors.mutedText),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -1173,39 +1353,46 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '4. Contact Information',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primaryBlack,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '4. Contact Information',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryBlack,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _nameController,
-            decoration: InputDecoration(
-              labelText: 'Lead Player Full Name',
-              prefixIcon: const Icon(Icons.person_outline, size: 18, color: AppColors.warmAccent),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _nameController,
+              validator: Validators.name,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: InputDecoration(
+                labelText: 'Lead Player Full Name',
+                prefixIcon: const Icon(Icons.person_outline, size: 18, color: AppColors.warmAccent),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: 'Phone Number (for SMS & WhatsApp Confirmation)',
-              prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: AppColors.warmAccent),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            const SizedBox(height: 10),
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              validator: Validators.phone,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: InputDecoration(
+                labelText: 'Phone Number (for SMS & WhatsApp Confirmation)',
+                prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: AppColors.warmAccent),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

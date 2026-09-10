@@ -8,7 +8,7 @@ const SAMPLE_PROD_IMAGES = [
   { label: 'Cricket Bat', url: 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=400&q=80' },
 ];
 
-export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
+export default function EditProductModal({ isOpen, onClose, onUpdateProduct, product }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Gear');
   const [sport, setSport] = useState('Badminton');
@@ -17,13 +17,27 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
   const [imageUrl, setImageUrl] = useState(SAMPLE_PROD_IMAGES[0].url);
   const [loading, setLoading] = useState(false);
 
+  React.useEffect(() => {
+    if (product && isOpen) {
+      setName(product.title || product.name || '');
+      setCategory(product.category || 'Gear');
+      setSport(product.sport || 'Badminton');
+      setPrice(product.price || 1499);
+      setStock(product.stock || 15);
+      setImageUrl(product.image || SAMPLE_PROD_IMAGES[0].url);
+    }
+  }, [product, isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await onAddProduct({
+      const targetId = product._id || product.product_id || product.id;
+      await onUpdateProduct(targetId, {
+        _id: product._id,
+        product_id: product.product_id || product.id,
         name: name.trim(),
         title: name.trim(),
         category,
@@ -32,14 +46,9 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
         stock: Number(stock),
         image: imageUrl,
       });
-      setName('');
-      setCategory('Gear');
-      setSport('Badminton');
-      setPrice(1499);
-      setStock(15);
       onClose();
     } catch (err) {
-      console.error('Error in AddProductModal:', err);
+      console.error('Error in EditProductModal:', err);
     } finally {
       setLoading(false);
     }
@@ -54,7 +63,7 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
               <ShoppingBag size={20} color="#c8895b" />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff' }}>Add Pro-Shop Equipment</h3>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff' }}>Edit Pro-Shop Equipment</h3>
               <span style={{ fontSize: '0.75rem', color: '#a39c93' }}>Manage Marketplace Inventory</span>
             </div>
           </div>
@@ -170,8 +179,9 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" style={{ flex: 1.2 }} disabled={loading}>
-              {loading ? 'Adding Product...' : '+ Add Item to Shop'}
+              {loading ? 'Updating Product...' : 'Update Item'}
             </button>
+
           </div>
         </form>
       </div>

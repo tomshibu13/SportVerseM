@@ -1,5 +1,5 @@
 class UserModel {
-  final int userId;
+  final dynamic userId;
   final String fullName;
   final String email;
   final String role; // User, GroundOwner, ShopOwner, Admin
@@ -8,6 +8,9 @@ class UserModel {
   final String approvalStatus;
   final bool isApproved;
   final String createdAt;
+  final String location;
+  final String favoriteSport;
+  final String bio;
 
   UserModel({
     required this.userId,
@@ -19,40 +22,100 @@ class UserModel {
     this.approvalStatus = 'Approved',
     this.isApproved = true,
     required this.createdAt,
+    this.location = '',
+    this.favoriteSport = '',
+    this.bio = '',
   });
 
-  factory UserModel.fromJson(Map<String, dynamic> json) {
-    final rawId = json['userId'] ?? json['user_id'] ?? json['id'] ?? 0;
-    final parsedId = rawId is int ? rawId : (int.tryParse(rawId?.toString() ?? '') ?? (rawId?.hashCode ?? 0));
-    final status = json['approvalStatus'] ?? (json['isApproved'] == false ? 'Pending' : 'Approved');
-    final approved = json['isApproved'] ?? (status == 'Approved');
+  String get id => userId?.toString() ?? '';
+  String get rawId => userId?.toString() ?? '';
+
+  dynamic operator [](String key) {
+    switch (key) {
+      case 'id':
+      case '_id':
+      case 'userId':
+      case 'user_id':
+        return userId;
+      case 'fullName':
+      case 'full_name':
+      case 'name':
+        return fullName;
+      case 'email':
+        return email;
+      case 'role':
+        return role;
+      case 'phone':
+        return phone;
+      case 'profileImage':
+      case 'profile_image':
+        return profileImage;
+      case 'approvalStatus':
+        return approvalStatus;
+      case 'isApproved':
+        return isApproved;
+      case 'location':
+        return location;
+      case 'favoriteSport':
+        return favoriteSport;
+      case 'bio':
+        return bio;
+      case 'createdAt':
+      case 'created_at':
+        return createdAt;
+      default:
+        return null;
+    }
+  }
+
+  factory UserModel.fromJson(dynamic rawJson) {
+    if (rawJson is UserModel) return rawJson;
+    final Map<String, dynamic> json = rawJson is Map<String, dynamic>
+        ? rawJson
+        : (rawJson is Map ? Map<String, dynamic>.from(rawJson) : <String, dynamic>{});
+
+    final rawId = json['_id'] ?? json['id'] ?? json['userId'] ?? json['user_id'] ?? '';
+    final status = json['approvalStatus']?.toString() ?? (json['isApproved'] == false ? 'Pending' : 'Approved');
+    final approved = json['isApproved'] == true || (json['isApproved'] == null && status == 'Approved');
 
     return UserModel(
-      userId: parsedId,
-      fullName: json['fullName'] ?? json['full_name'] ?? json['name'] ?? '',
-      email: json['email'] ?? '',
-      role: json['role'] ?? 'User',
-      phone: json['phone'] ?? '',
-      profileImage: json['profileImage'] ?? json['profile_image'] ?? json['photoURL'] ?? '',
+      userId: rawId.toString(),
+      fullName: json['fullName']?.toString() ?? json['full_name']?.toString() ?? json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'User',
+      phone: json['phone']?.toString() ?? '',
+      profileImage: json['profileImage']?.toString() ?? json['profile_image']?.toString() ?? json['photoURL']?.toString() ?? '',
       approvalStatus: status,
       isApproved: approved,
+      location: json['location']?.toString() ?? '',
+      favoriteSport: json['favoriteSport']?.toString() ?? '',
+      bio: json['bio']?.toString() ?? '',
       createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'id': userId,
       'user_id': userId,
+      '_id': userId,
+      'fullName': fullName,
       'full_name': fullName,
       'email': email,
       'role': role,
       'phone': phone,
+      'profileImage': profileImage,
       'profile_image': profileImage,
       'approvalStatus': approvalStatus,
       'isApproved': isApproved,
+      'location': location,
+      'favoriteSport': favoriteSport,
+      'bio': bio,
+      'createdAt': createdAt,
       'created_at': createdAt,
     };
   }
 }
+
 
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { fetchDashboardStats } from '../services/api';
 import {
   TrendingUp, Users, CalendarCheck, IndianRupee,
   Star, Activity, ArrowUpRight, MapPin, Clock, Zap
@@ -77,10 +78,25 @@ const typeColor = { checkin: '#10b981', booking: '#3b82f6', payment: '#f59e0b', 
 
 export default function OverviewPage({ currentUser }) {
   const [time, setTime] = useState(new Date());
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    async function loadStats() {
+      if (currentUser && (currentUser._id || currentUser.id)) {
+        setLoading(true);
+        const data = await fetchDashboardStats(currentUser._id || currentUser.id);
+        if (data) setStats(data);
+        setLoading(false);
+      }
+    }
+    loadStats();
+  }, [currentUser]);
 
   const name = currentUser?.fullName || 'Owner';
 
@@ -104,9 +120,11 @@ export default function OverviewPage({ currentUser }) {
           <h2 style={{ fontSize: '1.65rem', fontWeight: 900, color: '#e8f5f1' }}>
             Good {time.getHours() < 12 ? 'Morning' : time.getHours() < 17 ? 'Afternoon' : 'Evening'}, {name.split(' ')[0]}! 👋
           </h2>
-          <p style={{ color: '#7fb3a0', marginTop: '0.3rem', fontSize: '0.9rem' }}>
-            2 active venues • 12 bookings today • Earning strong 💪
-          </p>
+          {stats && (
+             <p style={{ color: '#7fb3a0', marginTop: '0.3rem', fontSize: '0.9rem' }}>
+               {stats.activeVenuesCount} active venues • {stats.activeBookingsCount} bookings today • Earning strong 💪
+             </p>
+          )}
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '2rem', fontWeight: 900, color: '#10b981', letterSpacing: '-0.02em' }}>
@@ -120,10 +138,10 @@ export default function OverviewPage({ currentUser }) {
 
       {/* KPI cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-        <KPICard title="Today's Revenue" value="₹18,400" sub="7 payments received" icon={IndianRupee} color="#10b981" delta="+24%" />
-        <KPICard title="Active Bookings" value="12" sub="Next: 11:00 AM – Turf A" icon={CalendarCheck} color="#3b82f6" delta="+3 new" />
-        <KPICard title="Players Today" value="34" sub="18 checked in so far" icon={Users} color="#a855f7" delta="+8" />
-        <KPICard title="Avg. Rating" value="4.8 ★" sub="Based on 182 reviews" icon={Star} color="#f59e0b" delta="+0.1" />
+        <KPICard title="Today's Revenue" value={`₹${stats?.todaysRevenue || 0}`} sub="Payments received" icon={IndianRupee} color="#10b981" />
+        <KPICard title="Active Bookings" value={stats?.activeBookingsCount || 0} sub="Bookings today" icon={CalendarCheck} color="#3b82f6" />
+        <KPICard title="Players Today" value={stats?.playersTodayCount || 0} sub={`${stats?.checkedInCount || 0} checked in so far`} icon={Users} color="#a855f7" />
+        <KPICard title="Avg. Rating" value={`${stats?.avgRating || 0} ★`} sub={`Based on ${stats?.totalReviews || 0} reviews`} icon={Star} color="#f59e0b" />
       </div>
 
       {/* Occupancy + Activity */}
@@ -135,17 +153,31 @@ export default function OverviewPage({ currentUser }) {
             <span className="badge badge-green">Live</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '1rem 0' }}>
-            <OccupancyRing percent={88} label="Turf A" />
-            <OccupancyRing percent={75} label="Hall 1" />
-            <OccupancyRing percent={82} label="Overall" />
+            {stats?.courtOccupancy?.length > 0 ? (
+               stats.courtOccupancy.map((court, i) => (
+                  <OccupancyRing key={i} percent={court.percent} label={court.label} />
+               ))
+            ) : (
+               <div style={{ color: '#7fb3a0', fontSize: '0.8rem', padding: '1rem' }}>No active courts found.</div>
+            )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
-            {[{ l: 'Total Slots Today', v: '24' }, { l: 'Booked Slots', v: '20' }, { l: 'Available Slots', v: '4' }, { l: 'Peak Hour', v: '6–8 PM' }].map((s) => (
-              <div key={s.l} style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
-                <div style={{ fontSize: '0.7rem', color: '#7fb3a0', marginBottom: '0.2rem' }}>{s.l}</div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#e8f5f1' }}>{s.v}</div>
-              </div>
-            ))}
+            {(() => {
+                const totalSlots = stats?.courtOccupancy?.reduce((sum, c) => sum + (c.totalSlots || 0), 0) || 0;
+                const bookedSlots = stats?.courtOccupancy?.reduce((sum, c) => sum + (c.booked || 0), 0) || 0;
+                const availSlots = Math.max(0, totalSlots - bookedSlots);
+                return [
+                   { l: 'Total Slots Today', v: totalSlots }, 
+                   { l: 'Booked Slots', v: bookedSlots }, 
+                   { l: 'Available Slots', v: availSlots }, 
+                   { l: 'Active Courts', v: stats?.activeVenuesCount || 0 }
+                ].map((s) => (
+                  <div key={s.l} style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#7fb3a0', marginBottom: '0.2rem' }}>{s.l}</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 800, color: '#e8f5f1' }}>{s.v}</div>
+                  </div>
+                ));
+            })()}
           </div>
         </div>
 
@@ -156,9 +188,9 @@ export default function OverviewPage({ currentUser }) {
             <span className="badge badge-blue">Auto-updating</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {recentActivity.map((a, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < recentActivity.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
-                <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: typeColor[a.type], flexShrink: 0 }} />
+            {stats?.recentActivity?.length > 0 ? stats.recentActivity.map((a, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0', borderBottom: i < stats.recentActivity.length - 1 ? '1px solid var(--border-color)' : 'none' }}>
+                <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: typeColor[a.type] || '#10b981', flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: '0.84rem', color: '#e8f5f1', fontWeight: 500 }}>{a.event}</p>
                 </div>
@@ -167,7 +199,9 @@ export default function OverviewPage({ currentUser }) {
                   <span style={{ fontSize: '0.72rem', color: '#4a7a6a' }}>{a.time}</span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div style={{ color: '#7fb3a0', fontSize: '0.8rem', padding: '1rem', textAlign: 'center' }}>No activity today.</div>
+            )}
           </div>
         </div>
       </div>
@@ -179,17 +213,8 @@ export default function OverviewPage({ currentUser }) {
           <span className="badge badge-gold">8 Remaining</span>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', padding: '0.5rem 0' }}>
-          {[
-            { time: '11:00 AM', player: 'Booked – Rahul D.', court: 'Turf A', status: 'confirmed' },
-            { time: '12:00 PM', player: 'Booked – Priya N.', court: 'Turf A', status: 'confirmed' },
-            { time: '01:00 PM', player: 'Available', court: 'Turf A', status: 'free' },
-            { time: '02:00 PM', player: 'Available', court: 'Hall 1', status: 'free' },
-            { time: '03:00 PM', player: 'Booked – Kiran K.', court: 'Hall 1', status: 'confirmed' },
-            { time: '04:00 PM', player: 'Booked – Anjali M.', court: 'Turf A', status: 'confirmed' },
-            { time: '05:00 PM', player: 'Available', court: 'Hall 1', status: 'free' },
-            { time: '06:00 PM', player: 'Booked – Team FC', court: 'Turf A', status: 'peak' },
-          ].map((slot) => (
-            <div key={slot.time} style={{
+          {stats?.upcomingSlots?.length > 0 ? stats.upcomingSlots.map((slot, i) => (
+            <div key={i} style={{
               minWidth: '140px', background: 'rgba(6,13,13,0.9)',
               border: `1px solid ${slot.status === 'free' ? 'rgba(16,185,129,0.25)' : slot.status === 'peak' ? 'rgba(245,158,11,0.35)' : 'var(--border-color)'}`,
               borderRadius: '10px', padding: '0.75rem',
@@ -202,7 +227,9 @@ export default function OverviewPage({ currentUser }) {
               </div>
               {slot.status === 'peak' && <span className="badge badge-gold" style={{ marginTop: '0.4rem', fontSize: '0.6rem' }}>Peak</span>}
             </div>
-          ))}
+          )) : (
+             <div style={{ color: '#7fb3a0', fontSize: '0.8rem', padding: '1rem' }}>No upcoming slots today.</div>
+          )}
         </div>
       </div>
     </div>

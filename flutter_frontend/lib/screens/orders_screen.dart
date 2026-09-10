@@ -25,7 +25,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
     setState(() => _isLoading = true);
     try {
       final user = AuthService.currentUser;
-      final userId = user?['userId'] ?? user?['user_id'] ?? user?['_id'] ?? user?['id'] ?? 'guest_user_1';
+      final userId = user?['userId'] ?? user?['user_id'] ?? user?['_id'] ?? user?['id'];
+      if (userId == null) {
+        if (mounted) {
+          setState(() {
+            _orders = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
       final orders = await ApiService.fetchUserOrders(userId);
 
       if (mounted) {

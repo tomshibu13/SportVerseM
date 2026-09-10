@@ -45,7 +45,7 @@ async function testBooking() {
     ground_id: targetGround.ground_id || targetGround._id,
     ground_name: targetGround.title,
     sport_type: targetGround.sport_type,
-    date: '2026-08-22',
+    date: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
     slot_time: '07:00 AM - 08:00 AM',
     total_price: targetGround.price_per_hour,
     slot_id: 'sl_2'

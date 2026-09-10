@@ -498,7 +498,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
       case 'LOW':
         return const Color(0xFF10B981);
       default:
-        return const Color(0xFF14B8A6);
+        return AppColors.warmAccentSecondary;
     }
   }
 
@@ -529,14 +529,14 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
               height: 36,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                  colors: [AppColors.warmAccent, AppColors.warmAccentSecondary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(10),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.25),
+                    color: AppColors.warmAccent.withValues(alpha: 0.25),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -594,7 +594,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
             },
           ),
           IconButton(
-            icon: const Icon(Icons.medical_services_outlined, color: Color(0xFF0F766E), size: 22),
+            icon: const Icon(Icons.medical_services_outlined, color: AppColors.warmAccent, size: 22),
             tooltip: '1-on-1 Guided Assessment',
             onPressed: () {
               Navigator.push(
@@ -619,7 +619,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                 value: 'assessment',
                 child: Row(
                   children: [
-                    Icon(Icons.assignment_outlined, size: 18, color: Color(0xFF0F766E)),
+                    Icon(Icons.assignment_outlined, size: 18, color: AppColors.warmAccent),
                     SizedBox(width: 8),
                     Text('Start Full Assessment'),
                   ],
@@ -667,17 +667,17 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: const BoxDecoration(
-                color: Color(0xFFF0FDFA),
-                border: Border(bottom: BorderSide(color: Color(0xFFCCFBF1))),
+                color: AppColors.lightDecorAccent,
+                border: Border(bottom: BorderSide(color: AppColors.border)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF0F766E)),
+                  const Icon(Icons.shield_outlined, size: 16, color: AppColors.warmAccent),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       'Need an in-depth injury report & recovery timeline?',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF115E59), fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 11, color: AppColors.warmAccent, fontWeight: FontWeight.w600),
                     ),
                   ),
                   InkWell(
@@ -691,7 +691,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0F766E),
+                        color: AppColors.warmAccent,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Row(
@@ -753,10 +753,10 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                   return ActionChip(
                     label: Text(
                       prompt,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF0F766E)),
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.warmAccent),
                     ),
-                    backgroundColor: const Color(0xFFF0FDFA),
-                    side: const BorderSide(color: Color(0xFF99F6E4)),
+                    backgroundColor: AppColors.lightDecorAccent,
+                    side: const BorderSide(color: AppColors.border),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     onPressed: () => _handleSendMessage(prompt),
@@ -809,12 +809,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                     height: 44,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+                        colors: [AppColors.warmAccent, AppColors.warmAccentSecondary],
                       ),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F766E).withValues(alpha: 0.3),
+                          color: AppColors.warmAccent.withValues(alpha: 0.3),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -864,14 +864,14 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: isUrgent ? const Color(0xFFFEE2E2) : const Color(0xFFCCFBF1),
+                color: isUrgent ? const Color(0xFFFEE2E2) : AppColors.border,
                 shape: BoxShape.circle,
-                border: Border.all(color: isUrgent ? const Color(0xFFEF4444) : const Color(0xFF14B8A6)),
+                border: Border.all(color: isUrgent ? const Color(0xFFEF4444) : AppColors.warmAccentSecondary),
               ),
               child: Icon(
                 isUrgent ? Icons.warning_amber_rounded : Icons.health_and_safety_rounded,
                 size: 18,
-                color: isUrgent ? const Color(0xFFDC2626) : const Color(0xFF0F766E),
+                color: isUrgent ? const Color(0xFFDC2626) : AppColors.warmAccent,
               ),
             ),
             const SizedBox(width: 8),
@@ -969,7 +969,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF0F766E),
+                                  color: AppColors.warmAccent,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Row(
@@ -1053,10 +1053,10 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
             width: 32,
             height: 32,
             decoration: const BoxDecoration(
-              color: Color(0xFFCCFBF1),
+              color: AppColors.border,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.health_and_safety_rounded, size: 18, color: Color(0xFF0F766E)),
+            child: const Icon(Icons.health_and_safety_rounded, size: 18, color: AppColors.warmAccent),
           ),
           const SizedBox(width: 8),
           Container(
@@ -1072,7 +1072,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                 SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0F766E)),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.warmAccent),
                 ),
                 SizedBox(width: 10),
                 Text(

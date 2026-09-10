@@ -48,11 +48,18 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final userId = AuthService.currentUser?['_id'] ??
-          AuthService.currentUser?['id'] ??
-          AuthService.currentUser?['user_id'] ??
-          '1';
-      final list = await ApiService.fetchUserBookings(userId);
+      final user = AuthService.currentUser;
+      final userId = user?['_id'] ?? user?['id'] ?? user?['userId'] ?? user?['user_id'];
+      if (userId == null) {
+        if (mounted) {
+          setState(() {
+            _bookings = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      final list = await ApiService.fetchUserBookings(userId.toString());
       if (mounted) {
         setState(() {
           _bookings = list;

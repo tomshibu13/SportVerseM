@@ -14,13 +14,11 @@ class InjuryService {
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
-  static Map<String, String> get _headers {
-    final token = AuthService.currentToken ?? 'mock_jwt_token_sportverse';
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    };
-  }
+  static Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (AuthService.currentToken != null && AuthService.currentToken!.isNotEmpty)
+      'Authorization': 'Bearer ${AuthService.currentToken}',
+  };
 
   static Future<Map<String, dynamic>> assessInjury({required Map<String, dynamic> data}) async {
     try {

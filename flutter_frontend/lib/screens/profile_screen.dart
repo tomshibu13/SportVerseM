@@ -5,6 +5,7 @@ import '../widgets/top_navigation_bar.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
 import '../models/booking_model.dart';
+import '../utils/validators.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 import 'ground_owner_dashboard_screen.dart';
@@ -60,6 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showEditProfileModal() {
+    final formKey = GlobalKey<FormState>();
     final user = AuthService.currentUser;
     final nameController = TextEditingController(
       text: user?['fullName'] as String? ?? user?['full_name'] as String? ?? '',
@@ -92,148 +94,153 @@ class _ProfileScreenState extends State<ProfileScreen> {
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
           ),
           child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Row(
-                  children: [
-                    Icon(Icons.edit_note, color: AppColors.warmAccent, size: 22),
-                    SizedBox(width: 8),
-                    Text(
-                      'Edit Personal Information',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryBlack,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Update your profile details saved in your MongoDB SportVerse account.',
-                  style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Full Name',
-                    hintText: 'e.g. Rahul Sharma',
-                    prefixIcon: const Icon(Icons.person_outline),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: 'e.g. 9876543210',
-                    prefixIcon: const Icon(Icons.phone_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: locationController,
-                  decoration: InputDecoration(
-                    labelText: 'City / Location',
-                    hintText: 'e.g. Kozhikode, Kerala',
-                    prefixIcon: const Icon(Icons.location_on_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: sportController,
-                  decoration: InputDecoration(
-                    labelText: 'Favorite Sport',
-                    hintText: 'e.g. Football, Badminton, Cricket',
-                    prefixIcon: const Icon(Icons.sports_soccer),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: bioController,
-                  maxLines: 2,
-                  decoration: InputDecoration(
-                    labelText: 'Bio / Player Description',
-                    hintText: 'e.g. Passionate footballer and weekend turf player.',
-                    prefixIcon: const Icon(Icons.description_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.warmAccent,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () async {
-                      final newName = nameController.text.trim();
-                      final newPhone = phoneController.text.trim();
-                      final newLocation = locationController.text.trim();
-                      final newSport = sportController.text.trim();
-                      final newBio = bioController.text.trim();
-
-                      if (newName.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Please enter your full name')),
-                        );
-                        return;
-                      }
-
-                      final messenger = ScaffoldMessenger.of(context);
-                      final navigator = Navigator.of(ctx);
-                      final res = await AuthService.updateProfile(
-                        fullName: newName,
-                        phone: newPhone,
-                        location: newLocation,
-                        favoriteSport: newSport,
-                        bio: newBio,
-                      );
-
-                      if (mounted) {
-                        setState(() {});
-                        navigator.pop();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(res['message'] as String),
-                            backgroundColor: AppColors.primaryBlack,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-                    child: const Text(
-                      'Save Changes',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  const Row(
+                    children: [
+                      Icon(Icons.edit_note, color: AppColors.warmAccent, size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'Edit Personal Information',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryBlack,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Update your profile details saved in your MongoDB SportVerse account.',
+                    style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: nameController,
+                    validator: Validators.name,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      hintText: 'e.g. Rahul Sharma',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    validator: Validators.phone,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      hintText: 'e.g. 9876543210',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: locationController,
+                    validator: (v) => (v != null && v.trim().isNotEmpty && v.trim().length < 2) ? 'Please enter a valid location' : null,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    decoration: InputDecoration(
+                      labelText: 'City / Location',
+                      hintText: 'e.g. Kozhikode, Kerala',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: sportController,
+                    decoration: InputDecoration(
+                      labelText: 'Favorite Sport',
+                      hintText: 'e.g. Football, Badminton, Cricket',
+                      prefixIcon: const Icon(Icons.sports_soccer),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: bioController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Bio / Player Description',
+                      hintText: 'e.g. Passionate footballer and weekend turf player.',
+                      prefixIcon: const Icon(Icons.description_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.warmAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () async {
+                        if (!(formKey.currentState?.validate() ?? false)) {
+                          return;
+                        }
+                        final newName = nameController.text.trim();
+                        final newPhone = phoneController.text.trim();
+                        final newLocation = locationController.text.trim();
+                        final newSport = sportController.text.trim();
+                        final newBio = bioController.text.trim();
+
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(ctx);
+                        final res = await AuthService.updateProfile(
+                          fullName: newName,
+                          phone: newPhone,
+                          location: newLocation,
+                          favoriteSport: newSport,
+                          bio: newBio,
+                        );
+
+                        if (mounted) {
+                          setState(() {});
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(res['message'] as String),
+                              backgroundColor: AppColors.primaryBlack,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      child: const Text(
+                        'Save Changes',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -242,6 +249,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showWalletModal() {
+    final user = AuthService.currentUser;
+    final walletBal = ((user?['wallet_balance'] ?? user?['walletBalance'] ?? 0) as num).toDouble();
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -275,20 +285,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 gradient: AppColors.goldGradient,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Available Balance',
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        '₹1,250.00',
-                        style: TextStyle(
+                        '₹${walletBal.toStringAsFixed(2)}',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -296,7 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                  Icon(Icons.account_balance_wallet, color: Colors.white, size: 36),
+                  const Icon(Icons.account_balance_wallet, color: Colors.white, size: 36),
                 ],
               ),
             ),
@@ -308,7 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Payment gateway simulator initialized'),
+                      content: Text('Instant wallet top-up via Razorpay is enabled.'),
                       backgroundColor: Colors.green,
                     ),
                   );
@@ -395,6 +405,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ownerDashboardPassword = (rawStationPass != null && rawStationPass.isNotEmpty)
         ? rawStationPass
         : 'SV-Station#$idSuffix';
+    final walletBalance = ((user?['wallet_balance'] ?? user?['walletBalance'] ?? 0) as num).toDouble();
 
     final isLoggedIn = AuthService.currentToken != null && AuthService.currentUser != null;
 
@@ -518,9 +529,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       children: [
                                         const Icon(Icons.phone_outlined, size: 12, color: AppColors.mutedText),
                                         const SizedBox(width: 4),
-                                        Text(
-                                          phone,
-                                          style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                        Flexible(
+                                          child: Text(
+                                            phone,
+                                            style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -529,9 +543,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       children: [
                                         const Icon(Icons.location_on_outlined, size: 12, color: AppColors.mutedText),
                                         const SizedBox(width: 4),
-                                        Text(
-                                          location,
-                                          style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                        Flexible(
+                                          child: Text(
+                                            location,
+                                            style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -562,42 +579,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Wrap(
-                                spacing: 6,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.lightDecorAccent,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.3)),
-                                    ),
-                                    child: Text(
-                                      '$role Member',
-                                      style: const TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.warmAccent,
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.lightDecorAccent,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.3)),
+                                      ),
+                                      child: Text(
+                                        '$role Member',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.warmAccent,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[100],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      '⚽ $favoriteSport',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.grey[800],
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '⚽ $favoriteSport',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.grey[800],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
+                              const SizedBox(width: 8),
                               OutlinedButton.icon(
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -897,7 +918,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _buildStatDivider(),
                           _buildStatColumn(isApproved ? 'Verified' : 'Pending', 'Status', Icons.verified_user_outlined),
                           _buildStatDivider(),
-                          _buildStatColumn('₹1,250', 'Wallet', Icons.account_balance_wallet_outlined),
+                          InkWell(
+                            onTap: _showWalletModal,
+                            child: _buildStatColumn('₹${walletBalance.toInt()}', 'Wallet', Icons.account_balance_wallet_outlined),
+                          ),
                         ],
                       ),
                     ),

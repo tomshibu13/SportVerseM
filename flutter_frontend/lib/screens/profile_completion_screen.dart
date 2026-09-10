@@ -11,6 +11,7 @@ import '../widgets/primary_button.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../utils/validators.dart';
 import 'home_screen.dart';
 import 'become_ground_owner_screen.dart';
 
@@ -24,6 +25,8 @@ class ProfileCompletionScreen extends StatefulWidget {
 class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   // Navigation & Step Control
   int _currentStep = 1;
+  final _step1FormKey = GlobalKey<FormState>();
+  final _step2FormKey = GlobalKey<FormState>();
 
   // Step 1 Controllers & Fields
   late TextEditingController _nameController;
@@ -254,20 +257,18 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
   }
 
   Future<void> _handleCompleteProfile() async {
-    final name = _nameController.text.trim();
-    final phone = _phoneController.text.trim();
-
-    if (name.isEmpty) {
-      _showSnackBar('Please enter your full name');
-      return;
-    }
-
-    if (_selectedRole == 'GroundOwner') {
-      if (_groundNameController.text.trim().isEmpty) {
-        _showSnackBar('Please enter your Ground Name');
+    if (_currentStep == 1) {
+      if (!(_step1FormKey.currentState?.validate() ?? false)) {
+        return;
+      }
+    } else if (_currentStep == 2) {
+      if (!(_step2FormKey.currentState?.validate() ?? false)) {
         return;
       }
     }
+
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
 
     setState(() => _isLoading = true);
 
@@ -369,9 +370,11 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
 
   // ── STEP 1: PERSONAL & ROLE SELECTION ──
   Widget _buildStepOne(String email) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    return Form(
+      key: _step1FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
         // Header Bar
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -487,8 +490,10 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 6),
-        TextField(
+        TextFormField(
           controller: _nameController,
+          validator: Validators.name,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           decoration: const InputDecoration(
             hintText: 'Enter your full name',
             prefixIcon: Icon(Icons.person_outline, size: 18),
@@ -532,9 +537,11 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 6),
-        TextField(
+        TextFormField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
+          validator: Validators.phone,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           decoration: const InputDecoration(
             hintText: 'Enter phone number (e.g. +1 234 567 890)',
             prefixIcon: Icon(Icons.phone_outlined, size: 18),
@@ -731,9 +738,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
           PrimaryButton(
             text: 'Next: Ground & Location Details →',
             onPressed: () {
-              final name = _nameController.text.trim();
-              if (name.isEmpty) {
-                _showSnackBar('Please enter your full name before proceeding');
+              if (!(_step1FormKey.currentState?.validate() ?? false)) {
                 return;
               }
               Navigator.push(
@@ -750,134 +755,138 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
           ),
         ],
       ],
-    );
-  }
+    ),
+  );
+}
 
   // ── STEP 2: GROUND DETAILS & OPENSTREETMAP LOCATION PICKER (FOR OWNER) ──
   Widget _buildStepTwoOwner() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header & Back Step Bar
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            GestureDetector(
-              onTap: () => setState(() => _currentStep = 1),
-              child: const Row(
-                children: [
-                  Icon(Icons.arrow_back, size: 16, color: AppColors.primaryBlack),
-                  SizedBox(width: 4),
-                  Text(
-                    'Step 1 (Personal Info)',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.lightDecorAccent,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'Step 2 of 2: Ground Location',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.warmAccent),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        const Text(
-          'Enter Ground Details & Map Location 🏟️',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primaryBlack,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Provide details about your sports venue and pinpoint its location on OpenStreetMap for $_selectedPlace.',
-          style: const TextStyle(
-            fontSize: 13,
-            color: AppColors.secondaryText,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 20),
-
-        // Ground Name Field
-        const Text(
-          'Ground / Venue Name',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _groundNameController,
-          decoration: const InputDecoration(
-            hintText: 'e.g. Apex Sports Turf Arena',
-            prefixIcon: Icon(Icons.sports_score, size: 18),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Row for Sport Type & Price
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Sport Type',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
-                  ),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedSportType,
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    return Form(
+      key: _step2FormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header & Back Step Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _currentStep = 1),
+                child: const Row(
+                  children: [
+                    Icon(Icons.arrow_back, size: 16, color: AppColors.primaryBlack),
+                    SizedBox(width: 4),
+                    Text(
+                      'Step 1 (Personal Info)',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
                     ),
-                    items: ['Football', 'Cricket', 'Badminton', 'Tennis', 'Basketball', 'Padel', 'Volleyball']
-                        .map((sport) => DropdownMenuItem(value: sport, child: Text(sport, style: const TextStyle(fontSize: 13))))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedSportType = val);
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Price / Hour (\$/hr)',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
-                  ),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      hintText: '45',
-                      prefixIcon: Icon(Icons.attach_money, size: 18),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.lightDecorAccent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Step 2 of 2 (Owner Setup)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.warmAccent),
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
+            ],
+          ),
+          const SizedBox(height: 16),
 
-        // OpenStreetMap Interactive Location Picker Header
+          // Ground Info Section
+          const Text(
+            'Ground Details & Location',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Set up your main venue to start accepting athlete bookings immediately.',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.secondaryText,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Ground Name Field
+          const Text(
+            'Ground / Venue Name',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
+          ),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: _groundNameController,
+            validator: Validators.groundTitle,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Apex Sports Turf Arena',
+              prefixIcon: Icon(Icons.sports_score, size: 18),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Row for Sport Type & Price
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Sport Type',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedSportType,
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                      items: ['Football', 'Cricket', 'Badminton', 'Tennis', 'Basketball', 'Padel', 'Volleyball']
+                          .map((sport) => DropdownMenuItem(value: sport, child: Text(sport, style: const TextStyle(fontSize: 13))))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedSportType = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Price / Hour (\$/hr)',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
+                    ),
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: _priceController,
+                      keyboardType: TextInputType.number,
+                      validator: Validators.price,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: const InputDecoration(
+                        hintText: '45',
+                        prefixIcon: Icon(Icons.attach_money, size: 18),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // OpenStreetMap Interactive Location Picker Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -1047,8 +1056,9 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen> {
           ],
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 
   // Helper Widget for Role Cards (Athlete vs Owner)
   Widget _buildRoleCard({

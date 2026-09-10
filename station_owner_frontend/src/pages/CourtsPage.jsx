@@ -2,24 +2,45 @@ import React, { useEffect, useState } from 'react';
 import { MapPin, Star, Users, Plus, Edit3, Trash2, CheckCircle2, XCircle, TrendingUp } from 'lucide-react';
 import { fetchMyGrounds } from '../services/api';
 
-export default function CourtsPage() {
+export default function CourtsPage({ currentUser }) {
   const [grounds, setGrounds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ title: '', location: '', sport: 'Football', pricePerHour: '', capacity: '' });
 
   useEffect(() => {
-    fetchMyGrounds().then(d => { setGrounds(d); setLoading(false); });
-  }, []);
+    if (currentUser) {
+       fetchMyGrounds(currentUser._id || currentUser.id).then(d => { setGrounds(d); setLoading(false); });
+    }
+  }, [currentUser]);
 
   const handleToggle = (id) => {
     setGrounds(grounds.map(g => g.id === id ? { ...g, status: g.status === 'Active' ? 'Inactive' : 'Active' } : g));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const newGround = { ...form, id: Date.now(), rating: 0, occupancyPercent: 0, totalSlots: 8, sports: [form.sport], pricePerHour: Number(form.pricePerHour), status: 'Active', image: 'https://images.unsplash.com/photo-1601985705806-5b9a71f6004f?auto=format&fit=crop&w=600&q=80' };
-    setGrounds([...grounds, newGround]);
+    // Assuming backend endpoint for create ground exists and works
+    const newGround = { 
+      title: form.title, 
+      location: form.location, 
+      sport_type: form.sport, 
+      price_per_hour: Number(form.pricePerHour), 
+      owner_id: currentUser._id || currentUser.id 
+    };
+    try {
+      const res = await fetch('/api/grounds', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(newGround)
+      });
+      if (res.ok) {
+         const data = await res.json();
+         setGrounds([...grounds, data.ground]);
+      }
+    } catch (e) {
+      console.error('Failed to add court:', e);
+    }
     setShowModal(false);
     setForm({ title: '', location: '', sport: 'Football', pricePerHour: '', capacity: '' });
   };
@@ -41,14 +62,14 @@ export default function CourtsPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '1.25rem' }}>
           {grounds.map((g) => (
-            <div key={g.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div key={g._id || g.ground_id || g.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
               {/* Court image */}
               <div style={{ position: 'relative', height: '180px', overflow: 'hidden' }}>
-                <img src={g.image} alt={g.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={(g.images && g.images[0]) || g.image || 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=600&q=80'} alt={g.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(to bottom, transparent 40%, rgba(13,24,24,0.95))' }} />
                 <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem' }}>
-                  <span className={`badge ${g.status === 'Active' ? 'badge-green' : 'badge-red'}`}>
-                    {g.status === 'Active' ? <CheckCircle2 size={11} /> : <XCircle size={11} />} {g.status}
+                  <span className={`badge ${g.status === 'Active' || g.status === 'Approved' ? 'badge-green' : 'badge-red'}`}>
+                    {g.status === 'Active' || g.status === 'Approved' ? <CheckCircle2 size={11} /> : <XCircle size={11} />} {g.status || 'Active'}
                   </span>
                 </div>
                 <div style={{ position: 'absolute', bottom: '0.75rem', left: '1rem', right: '1rem' }}>
@@ -63,17 +84,17 @@ export default function CourtsPage() {
               {/* Court details */}
               <div style={{ padding: '1rem' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
-                  {(g.sports || []).map(s => (
+                  {(g.sports || [g.sport_type] || []).filter(Boolean).map(s => (
                     <span key={s} className="badge badge-blue" style={{ fontSize: '0.72rem' }}>{s}</span>
                   ))}
-                  <span className="badge badge-gold">₹{g.pricePerHour}/hr</span>
+                  <span className="badge badge-gold">₹{g.price_per_hour || g.pricePerHour}/hr</span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem', marginBottom: '1rem' }}>
                   {[
-                    { l: 'Rating', v: `${g.rating} ★`, icon: <Star size={12} color="#f59e0b" /> },
-                    { l: 'Slots', v: g.totalSlots, icon: <TrendingUp size={12} color="#3b82f6" /> },
-                    { l: 'Occupancy', v: `${g.occupancyPercent}%`, icon: <Users size={12} color="#10b981" /> },
+                    { l: 'Rating', v: `${g.rating || 0} ★`, icon: <Star size={12} color="#f59e0b" /> },
+                    { l: 'Slots', v: (g.available_slots || []).length || g.totalSlots || 0, icon: <TrendingUp size={12} color="#3b82f6" /> },
+                    { l: 'Occupancy', v: `${g.occupancyPercent || 0}%`, icon: <Users size={12} color="#10b981" /> },
                   ].map((s) => (
                     <div key={s.l} style={{ background: 'rgba(6,13,13,0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', textAlign: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', fontSize: '0.7rem', color: '#7fb3a0', marginBottom: '0.2rem' }}>{s.icon} {s.l}</div>
@@ -85,10 +106,10 @@ export default function CourtsPage() {
                 {/* Occupancy bar */}
                 <div style={{ marginBottom: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#7fb3a0', marginBottom: '0.35rem' }}>
-                    <span>Occupancy Rate</span><span style={{ fontWeight: 700, color: '#10b981' }}>{g.occupancyPercent}%</span>
+                    <span>Occupancy Rate</span><span style={{ fontWeight: 700, color: '#10b981' }}>{g.occupancyPercent || 0}%</span>
                   </div>
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${g.occupancyPercent}%` }} />
+                    <div className="progress-fill" style={{ width: `${g.occupancyPercent || 0}%` }} />
                   </div>
                 </div>
 

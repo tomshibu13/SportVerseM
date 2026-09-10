@@ -218,6 +218,7 @@ class ShopProvider with ChangeNotifier {
         _userOrders.insert(0, Map<String, dynamic>.from(result['order']));
       }
       _cartItems.clear();
+      await loadProducts(silent: true);
       notifyListeners();
       return result;
     }

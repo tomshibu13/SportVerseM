@@ -1,42 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, IndianRupee, Users, Calendar, ArrowUpRight } from 'lucide-react';
+import { fetchMyBookings } from '../services/api';
 
-const weeklyData = [
-  { day: 'Mon', revenue: 12400, bookings: 9, players: 22 },
-  { day: 'Tue', revenue: 9800,  bookings: 7, players: 18 },
-  { day: 'Wed', revenue: 15200, bookings: 11, players: 28 },
-  { day: 'Thu', revenue: 11000, bookings: 8, players: 20 },
-  { day: 'Fri', revenue: 18400, bookings: 13, players: 34 },
-  { day: 'Sat', revenue: 24600, bookings: 18, players: 46 },
-  { day: 'Sun', revenue: 22800, bookings: 16, players: 42 },
-];
-
-const maxRev = Math.max(...weeklyData.map(d => d.revenue));
-
-const monthData = [
-  { month: 'Mar', revenue: 188000 },
-  { month: 'Apr', revenue: 210000 },
-  { month: 'May', revenue: 195000 },
-  { month: 'Jun', revenue: 245000 },
-  { month: 'Jul', revenue: 278000 },
-  { month: 'Aug', revenue: 114200 },
-];
-const maxMonth = Math.max(...monthData.map(d => d.revenue));
-
-const sportBreakdown = [
-  { sport: 'Football (Turf A)', pct: 62, color: '#10b981', rev: '₹70,400' },
-  { sport: 'Badminton (Hall 1)', pct: 38, color: '#3b82f6', rev: '₹43,200' },
-];
-
-const topPlayers = [
-  { name: 'Rahul Dravid', visits: 18, spent: '₹21,600', sport: 'Football' },
-  { name: 'Anjali Menon', visits: 14, spent: '₹7,000', sport: 'Badminton' },
-  { name: 'Kiran Kumar', visits: 11, spent: '₹5,500', sport: 'Badminton' },
-  { name: 'Priya Nair', visits: 9, spent: '₹10,800', sport: 'Football' },
-];
-
-export default function RevenuePage() {
+export default function RevenuePage({ currentUser }) {
   const [view, setView] = useState('weekly');
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (currentUser) {
+       fetchMyBookings(currentUser._id || currentUser.id).then(data => {
+           // only count valid completed/upcoming
+           const valid = data.filter(b => b.booking_status !== 'Cancelled');
+           setBookings(valid);
+           setLoading(false);
+       });
+    }
+  }, [currentUser]);
+
+  // Derived state
+  const now = new Date();
+  
+  // Weekly Data (last 7 days including today)
+  const weeklyMap = {};
+  for(let i=6; i>=0; i--) {
+     const d = new Date();
+     d.setDate(now.getDate() - i);
+     const key = d.toISOString().split('T')[0]; // YYYY-MM-DD
+     const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+     weeklyMap[key] = { day: dayName, revenue: 0, bookings: 0, playersSet: new Set() };
+  }
+  
+  bookings.forEach(b => {
+     const key = b.date || b.booking_date; // assuming YYYY-MM-DD
+     if(weeklyMap[key]) {
+        weeklyMap[key].revenue += (b.total_price || 0);
+        weeklyMap[key].bookings += 1;
+        if (b.user_name || b.user) weeklyMap[key].playersSet.add(b.user?._id || b.user_name);
+     }
+  });
+
+  const weeklyData = Object.values(weeklyMap).map(v => ({ ...v, players: v.playersSet.size }));
+  const maxRev = Math.max(...weeklyData.map(d => d.revenue), 100);
+
+  // Monthly Data
+  const monthMap = {};
+  for(let i=5; i>=0; i--) {
+     const d = new Date();
+     d.setMonth(now.getMonth() - i);
+     const key = d.toLocaleDateString('en-US', { month: 'short' });
+     monthMap[key] = { month: key, revenue: 0, numMonth: d.getMonth() };
+  }
+  bookings.forEach(b => {
+      const bDate = new Date(b.date || b.booking_date || b.created_at);
+      if(!isNaN(bDate)) {
+         const key = bDate.toLocaleDateString('en-US', { month: 'short' });
+         if (monthMap[key]) {
+             monthMap[key].revenue += (b.total_price || 0);
+         }
+      }
+  });
+  const monthData = Object.values(monthMap);
+  const maxMonth = Math.max(...monthData.map(d => d.revenue), 100);
+
+  // KPIs
+  const totalRevThisWeek = weeklyData.reduce((s, d) => s + d.revenue, 0);
+  const totalBookings = bookings.length;
+  const uniquePlayers = new Set(bookings.map(b => b.user?._id || b.user_name)).size;
+  const avgRev = totalBookings > 0 ? totalRevThisWeek / totalBookings : 0; // rough average
+
+  // Sport Breakdown
+  const sportMap = {};
+  let totalAllTimeRev = 0;
+  bookings.forEach(b => {
+     const sp = b.ground?.title || b.sport || 'General';
+     if (!sportMap[sp]) sportMap[sp] = 0;
+     sportMap[sp] += (b.total_price || 0);
+     totalAllTimeRev += (b.total_price || 0);
+  });
+  const sportBreakdown = Object.keys(sportMap).map(k => {
+     const pct = totalAllTimeRev > 0 ? Math.round((sportMap[k] / totalAllTimeRev) * 100) : 0;
+     return { sport: k, pct, color: '#10b981', rev: `₹${sportMap[k].toLocaleString()}` };
+  });
+
+  // Top Players
+  const playerMap = {};
+  bookings.forEach(b => {
+      const name = b.user?.fullName || b.user_name || 'Anonymous';
+      if (!playerMap[name]) playerMap[name] = { name, visits: 0, spent: 0, sport: b.ground?.sport_type || 'Sport' };
+      playerMap[name].visits += 1;
+      playerMap[name].spent += (b.total_price || 0);
+  });
+  const topPlayers = Object.values(playerMap).sort((a,b) => b.spent - a.spent).slice(0, 4).map(p => ({
+      ...p, spent: `₹${p.spent.toLocaleString()}`
+  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -64,10 +121,10 @@ export default function RevenuePage() {
       {/* Summary KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
         {[
-          { l: 'This Week', v: '₹1,14,200', delta: '+18%', icon: <IndianRupee size={20} />, color: '#10b981' },
-          { l: 'Total Bookings', v: '82', delta: '+12 vs last week', icon: <Calendar size={20} />, color: '#3b82f6' },
-          { l: 'Unique Players', v: '210', delta: '+28 this week', icon: <Users size={20} />, color: '#a855f7' },
-          { l: 'Avg Per Booking', v: '₹1,393', delta: 'Up ₹92', icon: <TrendingUp size={20} />, color: '#f59e0b' },
+          { l: 'This Week', v: `₹${totalRevThisWeek.toLocaleString()}`, delta: 'Live Data', icon: <IndianRupee size={20} />, color: '#10b981' },
+          { l: 'Total Bookings', v: totalBookings, delta: 'All time', icon: <Calendar size={20} />, color: '#3b82f6' },
+          { l: 'Unique Players', v: uniquePlayers, delta: 'All time', icon: <Users size={20} />, color: '#a855f7' },
+          { l: 'Avg Per Booking', v: `₹${Math.round(avgRev).toLocaleString()}`, delta: 'Overall', icon: <TrendingUp size={20} />, color: '#f59e0b' },
         ].map(s => (
           <div key={s.l} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -135,8 +192,8 @@ export default function RevenuePage() {
             </div>
           ))}
           <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.75rem', color: '#7fb3a0', marginBottom: '0.25rem' }}>Total This Month</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#10b981' }}>₹1,13,600</div>
+            <div style={{ fontSize: '0.75rem', color: '#7fb3a0', marginBottom: '0.25rem' }}>Total All Time</div>
+            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#10b981' }}>₹{totalAllTimeRev.toLocaleString()}</div>
           </div>
         </div>
 

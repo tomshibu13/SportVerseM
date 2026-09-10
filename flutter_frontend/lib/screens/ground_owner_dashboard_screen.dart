@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../models/ground_model.dart';
 import '../models/booking_model.dart';
+import '../utils/validators.dart';
 import 'become_ground_owner_screen.dart';
 
 class GroundOwnerDashboardScreen extends StatefulWidget {
@@ -21,23 +23,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
   String _bookingFilter = 'All';
   final TextEditingController _checkInInputController = TextEditingController();
 
-  final List<Map<String, String>> _notifications = [
-    {
-      'title': 'New Booking Confirmed',
-      'body': 'User Tom Holland booked Smash Arena for 06:00 PM today.',
-      'time': '10 mins ago'
-    },
-    {
-      'title': 'Facility Active & Live',
-      'body': 'Your sports facility is active and visible for instant public reservations.',
-      'time': '1 hour ago'
-    },
-    {
-      'title': 'Dynamic Peak Rate Applied',
-      'body': 'Evening slots (05:00 PM - 09:00 PM) optimized with standard prime rates.',
-      'time': '1 day ago'
-    }
-  ];
+  Map<String, dynamic> _dashboardStats = {};
 
   @override
   void initState() {
@@ -57,37 +43,25 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     setState(() => _isLoading = true);
     try {
       final user = AuthService.currentUser;
-      final ownerId = (user?['_id'] ?? user?['id'] ?? user?['user_id'] ?? '').toString();
-      final ownerEmail = (user?['email'] ?? '').toString().toLowerCase();
+      final ownerId = (user?['_id'] ?? user?['id'] ?? user?['userId'] ?? user?['user_id'] ?? '').toString();
 
-      final allGrounds = await ApiService.fetchGrounds();
-      final bookingsList = await ApiService.fetchAllBookings();
-
-      final filtered = allGrounds.where((g) {
-        final gOwner = g.ownerId.toString().toLowerCase();
-        return (ownerId.isNotEmpty && gOwner == ownerId.toLowerCase()) ||
-               (ownerEmail.isNotEmpty && gOwner == ownerEmail);
-      }).toList();
-
-      final myGroundNames = filtered.map((g) => g.title.toLowerCase()).toSet();
-      final myGroundIds = <String>{};
-      for (final g in filtered) {
-        myGroundIds.add(g.groundId.toString().toLowerCase());
-        final rawId = g['_id'];
-        if (rawId != null) myGroundIds.add(rawId.toString().toLowerCase());
+      if (ownerId.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
 
-      final ownerBookings = bookingsList.where((b) {
-        final bGroundId = (b.groundId ?? '').toString().toLowerCase();
-        final bGroundName = b.groundName.toLowerCase();
-        return myGroundIds.contains(bGroundId) || myGroundNames.contains(bGroundName);
-      }).toList();
+      final grounds = await ApiService.fetchGroundsByOwner(ownerId);
+      final bookings = await ApiService.fetchOwnerBookings(ownerId);
+      final stats = await ApiService.fetchOwnerDashboardStats(ownerId);
 
-      setState(() {
-        _myGrounds = filtered;
-        _allBookings = ownerBookings;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _myGrounds = grounds;
+          _allBookings = bookings;
+          _dashboardStats = stats;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -312,6 +286,12 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
   }
 
   void _editSlots(GroundModel ground) {
+    DateTime selectedDate = DateTime.now();
+    String selectedCourt = 'Court 1';
+    List<String> availableCourts = ['Court 1'];
+    List<GroundSlot> slots = [];
+    bool isLoading = true;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -319,8 +299,37 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, modalSetState) {
+            void loadSlots() async {
+              modalSetState(() => isLoading = true);
+              try {
+                final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
+                final res = await ApiService.fetchSlots(
+                  groundId: ground.groundId,
+                  date: dateStr,
+                  courtId: selectedCourt,
+                );
+                final List<GroundSlot> fetchedSlots = (res['slots'] as List<GroundSlot>?) ?? [];
+                final List<String> fetchedCourts = (res['courts'] as List<String>?) ?? ['Court 1'];
+                modalSetState(() {
+                  slots = fetchedSlots;
+                  availableCourts = fetchedCourts.isNotEmpty ? fetchedCourts : ['Court 1'];
+                  if (!availableCourts.contains(selectedCourt)) {
+                    selectedCourt = availableCourts.first;
+                  }
+                  isLoading = false;
+                });
+              } catch (_) {
+                modalSetState(() => isLoading = false);
+              }
+            }
+
+            // Trigger initial load
+            if (isLoading && slots.isEmpty) {
+              loadSlots();
+            }
+
             return Container(
-              height: MediaQuery.of(context).size.height * 0.80,
+              height: MediaQuery.of(context).size.height * 0.88,
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -337,7 +346,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -350,7 +359,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const Text('Configure Time Slots & Live Hourly Pricing', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                              const Text('Dynamic Slot Manager & Real-Time Availability', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
                             ],
                           ),
                         ),
@@ -361,122 +370,163 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                       ],
                     ),
                   ),
-                  const Divider(),
-                  Expanded(
-                    child: ground.availableSlots.isEmpty
-                        ? const Center(child: Text('No slots configured for this facility.'))
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: ground.availableSlots.length,
-                            itemBuilder: (context, index) {
-                              final slot = ground.availableSlots[index];
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                color: slot.isBooked ? const Color(0xFFF8FAFC) : Colors.white,
-                                elevation: 1,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            slot.isBooked ? Icons.lock : Icons.lock_open,
-                                            color: slot.isBooked ? Colors.grey : const Color(0xFF16A34A),
-                                            size: 20,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(slot.time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                              Text(
-                                                slot.isBooked ? 'Status: Booked / Reserved' : 'Status: Open for Booking',
-                                                style: TextStyle(fontSize: 11, color: slot.isBooked ? Colors.red : Colors.green),
+                  const Divider(height: 1),
+
+                  // Quick Action Toolbar: Generate 7-Days & Add Custom Slot
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: const Color(0xFFF9F7F4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              side: const BorderSide(color: Color(0xFFC8895B)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.auto_awesome, size: 16, color: Color(0xFFC8895B)),
+                            label: const Text('Auto-Gen 7 Days', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFC8895B))),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (dCtx) => AlertDialog(
+                                  title: const Text('Generate 7-Day Slot Schedule'),
+                                  content: Text(
+                                    'This will automatically generate standard hourly slots (06:00 AM - 10:00 PM) for the next 7 days for ${ground.title} at ₹${ground.pricePerHour.toInt()}/hr.',
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+                                      onPressed: () => Navigator.pop(dCtx, true),
+                                      child: const Text('Generate Slots', style: TextStyle(color: Colors.white)),
+                                    ),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                modalSetState(() => isLoading = true);
+                                await ApiService.generateSlots(
+                                  groundId: ground.groundId,
+                                  days: 7,
+                                  courts: availableCourts,
+                                  pricePerHour: ground.pricePerHour,
+                                );
+                                loadSlots();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlack,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                            label: const Text('Add Single Slot', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                            onPressed: () {
+                              final slotFormKey = GlobalKey<FormState>();
+                              final startTimeController = TextEditingController(text: '06:00 AM');
+                              final endTimeController = TextEditingController(text: '07:00 AM');
+                              final priceController = TextEditingController(text: ground.pricePerHour.toInt().toString());
+                              String slotCourt = selectedCourt;
+
+                              showDialog(
+                                context: context,
+                                builder: (dCtx) => StatefulBuilder(
+                                  builder: (dialogCtx, dSetState) => AlertDialog(
+                                    title: const Text('Create Custom Slot'),
+                                    content: SingleChildScrollView(
+                                      child: Form(
+                                        key: slotFormKey,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text('Date: ${DateFormat('yyyy-MM-dd').format(selectedDate)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                            const SizedBox(height: 12),
+                                            TextFormField(
+                                              controller: startTimeController,
+                                              validator: (v) => Validators.required(v, 'Start Time'),
+                                              autovalidateMode: AutovalidateMode.onUserInteraction,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Start Time (e.g. 06:00 AM)',
+                                                border: OutlineInputBorder(),
                                               ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                      Row(
-                                        children: [
-                                          Text('₹${slot.price.toInt()}', style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.warmAccent)),
-                                          const SizedBox(width: 8),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
-                                            tooltip: 'Edit Slot Rate',
-                                            onPressed: () {
-                                              final priceController = TextEditingController(text: slot.price.toInt().toString());
-                                              showDialog(
-                                                context: context,
-                                                builder: (dialogCtx) => AlertDialog(
-                                                  title: const Text('Update Slot Price'),
-                                                  content: TextField(
-                                                    controller: priceController,
-                                                    keyboardType: TextInputType.number,
-                                                    decoration: const InputDecoration(
-                                                      labelText: 'Rate per hour (₹)',
-                                                      border: OutlineInputBorder(),
-                                                    ),
-                                                  ),
-                                                  actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
-                                                    ElevatedButton(
-                                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
-                                                      onPressed: () async {
-                                                        final newPrice = double.tryParse(priceController.text) ?? slot.price;
-                                                        modalSetState(() {
-                                                          slot.price = newPrice;
-                                                        });
-                                                        Navigator.pop(dialogCtx);
-
-                                                        // Save updated slots to MongoDB
-                                                        final updatedSlots = ground.availableSlots.map((s) => {
-                                                          'slot_id': s.slotId,
-                                                          'time': s.time,
-                                                          'is_booked': s.isBooked,
-                                                          'price': s.price,
-                                                        }).toList();
-
-                                                        await ApiService.updateGround(ground.groundId, {
-                                                          'available_slots': updatedSlots,
-                                                        });
-                                                        await _loadDashboardData();
-                                                      },
-                                                      child: const Text('Save Rate', style: TextStyle(color: Colors.white)),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                          IconButton(
-                                            icon: Icon(
-                                              slot.isBooked ? Icons.toggle_on : Icons.toggle_off,
-                                              size: 26,
-                                              color: slot.isBooked ? Colors.grey : const Color(0xFF16A34A),
                                             ),
-                                            tooltip: slot.isBooked ? 'Mark Available' : 'Block Slot',
-                                            onPressed: () async {
-                                              modalSetState(() {
-                                                slot.isBooked = !slot.isBooked;
-                                              });
-                                              final updatedSlots = ground.availableSlots.map((s) => {
-                                                'slot_id': s.slotId,
-                                                'time': s.time,
-                                                'is_booked': s.isBooked,
-                                                'price': s.price,
-                                              }).toList();
+                                            const SizedBox(height: 10),
+                                            TextFormField(
+                                              controller: endTimeController,
+                                              validator: (v) => Validators.required(v, 'End Time'),
+                                              autovalidateMode: AutovalidateMode.onUserInteraction,
+                                              decoration: const InputDecoration(
+                                                labelText: 'End Time (e.g. 07:00 AM)',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            TextFormField(
+                                              controller: priceController,
+                                              keyboardType: TextInputType.number,
+                                              validator: Validators.price,
+                                              autovalidateMode: AutovalidateMode.onUserInteraction,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Rate / Price (₹)',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            DropdownButtonFormField<String>(
+                                              initialValue: slotCourt,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Court / Pitch',
+                                                border: OutlineInputBorder(),
+                                              ),
+                                              items: availableCourts.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                                              onChanged: (val) {
+                                                if (val != null) dSetState(() => slotCourt = val);
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+                                        onPressed: () async {
+                                          if (!(slotFormKey.currentState?.validate() ?? false)) {
+                                            return;
+                                          }
+                                          final sTime = startTimeController.text.trim();
+                                          final eTime = endTimeController.text.trim();
+                                          final timeErr = Validators.timeRange(sTime, eTime);
+                                          if (timeErr != null) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(timeErr), backgroundColor: Colors.redAccent),
+                                            );
+                                            return;
+                                          }
+                                          final price = double.tryParse(priceController.text) ?? ground.pricePerHour;
+                                          final dateStr = DateFormat('yyyy-MM-dd').format(selectedDate);
+                                          Navigator.pop(dCtx);
 
-                                              await ApiService.updateGround(ground.groundId, {
-                                                'available_slots': updatedSlots,
-                                              });
-                                              await _loadDashboardData();
-                                            },
-                                          ),
-                                        ],
+                                          await ApiService.createSlot({
+                                            'ground_id': ground.groundId,
+                                            'date': dateStr,
+                                            'court_id': slotCourt,
+                                            'start_time': sTime,
+                                            'end_time': eTime,
+                                            'price': price,
+                                          });
+                                          loadSlots();
+                                        },
+                                        child: const Text('Create Slot', style: TextStyle(color: Colors.white)),
                                       ),
                                     ],
                                   ),
@@ -484,6 +534,275 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                               );
                             },
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Date selector horizontal bar
+                  Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: 14,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, idx) {
+                        final d = DateTime.now().add(Duration(days: idx));
+                        final isSel = DateFormat('yyyy-MM-dd').format(d) == DateFormat('yyyy-MM-dd').format(selectedDate);
+                        return InkWell(
+                          onTap: () {
+                            modalSetState(() => selectedDate = d);
+                            loadSlots();
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isSel ? AppColors.primaryBlack : const Color(0xFFF9F7F4),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: isSel ? AppColors.primaryBlack : AppColors.border),
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  idx == 0 ? 'TODAY' : DateFormat('E').format(d).toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSel ? const Color(0xFFC8895B) : AppColors.mutedText,
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat('d MMM').format(d),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isSel ? Colors.white : AppColors.primaryBlack,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Court selector chips
+                  if (availableCourts.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: availableCourts.map((court) {
+                          final isSel = selectedCourt == court;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(court, style: TextStyle(fontSize: 11, color: isSel ? Colors.white : AppColors.primaryBlack)),
+                              selected: isSel,
+                              selectedColor: AppColors.primaryBlack,
+                              backgroundColor: const Color(0xFFF9F7F4),
+                              onSelected: (v) {
+                                if (v && selectedCourt != court) {
+                                  modalSetState(() => selectedCourt = court);
+                                  loadSlots();
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  const Divider(height: 1),
+
+                  // Slots List
+                  Expanded(
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFFC8895B)))
+                        : slots.isEmpty
+                            ? Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.calendar_today_outlined, size: 40, color: AppColors.mutedText),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'No slots found for ${DateFormat('dd MMM yyyy').format(selectedDate)} ($selectedCourt).',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC8895B)),
+                                        icon: const Icon(Icons.auto_awesome, size: 16, color: Colors.white),
+                                        label: const Text('Generate Slots Now', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                        onPressed: () async {
+                                          modalSetState(() => isLoading = true);
+                                          await ApiService.generateSlots(
+                                            groundId: ground.groundId,
+                                            days: 7,
+                                            courts: availableCourts,
+                                            pricePerHour: ground.pricePerHour,
+                                          );
+                                          loadSlots();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.all(16),
+                                itemCount: slots.length,
+                                itemBuilder: (context, index) {
+                                  final slot = slots[index];
+                                  final isBooked = slot.isBooked;
+                                  final isBlocked = slot.isBlocked;
+                                  final isExpired = slot.isExpired;
+
+                                  Color statusColor = const Color(0xFF16A34A);
+                                  String statusText = 'Available';
+                                  IconData statusIcon = Icons.check_circle_outline;
+
+                                  if (isBooked) {
+                                    statusColor = const Color(0xFFDC2626);
+                                    statusText = 'Booked';
+                                    statusIcon = Icons.lock_rounded;
+                                  } else if (isBlocked) {
+                                    statusColor = const Color(0xFF64748B);
+                                    statusText = 'Blocked';
+                                    statusIcon = Icons.block_rounded;
+                                  } else if (isExpired) {
+                                    statusColor = const Color(0xFF94A3B8);
+                                    statusText = 'Expired';
+                                    statusIcon = Icons.history_toggle_off;
+                                  }
+
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    color: isBooked
+                                        ? const Color(0xFFFFF1F2)
+                                        : isBlocked
+                                            ? const Color(0xFFF1F5F9)
+                                            : Colors.white,
+                                    elevation: 0.5,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                      child: Row(
+                                        children: [
+                                          Icon(statusIcon, color: statusColor, size: 20),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Text(slot.time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: statusColor.withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        statusText,
+                                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  '${slot.courtId}  •  ₹${slot.price.toInt()}/hr',
+                                                  style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Price Edit Button
+                                          IconButton(
+                                            icon: const Icon(Icons.edit_outlined, size: 18, color: Colors.blueAccent),
+                                            tooltip: 'Edit Price',
+                                            onPressed: () {
+                                              final priceFormKey = GlobalKey<FormState>();
+                                              final priceController = TextEditingController(text: slot.price.toInt().toString());
+                                              showDialog(
+                                                context: context,
+                                                builder: (dCtx) => AlertDialog(
+                                                  title: Text('Edit Price: ${slot.time}'),
+                                                  content: Form(
+                                                    key: priceFormKey,
+                                                    child: TextFormField(
+                                                      controller: priceController,
+                                                      keyboardType: TextInputType.number,
+                                                      validator: Validators.price,
+                                                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                                                      decoration: const InputDecoration(
+                                                        labelText: 'Rate (₹)',
+                                                        border: OutlineInputBorder(),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+                                                    ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
+                                                      onPressed: () async {
+                                                        if (!(priceFormKey.currentState?.validate() ?? false)) {
+                                                          return;
+                                                        }
+                                                        final newPrice = double.tryParse(priceController.text) ?? slot.price;
+                                                        Navigator.pop(dCtx);
+                                                        await ApiService.updateSlot(slot.slotId, {'price': newPrice});
+                                                        loadSlots();
+                                                      },
+                                                      child: const Text('Save', style: TextStyle(color: Colors.white)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          // Block / Unblock Button (if not booked)
+                                          if (!isBooked)
+                                            IconButton(
+                                              icon: Icon(
+                                                isBlocked ? Icons.lock_open : Icons.block,
+                                                size: 18,
+                                                color: isBlocked ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                                              ),
+                                              tooltip: isBlocked ? 'Unblock Slot' : 'Block Slot',
+                                              onPressed: () async {
+                                                final newStatus = isBlocked ? 'Available' : 'Blocked';
+                                                await ApiService.updateSlot(slot.slotId, {'status': newStatus});
+                                                loadSlots();
+                                              },
+                                            ),
+                                          // Delete Slot Button (if not booked)
+                                          if (!isBooked)
+                                            IconButton(
+                                              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                                              tooltip: 'Delete Slot',
+                                              onPressed: () async {
+                                                await ApiService.deleteSlot(slot.slotId);
+                                                loadSlots();
+                                              },
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                   ),
                 ],
               ),
@@ -495,6 +814,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
   }
 
   void _editGroundDetails(GroundModel ground) {
+    final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController(text: ground.title);
     final locationController = TextEditingController(text: ground.location);
     final priceController = TextEditingController(text: ground.pricePerHour.toInt().toString());
@@ -504,25 +824,34 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
       builder: (ctx) => AlertDialog(
         title: const Text('Edit Facility Details'),
         content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: 'Facility Name', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: locationController,
-                decoration: const InputDecoration(labelText: 'Location / City', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Base Price per Hour (₹)', border: OutlineInputBorder()),
-              ),
-            ],
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: titleController,
+                  validator: Validators.groundTitle,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(labelText: 'Facility Name', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: locationController,
+                  validator: Validators.city,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(labelText: 'Location / City', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: priceController,
+                  keyboardType: TextInputType.number,
+                  validator: Validators.price,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  decoration: const InputDecoration(labelText: 'Base Price per Hour (₹)', border: OutlineInputBorder()),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -530,6 +859,9 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.warmAccent),
             onPressed: () async {
+              if (!(formKey.currentState?.validate() ?? false)) {
+                return;
+              }
               final messenger = ScaffoldMessenger.of(context);
               final newPrice = double.tryParse(priceController.text) ?? ground.pricePerHour;
               Navigator.pop(ctx);
@@ -602,11 +934,15 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
     final user = AuthService.currentUser;
     final ownerName = user?['full_name'] ?? user?['name'] ?? 'Ground Partner';
 
-    final double totalRevenue = _allBookings
-        .where((b) => b.bookingStatus == 'Completed' || b.bookingStatus == 'Upcoming')
-        .fold(0.0, (sum, item) => sum + item.totalPrice);
+    final double totalRevenue = (_dashboardStats['totalEarnings'] as num?)?.toDouble() ??
+        _allBookings
+            .where((b) => b.bookingStatus == 'Completed' || b.bookingStatus == 'Upcoming')
+            .fold(0.0, (sum, item) => sum + item.totalPrice);
 
-    final completedCheckIns = _allBookings.where((b) => b.bookingStatus == 'Completed').length;
+    final totalBookingsCount = (_dashboardStats['totalBookings'] as num?)?.toInt() ?? _allBookings.length;
+    final totalGroundsCount = (_dashboardStats['totalGrounds'] as num?)?.toInt() ?? _myGrounds.length;
+    final completedCheckIns = (_dashboardStats['checkedInCount'] as num?)?.toInt() ??
+        _allBookings.where((b) => b.bookingStatus == 'Completed').length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -663,8 +999,8 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildKpiCard('Total Revenue', '₹${totalRevenue.toInt()}', Icons.payments_outlined, const Color(0xFF16A34A)),
-                      _buildKpiCard('Reservations', '${_allBookings.length}', Icons.calendar_today_outlined, const Color(0xFF2563EB)),
-                      _buildKpiCard('Facilities', '${_myGrounds.length}', Icons.stadium_outlined, const Color(0xFFEA580C)),
+                      _buildKpiCard('Reservations', '$totalBookingsCount', Icons.calendar_today_outlined, const Color(0xFF2563EB)),
+                      _buildKpiCard('Facilities', '$totalGroundsCount', Icons.stadium_outlined, const Color(0xFFEA580C)),
                       _buildKpiCard('Checked-In', '$completedCheckIns', Icons.how_to_reg_outlined, const Color(0xFF7C3AED)),
                     ],
                   ),
@@ -1162,8 +1498,12 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                   icon: const Icon(Icons.phone_outlined, color: Colors.green),
                   tooltip: 'Contact Customer',
                   onPressed: () {
+                    final customerBooking = _allBookings.firstWhere(
+                      (b) => b.userName == name,
+                      orElse: () => _allBookings.first,
+                    );
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Contacting customer $name... (+91 9988776655)')),
+                      SnackBar(content: Text('Contacting customer $name for reservation ${customerBooking.bookingId}...')),
                     );
                   },
                 ),
@@ -1176,6 +1516,25 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
 
   // ── Tab 4: Insights & Analytics Tab ──
   Widget _buildInsightsTab(double totalRevenue) {
+    final peakHours = _dashboardStats['peakReservationHours']?.toString() ?? '05:00 PM - 09:00 PM';
+    final courtOccupancy = _dashboardStats['courtOccupancy']?.toString() ??
+        (_myGrounds.isEmpty ? '0%' : '${((_allBookings.length / (_myGrounds.length * 8).clamp(1, 999)) * 100).toInt()}%');
+    final recentActivities = (_dashboardStats['recentActivities'] as List?) ?? [];
+    final List<Map<String, String>> displayLogs = recentActivities.isNotEmpty
+        ? recentActivities.map((a) {
+            final map = a is Map ? a : <String, dynamic>{};
+            return {
+              'title': (map['title'] ?? 'Facility Update').toString(),
+              'body': (map['description'] ?? map['body'] ?? 'Live facility update').toString(),
+              'time': (map['time'] ?? 'Just now').toString(),
+            };
+          }).toList()
+        : _allBookings.take(4).map((b) => {
+              'title': b.bookingStatus == 'Completed' ? 'Check-In Confirmed' : 'New Reservation Confirmed',
+              'body': '${b.userName} reserved ${b.groundName} for ${b.slotTime} (${b.date}).',
+              'time': b.bookingStatus,
+            }).toList();
+
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.all(16),
@@ -1201,19 +1560,19 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Peak Reservation Hours:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('05:00 PM - 09:00 PM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const Text('Peak Reservation Hours:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(peakHours, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Average Court Occupancy:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('82%', style: TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const Text('Average Court Occupancy:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    Text(courtOccupancy, style: const TextStyle(color: AppColors.warmAccent, fontWeight: FontWeight.bold, fontSize: 12)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1236,18 +1595,28 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
         ),
         const SizedBox(height: 12),
-        ..._notifications.map((notif) {
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            child: ListTile(
-              leading: const Icon(Icons.notifications_active_outlined, color: AppColors.warmAccent),
-              title: Text(notif['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              subtitle: Text(notif['body']!, style: const TextStyle(fontSize: 10.5)),
-              trailing: Text(notif['time']!, style: const TextStyle(fontSize: 9.5, color: Colors.grey)),
+        if (displayLogs.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: Text('No recent activity recorded for your grounds.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ),
             ),
-          );
-        }),
+          )
+        else
+          ...displayLogs.map((notif) {
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              child: ListTile(
+                leading: const Icon(Icons.notifications_active_outlined, color: AppColors.warmAccent),
+                title: Text(notif['title']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                subtitle: Text(notif['body']!, style: const TextStyle(fontSize: 10.5)),
+                trailing: Text(notif['time']!, style: const TextStyle(fontSize: 9.5, color: Colors.grey)),
+              ),
+            );
+          }),
       ],
     );
   }

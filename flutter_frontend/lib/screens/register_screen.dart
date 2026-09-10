@@ -5,7 +5,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/password_criteria_view.dart';
 import '../services/auth_service.dart';
+import '../utils/validators.dart';
 import 'role_selection_screen.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
@@ -23,6 +25,7 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -45,6 +48,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     }
+
+    _passwordController.addListener(() => setState(() {}));
+    _confirmPasswordController.addListener(() => setState(() {}));
 
     AuthService.initGoogleSignIn().then((_) {
       if (kIsWeb && mounted) {
@@ -91,62 +97,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  String? _validatePassword(String password) {
-    if (password.isEmpty) {
-      return 'Please enter a password';
-    }
-    if (password.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(password)) {
-      return 'Password must contain at least one uppercase letter (A-Z)';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(password)) {
-      return 'Password must contain at least one lowercase letter (a-z)';
-    }
-    if (!RegExp(r'\d').hasMatch(password)) {
-      return 'Password must contain at least one number (0-9)';
-    }
-    if (!RegExp(r'[@$!%*?&#]').hasMatch(password)) {
-      return r'Password must contain at least one special character (@$!%*?&#)';
-    }
-    return null;
-  }
-
   void _handleRegister() async {
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!_agreedToTerms) {
+      _showSnackBar('Please accept the Terms & Conditions to proceed');
+      return;
+    }
+
     final name = _fullNameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
     final password = _passwordController.text.trim();
     final confirm = _confirmPasswordController.text.trim();
-
-    if (name.isEmpty) {
-      _showSnackBar('Please enter your full name');
-      return;
-    }
-    if (email.isEmpty || !email.contains('@')) {
-      _showSnackBar('Please enter a valid email address');
-      return;
-    }
-    if (phone.isEmpty) {
-      _showSnackBar('Please enter your phone number');
-      return;
-    }
-
-    final passwordError = _validatePassword(password);
-    if (passwordError != null) {
-      _showSnackBar(passwordError);
-      return;
-    }
-
-    if (password != confirm) {
-      _showSnackBar('Passwords do not match');
-      return;
-    }
-    if (!_agreedToTerms) {
-      _showSnackBar('Please accept the Terms & Conditions');
-      return;
-    }
 
     setState(() => _isLoading = true);
 
@@ -272,59 +237,80 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               const SizedBox(height: 24),
 
                               // ── Form Fields Section ──
-                              CustomTextField(
-                                controller: _fullNameController,
-                                hintText: 'Full Name',
-                                prefixIcon: Icons.person_outline,
-                              ),
-                              const SizedBox(height: 12),
-                              CustomTextField(
-                                controller: _emailController,
-                                hintText: 'Email Address',
-                                prefixIcon: Icons.email_outlined,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 12),
-                              CustomTextField(
-                                controller: _phoneController,
-                                hintText: 'Phone Number',
-                                prefixIcon: Icons.phone_outlined,
-                                keyboardType: TextInputType.phone,
-                              ),
-                              const SizedBox(height: 12),
-                              CustomTextField(
-                                controller: _passwordController,
-                                hintText: 'Password',
-                                prefixIcon: Icons.lock_outline,
-                                obscureText: _obscurePassword,
-                                suffixIcon: GestureDetector(
-                                  onTap: () => setState(
-                                      () => _obscurePassword = !_obscurePassword),
-                                  child: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 18,
-                                    color: AppColors.secondaryText,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              CustomTextField(
-                                controller: _confirmPasswordController,
-                                hintText: 'Confirm Password',
-                                prefixIcon: Icons.lock_outline,
-                                obscureText: _obscureConfirmPassword,
-                                suffixIcon: GestureDetector(
-                                  onTap: () => setState(() =>
-                                      _obscureConfirmPassword = !_obscureConfirmPassword),
-                                  child: Icon(
-                                    _obscureConfirmPassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    size: 18,
-                                    color: AppColors.secondaryText,
-                                  ),
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    CustomTextField(
+                                      controller: _fullNameController,
+                                      hintText: 'Full Name',
+                                      prefixIcon: Icons.person_outline,
+                                      validator: (val) => Validators.name(val, 'Full Name'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    CustomTextField(
+                                      controller: _emailController,
+                                      hintText: 'Email Address',
+                                      prefixIcon: Icons.email_outlined,
+                                      keyboardType: TextInputType.emailAddress,
+                                      validator: Validators.email,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    CustomTextField(
+                                      controller: _phoneController,
+                                      hintText: 'Phone Number (10 Digits)',
+                                      prefixIcon: Icons.phone_outlined,
+                                      keyboardType: TextInputType.phone,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                      validator: Validators.phone,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    CustomTextField(
+                                      controller: _passwordController,
+                                      hintText: 'Password',
+                                      prefixIcon: Icons.lock_outline,
+                                      obscureText: _obscurePassword,
+                                      validator: Validators.password,
+                                      suffixIcon: GestureDetector(
+                                        onTap: () => setState(
+                                            () => _obscurePassword = !_obscurePassword),
+                                        child: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          size: 18,
+                                          color: AppColors.secondaryText,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    CustomTextField(
+                                      controller: _confirmPasswordController,
+                                      hintText: 'Confirm Password',
+                                      prefixIcon: Icons.lock_outline,
+                                      obscureText: _obscureConfirmPassword,
+                                      validator: (val) => Validators.confirmPassword(val, _passwordController.text),
+                                      suffixIcon: GestureDetector(
+                                        onTap: () => setState(() =>
+                                            _obscureConfirmPassword = !_obscureConfirmPassword),
+                                        child: Icon(
+                                          _obscureConfirmPassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          size: 18,
+                                          color: AppColors.secondaryText,
+                                        ),
+                                      ),
+                                    ),
+                                    if (_passwordController.text.isNotEmpty || _confirmPasswordController.text.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      PasswordCriteriaView(
+                                        password: _passwordController.text,
+                                        confirmPassword: _confirmPasswordController.text,
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
 

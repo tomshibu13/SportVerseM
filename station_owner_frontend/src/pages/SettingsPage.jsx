@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings, Bell, Lock, Globe, Clock, User, CheckCircle2 } from 'lucide-react';
+import { fetchMyGrounds } from '../services/api';
 
 export default function SettingsPage({ currentUser }) {
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({
-    stationName: 'Metro Sports Complex',
-    address: 'Kochi Central, Ernakulam, Kerala - 682001',
-    phone: '+91 9876543210',
-    email: currentUser?.email || 'owner@example.com',
+    stationName: '',
+    address: '',
+    phone: currentUser?.phone || '',
+    email: currentUser?.email || '',
     openTime: '06:00',
     closeTime: '22:00',
     notifyBookings: true,
@@ -19,8 +20,24 @@ export default function SettingsPage({ currentUser }) {
   });
   const [pw, setPw] = useState({ current: '', new: '', confirm: '' });
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    if (currentUser) {
+      fetchMyGrounds(currentUser._id || currentUser.id).then(g => {
+        if (g && g.length > 0) {
+          setForm(prev => ({
+            ...prev,
+            stationName: g[0].title || '',
+            address: g[0].address || g[0].location || '',
+            phone: currentUser?.phone || '',
+          }));
+        }
+      });
+    }
+  }, [currentUser]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
+    // Simulate save to DB for settings (mocked since no settings API exists yet)
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

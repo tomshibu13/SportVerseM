@@ -104,14 +104,16 @@ export function normalizeBooking(b) {
 
 export function normalizeProduct(p) {
   if (!p) return null;
-  const id = p.product_id || p.id || p._id || Date.now();
+  const rawId = p._id || p.id || p.product_id || Date.now();
+  const numId = p.product_id || (typeof p.id === 'number' ? p.id : (!isNaN(Number(p.id)) ? Number(p.id) : undefined));
+  const id = rawId;
   const name = p.title || p.name || 'Sports Equipment';
   const title = p.title || p.name || 'Sports Equipment';
   const category = p.category || p.sport || 'Gear';
   const sport = p.sport || p.category || 'General';
   const price = Number(p.price || 0);
   const original_price = Number(p.original_price || p.originalPrice || price);
-  const stock = p.stock !== undefined ? Number(p.stock) : 0;
+  const stock = p.stock !== undefined && p.stock !== null ? Number(p.stock) : 0;
   const image = p.image || 'https://images.unsplash.com/photo-1613918108466-292b78a8ef95?auto=format&fit=crop&w=400&q=80';
   const rating = Number(p.rating || 5.0);
   const description = p.description || `${category} equipment.`;
@@ -120,6 +122,7 @@ export function normalizeProduct(p) {
     ...p,
     id,
     _id: p._id || id,
+    product_id: numId || p.product_id,
     name,
     title,
     category,
@@ -405,8 +408,9 @@ export async function createProductApi(productData) {
       category: productData.category || productData.sport,
       sport: productData.sport || productData.category,
       price: Number(productData.price) || 999,
-      stock: Number(productData.stock) || 10,
+      stock: productData.stock !== undefined ? Number(productData.stock) : 10,
       image: productData.image,
+      description: productData.description,
     };
     const res = await request('/products', {
       method: 'POST',
@@ -417,12 +421,31 @@ export async function createProductApi(productData) {
       product: normalizeProduct(res.product || res),
     };
   } catch (err) {
+    console.warn('createProductApi fallback:', err.message);
     return {
       success: true,
       product: normalizeProduct({ id: Date.now(), ...productData, rating: 5.0 }),
     };
   }
 }
+
+export async function updateProductApi(productId, updateData) {
+  const targetId = productId || updateData._id || updateData.product_id || updateData.id;
+  try {
+    const res = await request(`/products/${targetId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    });
+    return {
+      success: true,
+      product: normalizeProduct(res.product || res),
+    };
+  } catch (err) {
+    console.warn('updateProductApi error:', err.message);
+    throw err;
+  }
+}
+
 
 // ── Health & Diagnostics ──
 export async function checkHealthApi() {

@@ -3,7 +3,7 @@ import { ShoppingBag, Plus, Star, Search, IndianRupee, Layers } from 'lucide-rea
 
 const CATEGORIES = ['ALL', 'Racket', 'Footwear', 'Bat', 'Gear', 'Accessories'];
 
-export default function ShopPage({ products = [], onOpenAddProduct, searchTerm: globalSearch = '' }) {
+export default function ShopPage({ products = [], onOpenAddProduct, onOpenEditProduct, searchTerm: globalSearch = '' }) {
   const [selectedCat, setSelectedCat] = useState('ALL');
   const [localSearch, setLocalSearch] = useState('');
 
@@ -126,12 +126,28 @@ export default function ShopPage({ products = [], onOpenAddProduct, searchTerm: 
                     <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#c8895b' }}>₹{p.price}</span>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#a39c93', display: 'block' }}>Stock</span>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: (p.stock || 0) > 5 ? '#10b981' : '#ef4444' }}>
-                      {p.stock !== undefined ? p.stock : 10} units
-                    </span>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#a39c93', display: 'block' }}>Stock</span>
+                      <span style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: (p.stock || 0) > 5 ? '#10b981' : ((p.stock || 0) > 0 ? '#f59e0b' : '#ef4444')
+                      }}>
+                        {p.stock !== undefined ? p.stock : 0} units
+                      </span>
+                    </div>
                   </div>
+                </div>
+
+                <div style={{ marginTop: '0.75rem', display: 'flex' }}>
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    style={{ width: '100%' }} 
+                    onClick={() => onOpenEditProduct(p)}
+                  >
+                    Edit Product
+                  </button>
                 </div>
               </div>
             </div>

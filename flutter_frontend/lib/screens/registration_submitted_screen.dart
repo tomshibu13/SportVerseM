@@ -171,13 +171,18 @@ class RegistrationSubmittedScreen extends StatelessWidget {
                                         'Razorpay Txn',
                                         style: TextStyle(fontSize: 13, color: Color(0xFF666666)),
                                       ),
-                                      Text(
-                                        paymentId!,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontFamily: 'monospace',
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF0C2340),
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          paymentId!,
+                                          textAlign: TextAlign.end,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF0C2340),
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
                                     ],

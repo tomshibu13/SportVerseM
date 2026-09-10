@@ -4,35 +4,49 @@ import { fetchMyBookings } from '../services/api';
 
 const statusConfig = {
   Confirmed:  { class: 'badge-blue',   icon: <Clock size={11} /> },
+  Upcoming:   { class: 'badge-blue',   icon: <Clock size={11} /> },
   Completed:  { class: 'badge-green',  icon: <CheckCircle2 size={11} /> },
   Cancelled:  { class: 'badge-red',    icon: <XCircle size={11} /> },
 };
 
-export default function BookingsPage() {
+export default function BookingsPage({ currentUser }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetchMyBookings().then(d => { setBookings(d); setLoading(false); });
-  }, []);
+    if (currentUser) {
+      fetchMyBookings(currentUser._id || currentUser.id).then(d => { setBookings(d); setLoading(false); });
+    }
+  }, [currentUser]);
 
-  const handleCancel = (id) => {
+  const handleCancel = async (id) => {
     if (!window.confirm(`Cancel booking ${id}?`)) return;
-    setBookings(prev => prev.map(b => b.booking_id === id ? { ...b, booking_status: 'Cancelled' } : b));
+    try {
+        await fetch(`/api/bookings/cancel/${id}`, { method: 'PUT' });
+        setBookings(prev => prev.map(b => (b.booking_id === id || b._id === id) ? { ...b, booking_status: 'Cancelled' } : b));
+    } catch (e) {
+        console.error('Failed to cancel:', e);
+    }
   };
 
   const filtered = bookings.filter(b => {
-    const matchFilter = filter === 'All' || b.booking_status === filter;
-    const matchSearch = b.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-      b.booking_id?.toLowerCase().includes(search.toLowerCase()) ||
-      b.sport?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === 'All' || b.booking_status === filter || (filter === 'Confirmed' && b.booking_status === 'Upcoming');
+    const uName = b.user?.fullName || b.user_name || '';
+    const bId = b.booking_id || b._id || '';
+    const sp = b.ground?.sport_type || b.sport || '';
+    const matchSearch = uName.toLowerCase().includes(search.toLowerCase()) ||
+      bId.toLowerCase().includes(search.toLowerCase()) ||
+      sp.toLowerCase().includes(search.toLowerCase());
     return matchFilter && matchSearch;
   });
 
   const counts = { All: bookings.length, Confirmed: 0, Completed: 0, Cancelled: 0 };
-  bookings.forEach(b => { if (counts[b.booking_status] !== undefined) counts[b.booking_status]++; });
+  bookings.forEach(b => { 
+      const st = b.booking_status === 'Upcoming' ? 'Confirmed' : b.booking_status;
+      if (counts[st] !== undefined) counts[st]++; 
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -86,31 +100,36 @@ export default function BookingsPage() {
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#7fb3a0' }}>No bookings match your filter</td></tr>
               ) : filtered.map((b) => {
                 const sc = statusConfig[b.booking_status] || statusConfig['Confirmed'];
+                const uName = b.user?.fullName || b.user_name || 'N/A';
+                const bId = b.booking_id || b._id;
+                const sp = b.ground?.sport_type || b.sport || 'Sport';
+                const dDate = b.date || b.booking_date;
+                const dTime = b.slot_time || b.booking_time;
                 return (
-                  <tr key={b.booking_id}>
-                    <td><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#10b981' }}>{b.booking_id}</span></td>
+                  <tr key={bId}>
+                    <td><span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#10b981' }}>{bId.substring(0, 8)}</span></td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--green-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem', color: '#fff' }}>
-                          {b.user_name?.charAt(0) || '?'}
+                          {uName.charAt(0) || '?'}
                         </div>
-                        <span>{b.user_name || 'N/A'}</span>
+                        <span>{uName}</span>
                       </div>
                     </td>
-                    <td><span className="badge badge-blue">{b.sport}</span></td>
-                    <td style={{ color: '#7fb3a0' }}>{b.booking_date}</td>
+                    <td><span className="badge badge-blue">{sp}</span></td>
+                    <td style={{ color: '#7fb3a0' }}>{dDate}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <Clock size={13} color="#7fb3a0" />{b.booking_time}
+                        <Clock size={13} color="#7fb3a0" />{dTime}
                       </div>
                     </td>
                     <td><span style={{ fontWeight: 700, color: '#e8f5f1' }}>₹{b.total_price?.toLocaleString()}</span></td>
                     <td>
-                      <span className={`badge ${sc.class}`}>{sc.icon} {b.booking_status}</span>
+                      <span className={`badge ${sc.class}`}>{sc.icon} {b.booking_status === 'Upcoming' ? 'Confirmed' : b.booking_status}</span>
                     </td>
                     <td>
-                      {b.booking_status === 'Confirmed' ? (
-                        <button className="btn btn-danger btn-sm" onClick={() => handleCancel(b.booking_id)}>
+                      {b.booking_status === 'Upcoming' || b.booking_status === 'Confirmed' ? (
+                        <button className="btn btn-danger btn-sm" onClick={() => handleCancel(b._id || b.booking_id)}>
                           <XCircle size={12} /> Cancel
                         </button>
                       ) : (

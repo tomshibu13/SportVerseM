@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/primary_button.dart';
 import '../services/auth_service.dart';
+import '../utils/validators.dart';
 import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
@@ -101,26 +102,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void _handleLogin() async {
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
+      return;
+    }
+
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-
-    if (email.isEmpty) {
-      _showSnackBar('Please enter your email');
-      return;
-    }
-    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
-    if (!emailRegex.hasMatch(email)) {
-      _showSnackBar('Please enter a valid email address');
-      return;
-    }
-    if (password.isEmpty) {
-      _showSnackBar('Please enter your password');
-      return;
-    }
-    if (password.length < 6) {
-      _showSnackBar('Password must contain at least 6 characters');
-      return;
-    }
 
     setState(() => _isLoading = true);
 
@@ -254,6 +241,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       hintText: 'Email Address',
                                       prefixIcon: Icons.email_outlined,
                                       keyboardType: TextInputType.emailAddress,
+                                      validator: Validators.email,
                                     ),
 
                                     const SizedBox(height: 12),
@@ -264,6 +252,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       hintText: 'Password',
                                       prefixIcon: Icons.lock_outline,
                                       obscureText: _obscurePassword,
+                                      validator: (val) => Validators.minLength(val, 6, 'Password'),
                                       suffixIcon: GestureDetector(
                                         onTap: () => setState(
                                             () => _obscurePassword = !_obscurePassword),

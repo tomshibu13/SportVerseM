@@ -65,6 +65,7 @@ const registerUser = async (req, res, next) => {
         phone: user.phone,
         approvalStatus: user.approvalStatus,
         isApproved: user.isApproved,
+        walletBalance: user.walletBalance || 0,
       },
     });
   } catch (error) {
@@ -134,6 +135,7 @@ const loginUser = async (req, res, next) => {
         profileImage: user.profileImage,
         approvalStatus: user.approvalStatus || 'Approved',
         isApproved: user.isApproved !== undefined ? user.isApproved : true,
+        walletBalance: user.walletBalance || 0,
       },
     });
   } catch (error) {
@@ -233,6 +235,7 @@ const googleSignIn = async (req, res, next) => {
         profileImage: user.profileImage,
         approvalStatus: user.approvalStatus || 'Approved',
         isApproved: user.isApproved !== undefined ? user.isApproved : true,
+        walletBalance: user.walletBalance || 0,
       },
     });
   } catch (error) {
@@ -282,6 +285,7 @@ const getCurrentUser = async (req, res, next) => {
         platformFeeAmount: user.platformFeeAmount,
         approvalStatus: user.approvalStatus || 'Approved',
         isApproved: user.isApproved !== undefined ? user.isApproved : true,
+        walletBalance: user.walletBalance || 0,
         stationPortalUrl: process.env.STATION_OWNER_PORTAL_URL || 'http://localhost:5174',
         stationPassword: stationPass,
         ownerDashboardPassword: stationPass,

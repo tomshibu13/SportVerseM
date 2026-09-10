@@ -1,30 +1,29 @@
 :root {
-  /* Station owner uses a deep teal-green theme, distinct from admin's gold */
-  --bg-dark: #060d0d;
-  --bg-card: #0d1818;
-  --bg-card-hover: #141f1f;
-  --bg-sidebar: #080f0f;
-  --bg-header: rgba(8, 15, 15, 0.88);
+  --bg-dark: #0f1115;
+  --bg-card: #181b21;
+  --bg-card-hover: #1f232b;
+  --bg-sidebar: #181b21;
+  --bg-header: rgba(24, 27, 33, 0.9);
 
   --primary: #10b981;
-  --primary-hover: #0d9f6e;
-  --primary-light: rgba(16, 185, 129, 0.15);
-  --primary-glow: rgba(16, 185, 129, 0.35);
+  --primary-hover: #34d399;
+  --primary-light: rgba(16, 185, 129, 0.2);
+  --primary-glow: rgba(16, 185, 129, 0.3);
 
-  --accent-gold: #f59e0b;
-  --accent-gold-bg: rgba(245, 158, 11, 0.15);
-  --accent-blue: #3b82f6;
-  --accent-blue-bg: rgba(59, 130, 246, 0.15);
-  --accent-red: #ef4444;
-  --accent-red-bg: rgba(239, 68, 68, 0.15);
-  --accent-purple: #a855f7;
-  --accent-purple-bg: rgba(168, 85, 247, 0.15);
+  --accent-gold: #fbbf24;
+  --accent-gold-bg: rgba(245, 158, 11, 0.2);
+  --accent-blue: #60a5fa;
+  --accent-blue-bg: rgba(59, 130, 246, 0.2);
+  --accent-red: #f87171;
+  --accent-red-bg: rgba(239, 68, 68, 0.2);
+  --accent-purple: #c084fc;
+  --accent-purple-bg: rgba(168, 85, 247, 0.2);
 
-  --text-main: #e8f5f1;
-  --text-muted: #7fb3a0;
-  --text-dim: #4a7a6a;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --text-dim: #94a3b8;
 
-  --border-color: rgba(16, 185, 129, 0.12);
+  --border-color: rgba(255, 255, 255, 0.1);
   --border-highlight: rgba(16, 185, 129, 0.35);
 
   --radius-sm: 8px;
@@ -32,7 +31,7 @@
   --radius-lg: 16px;
   --radius-xl: 24px;
 
-  --shadow-card: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 8px 30px rgba(0, 0, 0, 0.05);
   --green-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -51,7 +50,7 @@ body {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-dark); }
-::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.3); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
 /* App Layout */
@@ -137,11 +136,11 @@ body {
 .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5); }
 
 .btn-secondary {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-main);
   border: 1px solid var(--border-color);
 }
-.btn-secondary:hover { background: rgba(255,255,255,0.1); border-color: rgba(16,185,129,0.3); }
+.btn-secondary:hover { background: rgba(255, 255, 255, 0.1); border-color: rgba(16, 185, 129, 0.3); }
 
 .btn-danger { background: var(--accent-red-bg); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.3); }
 .btn-danger:hover { background: rgba(239,68,68,0.25); }
@@ -154,7 +153,7 @@ body {
 
 .form-input, .form-select, .form-textarea {
   width: 100%;
-  background: rgba(6, 13, 13, 0.9);
+  background: #12141a;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 0.65rem 0.85rem;
@@ -165,7 +164,7 @@ body {
   transition: border-color 0.2s ease;
 }
 .form-input:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
-.form-select option { background: #0d1818; }
+.form-select option { background: #12141a; }
 
 /* Tables */
 .table-container {
@@ -175,7 +174,7 @@ body {
 }
 .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
 .data-table th {
-  background: rgba(13, 24, 24, 0.95);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-muted);
   font-weight: 600;
   padding: 0.85rem 1rem;
@@ -191,7 +190,7 @@ body {
   color: var(--text-main);
   vertical-align: middle;
 }
-.data-table tbody tr:hover { background: rgba(16, 185, 129, 0.03); }
+.data-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
 
 /* Modals */
 .modal-overlay {
@@ -216,7 +215,7 @@ body {
 /* Progress bar */
 .progress-bar {
   height: 8px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   overflow: hidden;
 }

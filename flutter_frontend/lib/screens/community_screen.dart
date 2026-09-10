@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
 import '../widgets/top_navigation_bar.dart';
+import '../utils/validators.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -165,6 +166,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   void _showCreateMatchModal() {
+    final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController();
     final venueController = TextEditingController(text: 'Kickoff Arena');
 
@@ -181,34 +183,42 @@ class _CommunityScreenState extends State<CommunityScreen> {
           right: 20,
           top: 20,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('🏆 Create Match Challenge', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: titleController,
-              decoration: const InputDecoration(
-                labelText: 'Match Title / Club Name',
-                hintText: 'e.g. Kozhikode 5v5 Friendly Match',
-                border: OutlineInputBorder(),
+        child: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🏆 Create Match Challenge', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: titleController,
+                validator: (v) => Validators.minLength(v, 3, 'Match Title'),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: 'Match Title / Club Name',
+                  hintText: 'e.g. Kozhikode 5v5 Friendly Match',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: venueController,
-              decoration: const InputDecoration(
-                labelText: 'Turf / Venue Name',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: venueController,
+                validator: (v) => Validators.minLength(v, 2, 'Venue Name'),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                decoration: const InputDecoration(
+                  labelText: 'Turf / Venue Name',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (titleController.text.trim().isNotEmpty) {
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (!(formKey.currentState?.validate() ?? false)) {
+                      return;
+                    }
                     setState(() {
                       _posts.insert(0, {
                         'id': 'p${DateTime.now().millisecondsSinceEpoch}',
@@ -226,18 +236,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Match challenge posted to community!'), backgroundColor: Colors.green),
                     );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.warmAccent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.warmAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Post Challenge', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
-                child: const Text('Post Challenge', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

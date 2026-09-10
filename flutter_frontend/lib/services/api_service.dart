@@ -16,76 +16,28 @@ class ApiService {
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
+  static Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (AuthService.currentToken != null && AuthService.currentToken!.isNotEmpty)
+      'Authorization': 'Bearer ${AuthService.currentToken}',
+  };
+
   // Auth Methods
   static Future<Map<String, dynamic>> login(String email, String password) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      ).timeout(const Duration(seconds: 4));
-
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body);
-      }
-    } catch (_) {}
-
-    // Fallback Mock Login
-    String role = 'User';
-    if (email.contains('owner')) role = 'GroundOwner';
-    if (email.contains('shop')) role = 'ShopOwner';
-    if (email.contains('admin')) role = 'Admin';
-
-    return {
-      'success': true,
-      'token': 'mock_jwt_token_sportverse',
-      'user': {
-        'user_id': 1,
-        'full_name': email.contains('owner') ? 'Alex Arena Owner' : email.contains('shop') ? 'Sarah Shop Owner' : email.contains('admin') ? 'Admin Manager' : 'Tom Holland',
-        'email': email,
-        'role': role,
-        'phone': '+1 9876543210',
-        'profile_image': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        'created_at': DateTime.now().toIso8601String(),
-      }
-    };
+    return await AuthService.login(email, password);
   }
 
   static Future<Map<String, dynamic>> register(String fullName, String email, String password, String role, String phone) async {
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'full_name': fullName,
-          'email': email,
-          'password': password,
-          'role': role,
-          'phone': phone,
-        }),
-      ).timeout(const Duration(seconds: 4));
-
-      if (res.statusCode == 201 || res.statusCode == 200) {
-        return jsonDecode(res.body);
-      }
-    } catch (_) {}
-
-    return {
-      'success': true,
-      'token': 'mock_jwt_token_sportverse',
-      'user': {
-        'user_id': DateTime.now().millisecondsSinceEpoch,
-        'full_name': fullName,
-        'email': email,
-        'role': role,
-        'phone': phone,
-        'profile_image': 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80',
-        'created_at': DateTime.now().toIso8601String(),
-      }
-    };
+    return await AuthService.register(
+      fullName: fullName,
+      email: email,
+      password: password,
+      confirmPassword: password,
+      phone: phone,
+    );
   }
 
-  // Fetch Grounds from Backend
+  // Fetch Public Grounds from Backend
   static Future<List<GroundModel>> fetchGrounds({String sport = 'All', String search = ''}) async {
     try {
       final uri = Uri.parse('$baseUrl/grounds?sport=$sport&search=$search');
@@ -103,30 +55,80 @@ class ApiService {
     return [];
   }
 
+  // Fetch Grounds Owned by Specific Owner
+  static Future<List<GroundModel>> fetchGroundsByOwner(String ownerId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/grounds/owner/$ownerId');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['grounds'] is List) {
+          return (data['grounds'] as List).map((g) => GroundModel.fromJson(g)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching grounds for owner $ownerId: $e');
+    }
+    return [];
+  }
+
+  // Fetch Bookings for Specific Owner's Venues
+  static Future<List<BookingModel>> fetchOwnerBookings(String ownerId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/bookings/owner/$ownerId');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['bookings'] is List) {
+          return (data['bookings'] as List).map((b) => BookingModel.fromJson(b)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching bookings for owner $ownerId: $e');
+    }
+    return [];
+  }
+
+  // Fetch Real-time Owner Dashboard Analytics from MongoDB
+  static Future<Map<String, dynamic>> fetchOwnerDashboardStats(String ownerId) async {
+    try {
+      final uri = Uri.parse('$baseUrl/owner/dashboard/$ownerId');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['stats'] is Map) {
+          return Map<String, dynamic>.from(data['stats']);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching owner dashboard stats for $ownerId: $e');
+    }
+    return {};
+  }
+
   // Create Ground
   static Future<Map<String, dynamic>> createGround(Map<String, dynamic> groundData) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/grounds'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(groundData),
-      ).timeout(const Duration(seconds: 4));
+      ).timeout(const Duration(seconds: 8));
 
+      final data = jsonDecode(res.body);
       if (res.statusCode == 201 || res.statusCode == 200) {
-        return jsonDecode(res.body);
+        return data;
+      } else {
+        return {'success': false, 'message': data['message'] ?? 'Failed to register ground'};
       }
-    } catch (_) {}
-
-    return {
-      'success': true,
-      'message': 'Ground created successfully',
-      'ground': groundData,
-    };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
   }
 
   // Create Booking
   static Future<Map<String, dynamic>> createBooking({
-    dynamic userId = 1,
+    dynamic userId = '1',
     required String userName,
     required dynamic groundId,
     required String groundName,
@@ -157,58 +159,32 @@ class ApiService {
     };
 
     try {
-      debugPrint('POST $baseUrl/bookings: ${jsonEncode(payload)}');
-      final headers = {
-        'Content-Type': 'application/json',
-        if (AuthService.currentToken != null) 'Authorization': 'Bearer ${AuthService.currentToken}',
-      };
       final res = await http.post(
         Uri.parse('$baseUrl/bookings'),
-        headers: headers,
+        headers: _headers,
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
-      debugPrint('POST /bookings response (${res.statusCode}): ${res.body}');
-
+      final data = jsonDecode(res.body);
       if (res.statusCode == 201 || res.statusCode == 200) {
-        return jsonDecode(res.body);
+        return data;
       } else {
-        try {
-          final err = jsonDecode(res.body);
-          return {'success': false, 'message': err['message'] ?? 'Failed to book slot'};
-        } catch (_) {
-          return {'success': false, 'message': 'HTTP ${res.statusCode} Error'};
-        }
+        return {'success': false, 'message': data['message'] ?? 'Failed to book slot'};
       }
     } catch (e) {
       debugPrint('createBooking exception: $e');
+      return {'success': false, 'message': 'Network error: $e'};
     }
-
-    final bkId = 'SPV-BK-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-    return {
-      'success': true,
-      'booking': {
-        'booking_id': bkId,
-        'user_id': userId,
-        'user_name': userName,
-        'ground_id': groundId,
-        'ground_name': groundName,
-        'sport_type': sportType,
-        'date': date,
-        'slot_time': slotTime,
-        'total_price': totalPrice,
-        'payment_status': 'Paid',
-        'booking_status': 'Upcoming',
-        'qr_code': 'SPORTVERSE_QR_$bkId',
-        'created_at': DateTime.now().toIso8601String(),
-      }
-    };
   }
 
   // Fetch Bookings for a Specific User
   static Future<List<BookingModel>> fetchUserBookings(dynamic userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/bookings/user/$userId')).timeout(const Duration(seconds: 8));
+      final res = await http.get(
+        Uri.parse('$baseUrl/bookings/user/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['bookings'] is List) {
@@ -227,15 +203,17 @@ class ApiService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/bookings/cancel/$bookingId'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 4));
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error cancelling booking $bookingId: $e');
+    }
 
-    return {'success': true, 'message': 'Booking cancelled'};
+    return {'success': false, 'message': 'Failed to cancel booking'};
   }
 
   // Update Ground (Pricing, Slots, Facilities, Status)
@@ -243,9 +221,9 @@ class ApiService {
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/grounds/$groundId'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(updateData),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -254,7 +232,7 @@ class ApiService {
       debugPrint('Error updating ground $groundId: $e');
     }
 
-    return {'success': true, 'message': 'Ground updated successfully'};
+    return {'success': false, 'message': 'Failed to update ground'};
   }
 
   // Delete Ground
@@ -262,15 +240,17 @@ class ApiService {
     try {
       final res = await http.delete(
         Uri.parse('$baseUrl/grounds/$groundId'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 4));
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Error deleting ground $groundId: $e');
+    }
 
-    return {'success': true, 'message': 'Ground deleted successfully'};
+    return {'success': false, 'message': 'Failed to delete ground'};
   }
 
   // Check In Booking (Player entry via QR or ID)
@@ -278,9 +258,9 @@ class ApiService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/bookings/checkin'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode({'booking_id': bookingIdOrQr}),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(const Duration(seconds: 6));
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -289,13 +269,13 @@ class ApiService {
       debugPrint('Error checking in booking $bookingIdOrQr: $e');
     }
 
-    return {'success': true, 'message': 'Player checked in successfully'};
+    return {'success': false, 'message': 'Check-in verification failed'};
   }
 
-  // Fetch All Bookings (For Ground Owner Dashboard)
+  // Fetch All Bookings (For Superadmin)
   static Future<List<BookingModel>> fetchAllBookings() async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/bookings')).timeout(const Duration(seconds: 5));
+      final res = await http.get(Uri.parse('$baseUrl/bookings'), headers: _headers).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['bookings'] != null) {
@@ -319,13 +299,140 @@ class ApiService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['bookedSlotTimes'] is List) {
-          return (data['bookedSlotTimes'] as List).map((s) => s.toString().trim()).toList();
+          return List<String>.from(data['bookedSlotTimes']);
         }
       }
     } catch (e) {
-      debugPrint('Error fetching booked slots for ground $groundId: $e');
+      debugPrint('Error fetching booked slots: $e');
     }
     return [];
+  }
+
+  // ── Dynamic Slot Management APIs ──
+
+  // Fetch Slots for a Ground on a Specific Date (and optional Court)
+  static Future<Map<String, dynamic>> fetchSlots({
+    required dynamic groundId,
+    required String date,
+    String? courtId,
+    String? status,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'ground_id': groundId.toString(),
+        'date': date,
+      };
+      if (courtId != null && courtId.isNotEmpty && courtId != 'All') {
+        queryParams['court_id'] = courtId;
+      }
+      if (status != null && status.isNotEmpty && status != 'All') {
+        queryParams['status'] = status;
+      }
+
+      final uri = Uri.parse('$baseUrl/slots').replace(queryParameters: queryParams);
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['slots'] is List) {
+          final slotsList = (data['slots'] as List).map((s) => GroundSlot.fromJson(s)).toList();
+          final courtsList = data['courts'] is List ? List<String>.from(data['courts']) : <String>['Court 1'];
+          return {
+            'success': true,
+            'slots': slotsList,
+            'courts': courtsList,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching slots for ground $groundId on $date: $e');
+    }
+
+    return {
+      'success': false,
+      'slots': <GroundSlot>[],
+      'courts': <String>['Court 1'],
+    };
+  }
+
+  // Create Custom Slot (Owner / Admin)
+  static Future<Map<String, dynamic>> createSlot(Map<String, dynamic> slotData) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/slots'),
+        headers: _headers,
+        body: jsonEncode(slotData),
+      ).timeout(const Duration(seconds: 6));
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('Error creating slot: $e');
+      return {'success': false, 'message': 'Failed to create slot: $e'};
+    }
+  }
+
+  // Bulk Generate Slots for Ground (Owner / Admin)
+  static Future<Map<String, dynamic>> generateSlots({
+    required dynamic groundId,
+    String? startDate,
+    String? endDate,
+    int? days,
+    List<String>? courts,
+    double? price,
+    double? pricePerHour,
+  }) async {
+    try {
+      final effectivePrice = price ?? pricePerHour;
+      final payload = {
+        'ground_id': groundId.toString(),
+        if (startDate != null) 'start_date': startDate,
+        if (endDate != null) 'end_date': endDate,
+        if (courts != null) 'courts': courts,
+        if (effectivePrice != null) 'price': effectivePrice,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/slots/generate'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('Error generating slots: $e');
+      return {'success': false, 'message': 'Failed to generate slots: $e'};
+    }
+  }
+
+  // Update Slot Price / Status (Owner / Admin)
+  static Future<Map<String, dynamic>> updateSlot(String slotId, Map<String, dynamic> data) async {
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/slots/$slotId'),
+        headers: _headers,
+        body: jsonEncode(data),
+      ).timeout(const Duration(seconds: 6));
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('Error updating slot $slotId: $e');
+      return {'success': false, 'message': 'Failed to update slot'};
+    }
+  }
+
+  // Delete Slot (Owner / Admin)
+  static Future<Map<String, dynamic>> deleteSlot(String slotId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/slots/$slotId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
+
+      return jsonDecode(res.body);
+    } catch (e) {
+      debugPrint('Error deleting slot $slotId: $e');
+      return {'success': false, 'message': 'Failed to delete slot'};
+    }
   }
 
   // Fetch Marketplace Products from MongoDB
@@ -370,7 +477,7 @@ class ApiService {
 
       final res = await http.post(
         Uri.parse('$baseUrl/orders'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 8));
 
@@ -387,7 +494,11 @@ class ApiService {
   // Fetch User Orders from MongoDB
   static Future<List<Map<String, dynamic>>> fetchUserOrders(dynamic userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/orders/user/$userId')).timeout(const Duration(seconds: 4));
+      final res = await http.get(
+        Uri.parse('$baseUrl/orders/user/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 4));
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['orders'] is List) {
@@ -420,7 +531,7 @@ class ApiService {
 
       final res = await http.post(
         Uri.parse('$baseUrl/payment/create-order'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 8));
 
@@ -469,7 +580,7 @@ class ApiService {
 
       final res = await http.post(
         Uri.parse('$baseUrl/payment/verify-payment'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
@@ -482,7 +593,6 @@ class ApiService {
     return {'success': false, 'message': 'Payment verification failed'};
   }
 
-
   // AI Assistant Chat - Full Structured Map
   static Future<Map<String, dynamic>> askAiAssistantFull(
     String message, {
@@ -491,7 +601,6 @@ class ApiService {
     Map<String, dynamic>? user,
   }) async {
     try {
-      debugPrint('🤖 [1. Flutter -> Backend] Sending chat request: "$message"');
       final payload = {
         'message': message,
         if (user != null) 'user': user,
@@ -505,7 +614,10 @@ class ApiService {
 
       final headers = <String, String>{
         'Content-Type': 'application/json',
-        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        if (token != null && token.isNotEmpty)
+          'Authorization': 'Bearer $token'
+        else if (AuthService.currentToken != null && AuthService.currentToken!.isNotEmpty)
+          'Authorization': 'Bearer ${AuthService.currentToken}',
       };
 
       final res = await http.post(
@@ -514,27 +626,23 @@ class ApiService {
         body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 25));
 
-      debugPrint('🤖 [7. Flutter Received Response] Status: ${res.statusCode}');
       if (res.statusCode == 200) {
-        final decoded = jsonDecode(res.body);
-        debugPrint('🤖 [7. Flutter Parsed Reply]: ${decoded['reply']}');
-        return decoded;
+        return jsonDecode(res.body);
       }
     } catch (e) {
-      debugPrint('🤖 [Flutter Network Error]: $e');
+      debugPrint('AI Chat Network Error: $e');
     }
 
-    // Offline / Connection Fallback
     return {
       'success': false,
       'intent': 'GENERAL_UNRELATED',
-      'reply': "Unable to connect to SportVerse AI server. Please check your internet connection and verify that the backend is running on http://localhost:5000.",
+      'reply': "Unable to connect to SportVerse AI server. Please check your network connection.",
       'isInjury': false,
       'riskLevel': null,
       'responseType': 'NORMAL',
       'sources': [],
       'disclaimer': null,
-      'suggested_actions': ['Retry message', 'Check backend connection']
+      'suggested_actions': ['Retry message', 'Check connection']
     };
   }
 
@@ -547,7 +655,11 @@ class ApiService {
   // Fetch Notifications for User
   static Future<List<Map<String, dynamic>>> fetchUserNotifications(String userId) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/notifications/user/$userId')).timeout(const Duration(seconds: 4));
+      final res = await http.get(
+        Uri.parse('$baseUrl/notifications/user/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 4));
+
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['success'] == true && data['notifications'] is List) {
@@ -558,4 +670,5 @@ class ApiService {
     return [];
   }
 }
+
 

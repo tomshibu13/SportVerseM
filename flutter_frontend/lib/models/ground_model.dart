@@ -1,28 +1,58 @@
 class GroundSlot {
   final String slotId;
   final String time;
+  final String courtId;
+  final String date;
+  final String startTime;
+  final String endTime;
   bool isBooked;
   double price;
+  String status; // 'Available', 'Booked', 'Blocked', 'Expired'
 
   GroundSlot({
     required this.slotId,
     required this.time,
     required this.isBooked,
     required this.price,
+    this.courtId = 'Court 1',
+    this.date = '',
+    this.startTime = '',
+    this.endTime = '',
+    this.status = 'Available',
   });
+
+  bool get isAvailable => status == 'Available' && !isBooked;
+  bool get isBlocked => status == 'Blocked';
+  bool get isExpired => status == 'Expired';
 
   dynamic operator [](String key) {
     switch (key) {
       case 'slot_id':
       case 'slotId':
+      case '_id':
+      case 'id':
         return slotId;
       case 'time':
+      case 'slot_time':
         return time;
+      case 'court_id':
+      case 'courtId':
+        return courtId;
+      case 'date':
+        return date;
+      case 'start_time':
+      case 'startTime':
+        return startTime;
+      case 'end_time':
+      case 'endTime':
+        return endTime;
       case 'is_booked':
       case 'isBooked':
         return isBooked;
       case 'price':
         return price;
+      case 'status':
+        return status;
       default:
         return null;
     }
@@ -36,15 +66,36 @@ class GroundSlot {
         ? rawJson
         : (rawJson is Map ? Map<String, dynamic>.from(rawJson) : <String, dynamic>{});
 
+    final slotTime = json['slot_time']?.toString() ?? json['time']?.toString() ?? '';
+    final rawStatus = json['status']?.toString() ?? 'Available';
+    final isBooked = json['is_booked'] == true || json['isBooked'] == true || rawStatus == 'Booked';
+
     return GroundSlot(
-      slotId: json['slot_id']?.toString() ?? json['slotId']?.toString() ?? '',
-      time: json['time']?.toString() ?? '',
-      isBooked: json['is_booked'] == true || json['isBooked'] == true,
+      slotId: json['_id']?.toString() ?? json['slot_id']?.toString() ?? json['slotId']?.toString() ?? json['id']?.toString() ?? '',
+      time: slotTime,
+      isBooked: isBooked,
       price: json['price'] is num
           ? (json['price'] as num).toDouble()
           : (double.tryParse(json['price']?.toString() ?? '0') ?? 0.0),
+      courtId: json['court_id']?.toString() ?? json['courtId']?.toString() ?? 'Court 1',
+      date: json['date']?.toString() ?? '',
+      startTime: json['start_time']?.toString() ?? json['startTime']?.toString() ?? '',
+      endTime: json['end_time']?.toString() ?? json['endTime']?.toString() ?? '',
+      status: rawStatus,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'slot_id': slotId,
+    'time': time,
+    'court_id': courtId,
+    'date': date,
+    'start_time': startTime,
+    'end_time': endTime,
+    'is_booked': isBooked,
+    'price': price,
+    'status': status,
+  };
 }
 
 class GroundModel {
