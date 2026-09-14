@@ -4,6 +4,7 @@ import 'custom_graphics.dart';
 import '../screens/inbox_screen.dart';
 import '../screens/become_ground_owner_screen.dart';
 import '../screens/ai_assistant_screen.dart';
+import '../screens/community_screen.dart';
 
 /// Standalone Top Navigation Bar Component matching the design system
 class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
@@ -13,6 +14,7 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
   final int cartCount;
   final VoidCallback? onCartPressed;
   final Widget? trailing;
+  final Widget? leading;
 
   const TopNavigationBar({
     super.key,
@@ -22,6 +24,7 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
     this.cartCount = 0,
     this.onCartPressed,
     this.trailing,
+    this.leading,
   });
 
   @override
@@ -62,6 +65,16 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
+                ListTile(
+                  leading: const Icon(Icons.groups_outlined, color: Color(0xFFC8895B)),
+                  title: const Text('Sports Community Feed', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Share highlights, like & comment on athlete posts', style: TextStyle(fontSize: 12)),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CommunityScreen()));
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.notifications_outlined, color: AppColors.warmAccent),
                   title: const Text('Notifications & Alerts', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -108,7 +121,7 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // Left Menu Icon Button
-            IconButton(
+            leading ?? IconButton(
               icon: const Icon(Icons.menu, size: 24, color: AppColors.primaryBlack),
               onPressed: onMenuPressed ?? () => _showQuickMenu(context),
             ),

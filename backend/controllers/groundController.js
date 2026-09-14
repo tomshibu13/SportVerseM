@@ -2,34 +2,67 @@ const mongoose = require('mongoose');
 const Ground = require('../models/Ground');
 const User = require('../models/User');
 const Booking = require('../models/Booking');
+const Slot = require('../models/Slot');
 
 const isObjectIdString = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(String(val).trim());
 
-const seedGroundsIfEmpty = async () => {
-  // Seeding disabled
-};
+// Helper: Standard time slots generator for a single day & court
+const generateDailyDefaultSlots = (groundDoc, dateStr, courtName) => {
+  const basePrice = groundDoc.price_per_hour > 0 ? groundDoc.price_per_hour : 500;
+  const court = courtName || 'Court 1';
+  const groundId = groundDoc.ground_id || groundDoc._id;
+  const groundObjId = groundDoc._id;
 
-exports.seedGroundsIfEmpty = seedGroundsIfEmpty;
+  const standardSchedule = [
+    { start: '06:00 AM', end: '07:00 AM', multiplier: 1.0 },
+    { start: '07:00 AM', end: '08:00 AM', multiplier: 1.0 },
+    { start: '08:00 AM', end: '09:00 AM', multiplier: 1.0 },
+    { start: '09:00 AM', end: '10:00 AM', multiplier: 1.0 },
+    { start: '10:00 AM', end: '11:00 AM', multiplier: 1.0 },
+    { start: '11:00 AM', end: '12:00 PM', multiplier: 1.0 },
+    { start: '12:00 PM', end: '01:00 PM', multiplier: 1.0 },
+    { start: '03:00 PM', end: '04:00 PM', multiplier: 1.0 },
+    { start: '04:00 PM', end: '05:00 PM', multiplier: 1.0 },
+    { start: '05:00 PM', end: '06:00 PM', multiplier: 1.15 },
+    { start: '06:00 PM', end: '07:00 PM', multiplier: 1.25 },
+    { start: '07:00 PM', end: '08:00 PM', multiplier: 1.25 },
+    { start: '08:00 PM', end: '09:00 PM', multiplier: 1.25 },
+    { start: '09:00 PM', end: '10:00 PM', multiplier: 1.15 },
+    { start: '10:00 PM', end: '11:00 PM', multiplier: 1.0 },
+  ];
+
+  return standardSchedule.map((s) => ({
+    ground_id: groundId,
+    ground: groundObjId,
+    court_id: court,
+    date: dateStr,
+    start_time: s.start,
+    end_time: s.end,
+    slot_time: `${s.start} - ${s.end}`,
+    price: Math.round(basePrice * s.multiplier),
+    status: 'Available',
+  }));
+};
 
 exports.getAllGrounds = async (req, res) => {
   try {
     const { sport, search } = req.query;
-    await seedGroundsIfEmpty();
-    let grounds = await Ground.find();
+    let query = {};
 
     if (sport && sport !== 'All') {
-      grounds = grounds.filter(g => (g.sport_type || '').toLowerCase() === sport.toLowerCase());
+      query.sport_type = new RegExp(`^${sport.trim()}$`, 'i');
     }
 
     if (search) {
-      const q = search.toLowerCase();
-      grounds = grounds.filter(g =>
-        (g.title || '').toLowerCase().includes(q) ||
-        (g.location || '').toLowerCase().includes(q) ||
-        (g.sport_type || '').toLowerCase().includes(q)
-      );
+      const q = search.trim();
+      query.$or = [
+        { title: new RegExp(q, 'i') },
+        { location: new RegExp(q, 'i') },
+        { sport_type: new RegExp(q, 'i') }
+      ];
     }
 
+    const grounds = await Ground.find(query);
     return res.json({ success: true, grounds: grounds || [] });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -119,10 +152,10 @@ exports.createGround = async (req, res) => {
       const user = await User.findById(ownerId);
       if (user && user.role !== 'Admin' && user.role !== 'GroundOwner') {
         user.role = 'GroundOwner';
-        user.approvalStatus = 'Pending';
-        user.isApproved = false;
+        user.approvalStatus = 'Approved';
+        user.isApproved = true;
         await user.save();
-        console.log(`👤 Promoted user ${user.email} to GroundOwner (Pending Approval)`);
+        console.log(`👤 User ${user.email} role updated to GroundOwner`);
       }
     }
 
@@ -144,10 +177,10 @@ exports.createGround = async (req, res) => {
       facilities: req.body.facilities || ['Floodlights', 'Parking'],
       images: groundImages,
       owner_id: ownerId,
-      status: req.body.status || 'Pending',
+      status: req.body.status || 'Approved',
       rating: 4.8,
       review_count: 0,
-      available_slots: req.body.available_slots || [
+      available_slots: [
         { slot_id: 'n1', time: '06:00 AM - 07:00 AM', is_booked: false, price: pricePerHour },
         { slot_id: 'n2', time: '07:00 AM - 08:00 AM', is_booked: false, price: pricePerHour },
         { slot_id: 'n3', time: '08:00 AM - 09:00 AM', is_booked: false, price: pricePerHour },
@@ -155,31 +188,13 @@ exports.createGround = async (req, res) => {
         { slot_id: 'n5', time: '06:00 PM - 07:00 PM', is_booked: false, price: Math.round(pricePerHour * 1.2) },
       ],
     };
+
     const g = new Ground(newGround);
     await g.save();
 
     // Auto-generate initial slots in Slot collection for the upcoming 7 days
     try {
-      const Slot = require('../models/Slot');
       const now = new Date();
-      const standardSchedule = [
-        { start: '06:00 AM', end: '07:00 AM', multiplier: 1.0 },
-        { start: '07:00 AM', end: '08:00 AM', multiplier: 1.0 },
-        { start: '08:00 AM', end: '09:00 AM', multiplier: 1.0 },
-        { start: '09:00 AM', end: '10:00 AM', multiplier: 1.0 },
-        { start: '10:00 AM', end: '11:00 AM', multiplier: 1.0 },
-        { start: '11:00 AM', end: '12:00 PM', multiplier: 1.0 },
-        { start: '12:00 PM', end: '01:00 PM', multiplier: 1.0 },
-        { start: '03:00 PM', end: '04:00 PM', multiplier: 1.0 },
-        { start: '04:00 PM', end: '05:00 PM', multiplier: 1.0 },
-        { start: '05:00 PM', end: '06:00 PM', multiplier: 1.15 },
-        { start: '06:00 PM', end: '07:00 PM', multiplier: 1.25 },
-        { start: '07:00 PM', end: '08:00 PM', multiplier: 1.25 },
-        { start: '08:00 PM', end: '09:00 PM', multiplier: 1.25 },
-        { start: '09:00 PM', end: '10:00 PM', multiplier: 1.15 },
-        { start: '10:00 PM', end: '11:00 PM', multiplier: 1.0 },
-      ];
-
       const courtCount = parseInt(req.body.court_count || 1, 10) || 1;
       const courts = Array.from({ length: courtCount }, (_, i) => `Court ${i + 1}`);
       const slotsToInsert = [];
@@ -190,19 +205,8 @@ exports.createGround = async (req, res) => {
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
         for (const court of courts) {
-          for (const s of standardSchedule) {
-            slotsToInsert.push({
-              ground_id: g.ground_id,
-              ground: g._id,
-              court_id: court,
-              date: dateStr,
-              start_time: s.start,
-              end_time: s.end,
-              slot_time: `${s.start} - ${s.end}`,
-              price: Math.round(pricePerHour * s.multiplier),
-              status: 'Available',
-            });
-          }
+          const defaultSlots = generateDailyDefaultSlots(g, dateStr, court);
+          slotsToInsert.push(...defaultSlots);
         }
       }
 
@@ -211,7 +215,7 @@ exports.createGround = async (req, res) => {
       console.warn('⚠️ Slot generation notice on ground creation:', slotGenErr.message);
     }
 
-    return res.status(201).json({ success: true, message: 'Ground registered successfully in MongoDB', ground: g });
+    return res.status(201).json({ success: true, message: 'Ground registered successfully', ground: g });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -239,27 +243,15 @@ exports.approveGround = async (req, res) => {
     }
 
     if (!ground) {
-      return res.status(404).json({ success: false, message: 'Ground not found in MongoDB database' });
+      return res.status(404).json({ success: false, message: 'Ground not found in database' });
     }
 
     ground.status = normalizedStatus;
     await ground.save();
 
-    // Also update owner approval if ground is approved
-    if (ground.owner_id && isObjectIdString(String(ground.owner_id))) {
-      const owner = await User.findById(ground.owner_id);
-      if (owner && normalizedStatus === 'Approved') {
-        owner.approvalStatus = 'Approved';
-        owner.isApproved = true;
-        await owner.save();
-      }
-    }
-
-    console.log(`🏟️ Ground ${ground.title} (${ground._id}) status updated to ${normalizedStatus} in MongoDB!`);
-
     return res.status(200).json({
       success: true,
-      message: `Ground status updated to ${normalizedStatus} in MongoDB`,
+      message: `Ground status updated to ${normalizedStatus}`,
       ground
     });
   } catch (error) {
@@ -286,7 +278,7 @@ exports.deleteGround = async (req, res) => {
     }
 
     if (!ground) {
-      return res.status(404).json({ success: false, message: 'Ground not found in MongoDB' });
+      return res.status(404).json({ success: false, message: 'Ground not found' });
     }
 
     // Verify ownership
@@ -302,9 +294,10 @@ exports.deleteGround = async (req, res) => {
     }
 
     await Ground.findByIdAndDelete(ground._id);
+    // Delete associated slots
+    await Slot.deleteMany({ $or: [{ ground: ground._id }, { ground_id: ground.ground_id }] });
 
-    console.log(`🗑️ Ground ${ground.title} deleted from MongoDB database!`);
-    return res.status(200).json({ success: true, message: 'Ground deleted successfully from MongoDB' });
+    return res.status(200).json({ success: true, message: 'Ground and its slots deleted successfully' });
   } catch (error) {
     console.error('❌ deleteGround error:', error);
     return res.status(500).json({ success: false, message: error.message });
@@ -329,7 +322,7 @@ exports.updateGround = async (req, res) => {
     }
 
     if (!ground) {
-      return res.status(404).json({ success: false, message: 'Ground not found in MongoDB database' });
+      return res.status(404).json({ success: false, message: 'Ground not found in database' });
     }
 
     // Verify ownership
@@ -350,12 +343,10 @@ exports.updateGround = async (req, res) => {
     if (req.body.address) ground.address = req.body.address;
     if (req.body.price_per_hour != null) ground.price_per_hour = Number(req.body.price_per_hour);
     if (req.body.facilities) ground.facilities = req.body.facilities;
-    if (req.body.available_slots) ground.available_slots = req.body.available_slots;
     if (req.body.images) ground.images = req.body.images;
     if (req.body.status && requesterRole === 'Admin') ground.status = req.body.status;
 
     await ground.save();
-    console.log(`🏟️ Ground ${ground.title} (${ground._id}) updated successfully!`);
 
     return res.status(200).json({
       success: true,
@@ -368,6 +359,9 @@ exports.updateGround = async (req, res) => {
   }
 };
 
+// @desc    Get Ground Owner Dashboard Metrics & Analytics from MongoDB
+// @route   GET /api/owner/dashboard/:ownerId
+// @access  GroundOwner / Admin
 exports.getOwnerDashboardStats = async (req, res) => {
   try {
     const ownerId = req.params.ownerId;
@@ -398,8 +392,9 @@ exports.getOwnerDashboardStats = async (req, res) => {
     const activeVenuesCount = grounds.length;
     const groundIds = grounds.map(g => g._id);
     const groundNumIds = grounds.map(g => g.ground_id).filter(Boolean);
+    const groundTitles = grounds.map(g => g.title).filter(Boolean);
 
-    // 2. Get today's bookings for these grounds
+    // 2. Get bookings for these grounds
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
@@ -407,18 +402,18 @@ exports.getOwnerDashboardStats = async (req, res) => {
       $or: [
         { ground: { $in: groundIds } },
         { ground_id: { $in: groundNumIds } },
-        { ground_name: { $in: grounds.map(g => g.title) } }
+        { ground_name: { $in: groundTitles } }
       ]
-    }).populate('ground', 'title');
+    }).populate('ground', 'title location sport_type').sort({ created_at: -1 });
 
     const confirmedBookings = bookings.filter(b => b.booking_status !== 'Cancelled' && b.booking_status !== 'Refunded');
     const todayBookings = confirmedBookings.filter(b => b.date === todayStr);
 
-    const totalRevenue = confirmedBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
-    const todaysRevenue = todayBookings.reduce((sum, b) => sum + (b.total_price || 0), 0);
-    const activeBookingsCount = todayBookings.length;
+    const totalRevenue = confirmedBookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+    const todaysRevenue = todayBookings.reduce((sum, b) => sum + (Number(b.total_price) || 0), 0);
+    const activeBookingsCount = confirmedBookings.filter(b => b.booking_status === 'Upcoming' || b.booking_status === 'Confirmed').length;
 
-    // players today (unique user_ids in todayBookings)
+    // Distinct players count
     const playersSet = new Set();
     let checkedInCount = 0;
     confirmedBookings.forEach(b => {
@@ -427,50 +422,59 @@ exports.getOwnerDashboardStats = async (req, res) => {
         checkedInCount++;
       }
     });
-    const playersTodayCount = playersSet.size;
+    const playersTodayCount = todayBookings.map(b => b.user_id?.toString()).filter(Boolean).length;
 
     // Average rating
     const totalRating = grounds.reduce((sum, g) => sum + (g.rating || 0), 0);
-    const avgRating = grounds.length > 0 ? (totalRating / grounds.length).toFixed(1) : '0.0';
+    const avgRating = grounds.length > 0 ? (totalRating / grounds.length).toFixed(1) : '4.8';
     const totalReviews = grounds.reduce((sum, g) => sum + (g.review_count || 0), 0);
 
+    // Court occupancy calculation
     const courtOccupancy = grounds.map(g => {
       const gBookings = todayBookings.filter(b => (b.ground && b.ground._id.toString() === g._id.toString()) || b.ground_name === g.title);
-      const totalSlots = g.available_slots ? g.available_slots.length : 10;
+      const totalSlots = 12;
       const booked = gBookings.length;
       const percent = totalSlots > 0 ? Math.min(100, Math.round((booked / totalSlots) * 100)) : 0;
       return { label: g.title, percent, totalSlots, booked };
     });
 
-    // Today's Activity Feed
-    const recentActivity = [];
-    todayBookings.sort((a, b) => new Date(b.created_at || Date.now()) - new Date(a.created_at || Date.now())).slice(0, 6).forEach(b => {
-      recentActivity.push({
-        time: b.created_at ? new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Today',
-        event: `New booking: ${b.slot_time} at ${b.ground ? b.ground.title : b.ground_name}`,
-        type: 'booking',
-        rawTime: b.created_at ? new Date(b.created_at) : new Date()
-      });
-      if (b.qr_scanned && b.scanned_at) {
-        recentActivity.push({
-          time: new Date(b.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          event: `${b.user_name || 'Player'} checked in — ${b.ground ? b.ground.title : b.ground_name}`,
-          type: 'checkin',
-          rawTime: new Date(b.scanned_at)
+    // Peak demand hours calculation from real booking times
+    const timeFrequency = {};
+    confirmedBookings.forEach(b => {
+      if (b.slot_time) {
+        b.slot_time.split(',').forEach(t => {
+          const clean = t.trim();
+          if (clean) timeFrequency[clean] = (timeFrequency[clean] || 0) + 1;
         });
       }
     });
-    recentActivity.sort((a, b) => b.rawTime - a.rawTime);
 
-    // Upcoming slots today
-    const upcomingSlots = todayBookings
-      .filter(b => b.booking_status === 'Upcoming')
-      .map(b => ({
-        time: b.slot_time,
-        player: `Booked – ${b.user_name || 'Player'}`,
-        court: b.ground ? b.ground.title : b.ground_name,
-        status: 'confirmed'
-      }));
+    let peakReservationHours = '05:00 PM - 09:00 PM';
+    const sortedHours = Object.entries(timeFrequency).sort((a, b) => b[1] - a[1]);
+    if (sortedHours.length > 0) {
+      peakReservationHours = sortedHours.slice(0, 2).map(e => e[0]).join(', ');
+    }
+
+    // Activity Feed from real bookings & check-ins
+    const recentActivities = [];
+    bookings.slice(0, 8).forEach(b => {
+      if (b.qr_scanned && b.scanned_at) {
+        recentActivities.push({
+          title: 'Check-In Confirmed',
+          description: `${b.user_name || 'Player'} checked in at ${b.ground?.title || b.ground_name} (${b.court_id || 'Court 1'})`,
+          time: new Date(b.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          rawTime: new Date(b.scanned_at)
+        });
+      }
+      recentActivities.push({
+        title: b.booking_status === 'Completed' ? 'Completed Reservation' : (b.booking_status === 'Cancelled' ? 'Cancelled Booking' : 'New Reservation Confirmed'),
+        description: `${b.user_name || 'Player'} reserved ${b.ground?.title || b.ground_name} for ${b.slot_time} (${b.date})`,
+        time: b.created_at ? new Date(b.created_at).toLocaleDateString() : 'Recent',
+        rawTime: b.created_at ? new Date(b.created_at) : new Date()
+      });
+    });
+
+    recentActivities.sort((a, b) => b.rawTime - a.rawTime);
 
     return res.json({
       success: true,
@@ -478,15 +482,16 @@ exports.getOwnerDashboardStats = async (req, res) => {
         activeVenuesCount,
         totalRevenue,
         todaysRevenue,
-        activeBookingsCount,
+        totalBookings: confirmedBookings.length,
         totalReservations: confirmedBookings.length,
+        activeBookingsCount,
         playersTodayCount,
         checkedInCount,
         avgRating,
         totalReviews,
-        courtOccupancy,
-        recentActivity: recentActivity.slice(0, 6),
-        upcomingSlots
+        courtOccupancy: courtOccupancy.length > 0 ? `${Math.round(courtOccupancy.reduce((acc, c) => acc + c.percent, 0) / courtOccupancy.length)}%` : '0%',
+        peakReservationHours,
+        recentActivities: recentActivities.slice(0, 6)
       }
     });
 

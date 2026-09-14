@@ -10,6 +10,11 @@ async function request(endpoint, options = {}) {
   try {
     const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
     if (!res.ok) {
+      if (res.status === 401) {
+        localStorage.removeItem('sv_station_token');
+        localStorage.removeItem('sv_station_user');
+        window.location.reload();
+      }
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || `HTTP ${res.status}`);
     }
@@ -73,4 +78,46 @@ export async function fetchDashboardStats(ownerId) {
     console.error("Dashboard stats fetch failed:", err);
     return null;
   }
+}
+
+// ── Slots & Schedule ──
+export async function fetchSlotsApi({ groundId, date, courtId }) {
+  const params = new URLSearchParams();
+  if (groundId) params.append('ground_id', groundId);
+  if (date) params.append('date', date);
+  if (courtId) params.append('court_id', courtId);
+  const data = await request(`/slots?${params.toString()}`);
+  return data;
+}
+
+export async function generateSlotsApi({ groundId, days = 7, courts = ['Court 1'], pricePerHour }) {
+  return await request('/slots/generate', {
+    method: 'POST',
+    body: JSON.stringify({
+      ground_id: groundId,
+      days,
+      courts,
+      price_per_hour: pricePerHour,
+    }),
+  });
+}
+
+export async function createSlotApi(slotData) {
+  return await request('/slots', {
+    method: 'POST',
+    body: JSON.stringify(slotData),
+  });
+}
+
+export async function updateSlotApi(slotId, data) {
+  return await request(`/slots/${slotId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSlotApi(slotId) {
+  return await request(`/slots/${slotId}`, {
+    method: 'DELETE',
+  });
 }

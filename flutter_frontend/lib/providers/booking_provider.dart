@@ -30,6 +30,7 @@ class BookingProvider with ChangeNotifier {
     required String date,
     required String slotTime,
     required double totalPrice,
+    String? courtId,
     String? slotId,
   }) async {
     _isLoading = true;
@@ -41,6 +42,7 @@ class BookingProvider with ChangeNotifier {
       groundId: groundId,
       groundName: groundName,
       sportType: sportType,
+      courtId: courtId,
       date: date,
       slotTime: slotTime,
       totalPrice: totalPrice,

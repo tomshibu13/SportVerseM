@@ -388,6 +388,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         groundId: widget.ground.groundId,
         groundName: widget.ground.title,
         sportType: widget.ground.sportType,
+        courtId: _selectedCourt,
         date: dateStr,
         slotTime: combinedSlotTime,
         totalPrice: _totalBookingPrice,

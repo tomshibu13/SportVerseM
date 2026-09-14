@@ -64,8 +64,13 @@ router.post('/bookings', protect, validateBooking, bookingController.createBooki
 router.get('/bookings/user/:userId', protect, bookingController.getUserBookings);
 router.put('/bookings/:bookingId/approve', protect, authorizeRoles('Admin'), bookingController.approveBooking);
 router.put('/bookings/:bookingId/checkin', protect, authorizeRoles('GroundOwner', 'Admin'), bookingController.checkInBooking);
+router.put('/bookings/:bookingId/check-in', protect, authorizeRoles('GroundOwner', 'Admin'), bookingController.checkInBooking);
 router.post('/bookings/checkin', protect, authorizeRoles('GroundOwner', 'Admin'), bookingController.checkInBooking);
+router.post('/bookings/check-in', protect, authorizeRoles('GroundOwner', 'Admin'), bookingController.checkInBooking);
 router.put('/bookings/cancel/:bookingId', protect, bookingController.cancelBooking);
+router.put('/bookings/:bookingId/cancel', protect, bookingController.cancelBooking);
+router.patch('/bookings/:bookingId/cancel', protect, bookingController.cancelBooking);
+router.get('/grounds/owner/:ownerId/stats', protect, authorizeRoles('GroundOwner', 'Admin'), groundController.getOwnerDashboardStats);
 
 // Shop Routes
 router.get('/products', shopController.getAllProducts);

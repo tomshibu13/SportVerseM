@@ -5,6 +5,12 @@ const Booking = require('../models/Booking');
 
 const isObjectIdString = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val.trim());
 
+// Helper: Normalize time string for robust matching (e.g. '06:00 AM', '6:00 AM', '18:00', '18:00 - 19:00')
+const normalizeTimeSlot = (slotTimeStr) => {
+  if (!slotTimeStr) return '';
+  return slotTimeStr.replace(/\s+/g, ' ').replace(/[–—]/g, '-').trim().toLowerCase();
+};
+
 // Helper: Parse time string into minutes since midnight for chronological sorting
 const parseTimeToMinutes = (timeStr) => {
   if (!timeStr) return 0;
@@ -83,7 +89,7 @@ const generateDailyDefaultSlots = (groundDoc, dateStr, courtName) => {
     end_time: s.end,
     slot_time: `${s.start} - ${s.end}`,
     price: Math.round(basePrice * s.multiplier),
-    status: isSlotExpired(dateStr, s.start) ? 'Expired' : 'Available',
+    status: 'Available',
   }));
 };
 
@@ -112,7 +118,6 @@ const autoSeedSlotsForGroundDate = async (groundDoc, dateStr) => {
   try {
     return await Slot.insertMany(slotsToInsert, { ordered: false });
   } catch (err) {
-    // Ignore duplicate key errors if inserted concurrently
     return [];
   }
 };
@@ -153,7 +158,7 @@ exports.getSlots = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Ground not found' });
     }
 
-    // 2. Auto-seed slots for this date if this ground has no slots yet
+    // 2. Auto-seed default slots for this date if this ground has no slots yet
     await autoSeedSlotsForGroundDate(groundDoc, targetDate);
 
     // 3. Build query for slots
@@ -161,22 +166,18 @@ exports.getSlots = async (req, res) => {
       Boolean
     );
 
-    const query = {
+    const slotQuery = {
       $or: [{ ground: groundDoc._id }, { ground_id: { $in: groundIds } }],
       date: targetDate,
     };
 
     if (court_id && court_id !== 'All') {
-      query.court_id = court_id;
+      slotQuery.court_id = court_id;
     }
 
-    if (status && status !== 'All') {
-      query.status = status;
-    }
+    const slots = await Slot.find(slotQuery).sort({ start_time: 1, court_id: 1 });
 
-    const slots = await Slot.find(query).sort({ start_time: 1, court_id: 1 });
-
-    // 4. Fetch active bookings for this ground on this date to verify live status
+    // 4. Fetch confirmed/active bookings for this ground on this date to verify live status
     const activeBookings = await Booking.find({
       $or: [
         { ground: groundDoc._id },
@@ -185,23 +186,49 @@ exports.getSlots = async (req, res) => {
       ],
       date: targetDate,
       booking_status: { $nin: ['Cancelled', 'Refunded'] },
-    }).select('booking_id slot_time user_name');
+    }).select('booking_id court_id slot_time slot_id user_name booking_status');
 
-    const bookedTimes = new Set();
+    // Build a map of booked slots scoped to court & time
+    const bookedSlotKeys = new Set();
+    const bookedSlotIds = new Set();
+    const bookingBySlotKey = new Map();
+
     activeBookings.forEach((b) => {
+      const courtName = (b.court_id || 'Court 1').trim().toLowerCase();
+      if (b.slot_id) {
+        b.slot_id.split(',').forEach((sid) => bookedSlotIds.add(sid.trim()));
+      }
       if (b.slot_time) {
-        b.slot_time.split(',').forEach((s) => bookedTimes.add(s.trim()));
+        b.slot_time.split(',').forEach((s) => {
+          const normTime = normalizeTimeSlot(s);
+          if (normTime) {
+            const key = `${courtName}|${normTime}`;
+            bookedSlotKeys.add(key);
+            bookingBySlotKey.set(key, b);
+          }
+        });
       }
     });
 
-    // 5. Dynamic slot status formatting
-    const formattedSlots = slots.map((s) => {
+    // 5. Dynamic slot status formatting:
+    //    A slot is 'Booked' ONLY if there is an active booking for exact ground, court, date, and slot_time/slot_id.
+    let formattedSlots = slots.map((s) => {
       const slotObj = s.toObject();
-      const isBooked = bookedTimes.has(s.slot_time) || s.status === 'Booked';
+      const slotCourt = (s.court_id || 'Court 1').trim().toLowerCase();
+      const normSlotTime = normalizeTimeSlot(s.slot_time);
+      const key = `${slotCourt}|${normSlotTime}`;
+      const slotDocId = s._id ? s._id.toString() : '';
+
+      const isBooked = bookedSlotKeys.has(key) || (slotDocId && bookedSlotIds.has(slotDocId));
 
       if (isBooked) {
         slotObj.status = 'Booked';
         slotObj.is_booked = true;
+        const matchingBooking = bookingBySlotKey.get(key);
+        if (matchingBooking) {
+          slotObj.booking_id = matchingBooking.booking_id;
+          slotObj.booked_player = matchingBooking.user_name || 'Player';
+        }
       } else if (s.status === 'Blocked') {
         slotObj.status = 'Blocked';
         slotObj.is_booked = false;
@@ -215,6 +242,11 @@ exports.getSlots = async (req, res) => {
 
       return slotObj;
     });
+
+    // Filter by status if requested
+    if (status && status !== 'All') {
+      formattedSlots = formattedSlots.filter((s) => s.status.toLowerCase() === status.toLowerCase());
+    }
 
     // Sort formatted slots chronologically from morning to night
     formattedSlots.sort((a, b) => {
@@ -297,6 +329,8 @@ exports.createSlot = async (req, res) => {
       });
     }
 
+    const initialStatus = status === 'Blocked' ? 'Blocked' : 'Available';
+
     const newSlot = await Slot.create({
       ground_id: groundDoc.ground_id || groundDoc._id,
       ground: groundDoc._id,
@@ -306,7 +340,7 @@ exports.createSlot = async (req, res) => {
       end_time: end_time.trim(),
       slot_time,
       price: Number(price),
-      status: status || 'Available',
+      status: initialStatus,
     });
 
     return res.status(201).json({
@@ -428,7 +462,7 @@ exports.updateSlot = async (req, res) => {
     }
 
     // Check ownership of ground
-    const ground = await Ground.findById(slot.ground) || await Ground.findOne({ ground_id: slot.ground_id });
+    const ground = (await Ground.findById(slot.ground)) || (await Ground.findOne({ ground_id: slot.ground_id }));
     if (ground) {
       const ownerId = (ground.owner_id || '').toString();
       if (requesterRole !== 'Admin' && requesterId !== ownerId) {
@@ -439,15 +473,29 @@ exports.updateSlot = async (req, res) => {
       }
     }
 
-    if (slot.status === 'Booked' && status && status !== 'Booked') {
+    // Check if slot has an active confirmed booking
+    const activeBooking = await Booking.findOne({
+      $or: [
+        { slot_id: slot._id.toString() },
+        {
+          $or: [{ ground: slot.ground }, { ground_id: slot.ground_id }],
+          court_id: slot.court_id,
+          date: slot.date,
+          slot_time: slot.slot_time,
+        },
+      ],
+      booking_status: { $nin: ['Cancelled', 'Refunded'] },
+    });
+
+    if (activeBooking && status && status !== 'Booked') {
       return res.status(400).json({
         success: false,
-        message: 'Cannot change status of an actively booked slot. Please cancel the booking first.',
+        message: `Cannot modify or block slot ${slot.slot_time} because it has an active reservation (#${activeBooking.booking_id}) for ${activeBooking.user_name || 'Player'}. Please cancel the reservation first.`,
       });
     }
 
     if (price !== undefined) slot.price = Number(price);
-    if (status && ['Available', 'Blocked', 'Booked'].includes(status)) slot.status = status;
+    if (status && ['Available', 'Blocked'].includes(status)) slot.status = status;
     if (court_id) slot.court_id = court_id;
     if (start_time && end_time) {
       slot.start_time = start_time;
@@ -482,14 +530,7 @@ exports.deleteSlot = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Slot not found' });
     }
 
-    if (slot.status === 'Booked') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete a slot with an active booking.',
-      });
-    }
-
-    const ground = await Ground.findById(slot.ground) || await Ground.findOne({ ground_id: slot.ground_id });
+    const ground = (await Ground.findById(slot.ground)) || (await Ground.findOne({ ground_id: slot.ground_id }));
     if (ground) {
       const ownerId = (ground.owner_id || '').toString();
       if (requesterRole !== 'Admin' && requesterId !== ownerId) {
@@ -498,6 +539,27 @@ exports.deleteSlot = async (req, res) => {
           message: 'Access denied: You do not own this facility',
         });
       }
+    }
+
+    // Check if slot has an active booking
+    const activeBooking = await Booking.findOne({
+      $or: [
+        { slot_id: slot._id.toString() },
+        {
+          $or: [{ ground: slot.ground }, { ground_id: slot.ground_id }],
+          court_id: slot.court_id,
+          date: slot.date,
+          slot_time: slot.slot_time,
+        },
+      ],
+      booking_status: { $nin: ['Cancelled', 'Refunded'] },
+    });
+
+    if (activeBooking) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete slot ${slot.slot_time} because it has an active reservation (#${activeBooking.booking_id}). Please cancel the reservation first.`,
+      });
     }
 
     await Slot.findByIdAndDelete(id);

@@ -66,9 +66,20 @@ class GroundSlot {
         ? rawJson
         : (rawJson is Map ? Map<String, dynamic>.from(rawJson) : <String, dynamic>{});
 
-    final slotTime = json['slot_time']?.toString() ?? json['time']?.toString() ?? '';
-    final rawStatus = json['status']?.toString() ?? 'Available';
-    final isBooked = json['is_booked'] == true || json['isBooked'] == true || rawStatus == 'Booked';
+    final slotTime = (json['slot_time']?.toString() ?? json['time']?.toString() ?? '').replaceAll('–', '-').trim();
+    String rawStatus = json['status']?.toString() ?? 'Available';
+    final isBooked = rawStatus.toLowerCase() == 'booked' || json['is_booked'] == true || json['isBooked'] == true;
+    if (isBooked && rawStatus == 'Available') {
+      rawStatus = 'Booked';
+    }
+
+    String startT = json['start_time']?.toString() ?? json['startTime']?.toString() ?? '';
+    String endT = json['end_time']?.toString() ?? json['endTime']?.toString() ?? '';
+    if (startT.isEmpty && slotTime.contains('-')) {
+      final parts = slotTime.split('-');
+      startT = parts[0].trim();
+      if (parts.length > 1) endT = parts[1].trim();
+    }
 
     return GroundSlot(
       slotId: json['_id']?.toString() ?? json['slot_id']?.toString() ?? json['slotId']?.toString() ?? json['id']?.toString() ?? '',
@@ -79,8 +90,8 @@ class GroundSlot {
           : (double.tryParse(json['price']?.toString() ?? '0') ?? 0.0),
       courtId: json['court_id']?.toString() ?? json['courtId']?.toString() ?? 'Court 1',
       date: json['date']?.toString() ?? '',
-      startTime: json['start_time']?.toString() ?? json['startTime']?.toString() ?? '',
-      endTime: json['end_time']?.toString() ?? json['endTime']?.toString() ?? '',
+      startTime: startT,
+      endTime: endT,
       status: rawStatus,
     );
   }

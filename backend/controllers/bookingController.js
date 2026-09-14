@@ -5,13 +5,13 @@ const Slot = require('../models/Slot');
 const User = require('../models/User');
 const { sendBookingApprovalEmail } = require('../utils/emailService');
 
-const seedBookingsIfEmpty = async () => {
-  // Seeding disabled
-};
-
-exports.seedBookingsIfEmpty = seedBookingsIfEmpty;
-
 const isObjectIdString = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val.trim());
+
+// Helper: Normalize time string for robust matching
+const normalizeTimeSlot = (slotTimeStr) => {
+  if (!slotTimeStr) return '';
+  return slotTimeStr.replace(/\s+/g, ' ').replace(/[–—]/g, '-').trim().toLowerCase();
+};
 
 // @desc    Get all bookings (admin dashboard)
 // @route   GET /api/bookings
@@ -84,13 +84,14 @@ exports.getOwnerBookings = async (req, res) => {
 exports.createBooking = async (req, res) => {
   try {
     const requesterUserId = req.user?.userId || req.body.user_id;
-    const { user_name, ground_id, ground_name, sport_type, date, slot_time, total_price, slot_id } = req.body;
+    const { user_name, ground_id, ground_name, sport_type, date, slot_time, total_price, slot_id, court_id } = req.body;
     const booking_id = 'SPV-BK-' + Math.floor(1000 + Math.random() * 9000);
+    const court = (court_id || 'Court 1').trim();
 
     // 0. Validate booking date
-    const bookingDateStr = date || new Date().toISOString().split('T')[0];
     const now = new Date();
-    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const bookingDateStr = date || todayLocalStr;
 
     if (bookingDateStr < todayLocalStr) {
       return res.status(400).json({
@@ -140,6 +141,10 @@ exports.createBooking = async (req, res) => {
       groundDoc = await Ground.findOne({ title: new RegExp(`^${ground_name.trim()}$`, 'i') });
     }
 
+    if (!groundDoc) {
+      return res.status(404).json({ success: false, message: 'Ground not found' });
+    }
+
     // 2. Look up normalized User document
     let userDoc = null;
     if (requesterUserId && isObjectIdString(String(requesterUserId))) {
@@ -152,82 +157,102 @@ exports.createBooking = async (req, res) => {
       userDoc = await User.findOne({ fullName: new RegExp(`^${user_name.trim()}$`, 'i') });
     }
 
-    const resolvedGroundName = ground_name || (groundDoc ? groundDoc.title : 'Sports Ground');
+    const resolvedGroundName = groundDoc ? groundDoc.title : (ground_name || 'Sports Ground');
     const resolvedSportType = sport_type || (groundDoc ? groundDoc.sport_type : 'Football');
     const resolvedUserName = user_name || (userDoc ? userDoc.fullName : 'Player');
     const resolvedPrice = Number(total_price) || (groundDoc ? groundDoc.price_per_hour : 800);
     const resolvedUserId = userDoc ? String(userDoc._id) : String(requesterUserId || '1');
 
-    // 3. Prevent double bookings / slot collision check
-    const targetDate = date || todayLocalStr;
+    // 3. Prevent double bookings / check slot availability
+    const targetDate = bookingDateStr;
     const incomingSlots = (slot_time || '').split(',').map(s => s.trim()).filter(Boolean);
 
-    if (incomingSlots.length > 0) {
-      const groundMatchQuery = [];
-      if (groundDoc) {
-        groundMatchQuery.push({ ground: groundDoc._id });
-        groundMatchQuery.push({ ground_id: groundDoc.ground_id || groundDoc._id });
-      }
-      if (ground_id) {
-        groundMatchQuery.push({ ground_id: ground_id });
-        if (isObjectIdString(String(ground_id))) groundMatchQuery.push({ ground: ground_id });
-      }
-      if (resolvedGroundName) {
-        groundMatchQuery.push({ ground_name: new RegExp(`^${resolvedGroundName.trim()}$`, 'i') });
-      }
+    if (incomingSlots.length === 0) {
+      return res.status(400).json({ success: false, message: 'At least one slot time is required' });
+    }
 
-      const existingActiveBookings = await Booking.find({
-        $or: groundMatchQuery,
-        date: targetDate,
-        booking_status: { $nin: ['Cancelled', 'Refunded'] }
+    const groundMatchQuery = [
+      { ground: groundDoc._id },
+      { ground_id: groundDoc.ground_id || groundDoc._id },
+      { ground_name: new RegExp(`^${resolvedGroundName.trim()}$`, 'i') }
+    ];
+
+    // Check for active existing bookings for this ground, court, date, and slots
+    const existingActiveBookings = await Booking.find({
+      $or: groundMatchQuery,
+      court_id: court,
+      date: targetDate,
+      booking_status: { $nin: ['Cancelled', 'Refunded'] }
+    });
+
+    for (const slot of incomingSlots) {
+      const normSlot = normalizeTimeSlot(slot);
+      const isConflict = existingActiveBookings.some(b => {
+        const bookedSlots = (b.slot_time || '').split(',').map(s => normalizeTimeSlot(s));
+        return bookedSlots.includes(normSlot);
       });
 
-      for (const slot of incomingSlots) {
-        const isConflict = existingActiveBookings.some(b => {
-          const bookedSlots = (b.slot_time || '').split(',').map(s => s.trim());
-          return bookedSlots.includes(slot) || b.slot_time === slot;
+      if (isConflict) {
+        return res.status(400).json({
+          success: false,
+          message: `Slot "${slot}" on ${court} is already booked for ${targetDate}. Please choose another available slot.`
         });
+      }
 
-        if (isConflict) {
-          return res.status(400).json({
-            success: false,
-            message: `Slot "${slot}" is already booked for ${targetDate}. Please choose another available slot.`
-          });
-        }
+      // Check if slot is explicitly Blocked in Slot collection
+      const blockedSlot = await Slot.findOne({
+        $or: [{ ground: groundDoc._id }, { ground_id: groundDoc.ground_id }],
+        court_id: court,
+        date: targetDate,
+        slot_time: slot,
+        status: 'Blocked'
+      });
+
+      if (blockedSlot) {
+        return res.status(400).json({
+          success: false,
+          message: `Slot "${slot}" on ${court} is currently blocked by the venue.`
+        });
       }
     }
 
+    // 4. Create and save the Booking document
     const bookingData = {
       booking_id,
       user: userDoc ? userDoc._id : (isObjectIdString(String(requesterUserId)) ? requesterUserId : undefined),
-      ground: groundDoc ? groundDoc._id : (isObjectIdString(String(ground_id)) ? ground_id : undefined),
+      ground: groundDoc._id,
       user_id: resolvedUserId,
       user_name: resolvedUserName,
-      ground_id: ground_id || (groundDoc ? (groundDoc.ground_id || groundDoc._id) : 101),
+      ground_id: groundDoc.ground_id || groundDoc._id,
       ground_name: resolvedGroundName,
       sport_type: resolvedSportType,
+      court_id: court,
+      slot_id: slot_id || null,
       date: targetDate,
-      slot_time: slot_time || '06:00 PM - 07:00 PM',
+      slot_time: incomingSlots.join(', '),
       total_price: resolvedPrice,
       payment_status: 'Paid',
       booking_status: 'Upcoming',
       admin_approval: 'Approved',
       approved_at: new Date(),
       qr_code: `SPORTVERSE_QR_${booking_id}`,
+      is_qr_expired: false,
+      qr_scanned: false,
       created_at: new Date()
     };
 
     const b = new Booking(bookingData);
     const savedBooking = await b.save();
-    console.log(`✅ Booking ${booking_id} confirmed and saved to MongoDB for ${resolvedUserName} (${resolvedUserId}) at ${resolvedGroundName}!`);
+    console.log(`✅ Booking ${booking_id} confirmed for ${resolvedUserName} on ${court} (${targetDate} ${slot_time})!`);
 
-    // Update dynamic Slot collection status to 'Booked'
-    const groundIds = [groundDoc?._id, groundDoc?.ground_id, ground_id].filter(Boolean);
+    // 5. Update ONLY the specific slot(s) in Slot collection
+    const groundIds = [groundDoc._id, groundDoc.ground_id].filter(Boolean);
     for (const slot of incomingSlots) {
       try {
         await Slot.updateMany(
           {
-            $or: [{ ground: groundDoc?._id }, { ground_id: { $in: groundIds } }],
+            $or: [{ ground: groundDoc._id }, { ground_id: { $in: groundIds } }],
+            court_id: court,
             date: targetDate,
             slot_time: slot,
           },
@@ -241,21 +266,6 @@ exports.createBooking = async (req, res) => {
         );
       } catch (slotUpdateErr) {
         console.warn('⚠️ Slot collection status update warning:', slotUpdateErr.message);
-      }
-    }
-
-    // Mark slot as booked in Ground document if legacy available_slots exist
-    if (groundDoc && groundDoc.available_slots) {
-      try {
-        const slotIdx = groundDoc.available_slots.findIndex(
-          s => (slot_id && s.slot_id === slot_id) || (slot_time && s.time === slot_time)
-        );
-        if (slotIdx !== -1) {
-          groundDoc.available_slots[slotIdx].is_booked = true;
-          await groundDoc.save();
-        }
-      } catch (slotErr) {
-        console.error('⚠️ Failed to update slot status on ground:', slotErr.message);
       }
     }
 
@@ -303,8 +313,8 @@ exports.getUserBookings = async (req, res) => {
     if (!isNaN(numericUserId)) {
       queryOr.push({ user_id: numericUserId });
     }
-    if (userDoc) {
-      if (userDoc.email) queryOr.push({ user_email: userDoc.email.toLowerCase() });
+    if (userDoc && userDoc.email) {
+      queryOr.push({ user_email: userDoc.email.toLowerCase() });
     }
 
     const bookings = await Booking.find({ $or: queryOr })
@@ -312,7 +322,6 @@ exports.getUserBookings = async (req, res) => {
       .populate('ground')
       .sort({ created_at: -1 });
 
-    // Return strict user bookings (no fallback to all database bookings!)
     return res.json({ success: true, bookings: bookings || [] });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -356,30 +365,34 @@ exports.cancelBooking = async (req, res) => {
 
     // Reset slot in Slot collection back to 'Available'
     try {
-      await Slot.updateMany(
-        {
-          $or: [
-            { booking_id: booking.booking_id },
-            {
-              ground: booking.ground,
-              date: booking.date,
-              slot_time: booking.slot_time,
-            },
-          ],
-        },
-        {
-          $set: {
-            status: 'Available',
-            booking_id: null,
-            booked_by_user_id: null,
+      const incomingSlots = (booking.slot_time || '').split(',').map(s => s.trim()).filter(Boolean);
+      for (const s of incomingSlots) {
+        await Slot.updateMany(
+          {
+            $or: [
+              { booking_id: booking.booking_id },
+              {
+                $or: [{ ground: booking.ground }, { ground_id: booking.ground_id }],
+                court_id: booking.court_id || 'Court 1',
+                date: booking.date,
+                slot_time: s,
+              },
+            ],
           },
-        }
-      );
+          {
+            $set: {
+              status: 'Available',
+              booking_id: null,
+              booked_by_user_id: null,
+            },
+          }
+        );
+      }
     } catch (slotResetErr) {
       console.warn('⚠️ Failed to reset slot status on cancel:', slotResetErr.message);
     }
 
-    return res.json({ success: true, message: 'Booking cancelled successfully in MongoDB', booking });
+    return res.json({ success: true, message: 'Booking cancelled successfully', booking });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -407,74 +420,24 @@ exports.approveBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: `Booking ${bookingId} not found.` });
     }
 
-    if (booking.admin_approval === status) {
-      return res.status(200).json({
-        success: true,
-        message: `Booking is already ${status}.`,
-        booking,
-      });
-    }
-
     booking.admin_approval = status;
     booking.approved_at = new Date();
     if (status === 'Rejected') {
       booking.booking_status = 'Cancelled';
+      // Reset slots
+      try {
+        await Slot.updateMany(
+          { booking_id: booking.booking_id },
+          { $set: { status: 'Available', booking_id: null, booked_by_user_id: null } }
+        );
+      } catch (_) {}
     }
     await booking.save();
-
-    console.log(`👑 Booking ${bookingId} admin_approval set to ${status}`);
-
-    let userName = booking.user_name || 'Player';
-    let userEmail = null;
-
-    if (booking.user && booking.user.email) {
-      userName = booking.user.fullName || userName;
-      userEmail = booking.user.email;
-    } else if (mongoose.Types.ObjectId.isValid(booking.user_id)) {
-      const userDoc = await User.findById(booking.user_id).select('fullName email');
-      if (userDoc) {
-        userName = userDoc.fullName || userName;
-        userEmail = userDoc.email;
-      }
-    }
-
-    let emailResult = null;
-    if (userEmail) {
-      try {
-        emailResult = await sendBookingApprovalEmail({
-          userName,
-          userEmail,
-          bookingId: booking.booking_id,
-          groundName: booking.ground_name,
-          sportType: booking.sport_type,
-          date: booking.date,
-          slotTime: booking.slot_time,
-          totalPrice: booking.total_price,
-          qrCode: booking.qr_code,
-          status,
-          rejectReason,
-        });
-      } catch (emailErr) {
-        console.error(`❌ [Email] Failed to send booking approval email to ${userEmail}:`, emailErr.message);
-      }
-    }
 
     return res.status(200).json({
       success: true,
       message: `Booking ${bookingId} has been ${status}.`,
-      emailSent: !!emailResult,
-      booking: {
-        booking_id: booking.booking_id,
-        ground_name: booking.ground_name,
-        sport_type: booking.sport_type,
-        date: booking.date,
-        slot_time: booking.slot_time,
-        total_price: booking.total_price,
-        booking_status: booking.booking_status,
-        admin_approval: booking.admin_approval,
-        approved_at: booking.approved_at,
-        notifiedUser: userEmail || null,
-      },
+      booking,
     });
   } catch (error) {
     console.error('❌ approveBooking error:', error);
@@ -518,14 +481,11 @@ exports.checkInBooking = async (req, res) => {
         { booking_id: { $regex: new RegExp(`^${extractedId}$`, 'i') } },
         { booking_id: spvPrefixed },
         { booking_id: { $regex: new RegExp(`^${spvPrefixed}$`, 'i') } },
-        { booking_id: cleanNumericOrCode },
-        { booking_id: { $regex: new RegExp(`^${cleanNumericOrCode}$`, 'i') } },
         { qr_code: trimmedId },
         { qr_code: { $regex: new RegExp(`^${trimmedId}$`, 'i') } },
         { qr_code: qrPrefixed },
         { qr_code: { $regex: new RegExp(`^${qrPrefixed}$`, 'i') } },
         { qr_code: qrPrefixedSpv },
-        { qr_code: { $regex: new RegExp(`^${qrPrefixedSpv}$`, 'i') } },
         ...(isObjectIdString(trimmedId) ? [{ _id: trimmedId }] : []),
         ...(isObjectIdString(extractedId) ? [{ _id: extractedId }] : [])
       ]
@@ -539,7 +499,7 @@ exports.checkInBooking = async (req, res) => {
       return res.status(404).json({ success: false, message: `Booking not found for ID: ${trimmedId}` });
     }
 
-    // Check if QR pass is ALREADY SCANNED / EXPIRED
+    // Check if QR pass is ALREADY SCANNED / COMPLETED
     if (booking.booking_status === 'Completed' || booking.is_qr_expired === true || booking.qr_scanned === true) {
       return res.status(200).json({
         success: false,
@@ -550,6 +510,7 @@ exports.checkInBooking = async (req, res) => {
           booking_id: booking.booking_id,
           user_name: booking.user_name || (booking.user ? booking.user.fullName : 'Player'),
           ground_name: booking.ground_name || (booking.ground ? booking.ground.title : 'Sports Arena'),
+          court_id: booking.court_id || 'Court 1',
           sport_type: booking.sport_type,
           date: booking.date,
           slot_time: booking.slot_time,
@@ -562,24 +523,25 @@ exports.checkInBooking = async (req, res) => {
       });
     }
 
-    // First time scan: Expire QR ticket immediately and confirm entry
+    // First time scan: Mark check-in confirmed
     booking.booking_status = 'Completed';
     booking.is_qr_expired = true;
     booking.qr_scanned = true;
     booking.scanned_at = new Date();
     await booking.save();
 
-    console.log(`🎟️ First-time check-in confirmed & QR EXPIRED for Booking ${booking.booking_id} (${booking.user_name || 'Player'})`);
+    console.log(`🎟️ Check-in confirmed for Booking ${booking.booking_id} (${booking.user_name || 'Player'})`);
 
     return res.status(200).json({
       success: true,
       expired: false,
       alreadyCheckedIn: false,
-      message: `✅ Entry Approved! Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id}). QR ticket is now EXPIRED.`,
+      message: `✅ Entry Approved! Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id}). Ticket is verified.`,
       booking: {
         booking_id: booking.booking_id,
         user_name: booking.user_name || (booking.user ? booking.user.fullName : 'Player'),
         ground_name: booking.ground_name || (booking.ground ? booking.ground.title : 'Sports Arena'),
+        court_id: booking.court_id || 'Court 1',
         sport_type: booking.sport_type,
         date: booking.date,
         slot_time: booking.slot_time,
@@ -602,7 +564,7 @@ exports.checkInBooking = async (req, res) => {
 exports.getGroundBookedSlots = async (req, res) => {
   try {
     const { groundId } = req.params;
-    const { date } = req.query;
+    const { date, court_id } = req.query;
 
     const groundMatchQuery = [];
     if (isObjectIdString(groundId)) {
@@ -627,11 +589,10 @@ exports.getGroundBookedSlots = async (req, res) => {
       booking_status: { $nin: ['Cancelled', 'Refunded'] }
     };
 
-    if (date) {
-      query.date = date;
-    }
+    if (date) query.date = date;
+    if (court_id && court_id !== 'All') query.court_id = court_id;
 
-    const bookings = await Booking.find(query).select('booking_id date slot_time booking_status user_name');
+    const bookings = await Booking.find(query).select('booking_id date court_id slot_time booking_status user_name');
 
     const bookedSlotTimes = [];
     bookings.forEach(b => {
@@ -649,6 +610,7 @@ exports.getGroundBookedSlots = async (req, res) => {
       success: true,
       groundId,
       date: date || 'all',
+      court_id: court_id || 'all',
       bookedSlotTimes,
       bookings
     });
@@ -657,4 +619,3 @@ exports.getGroundBookedSlots = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-

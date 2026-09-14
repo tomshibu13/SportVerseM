@@ -15,6 +15,7 @@ import '../services/auth_service.dart';
 import '../models/ground_model.dart';
 import 'ground_booking_screen.dart';
 import 'become_ground_owner_screen.dart';
+import 'community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -605,6 +606,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 10),
                 _buildActionCard('Find Nearby', Icons.near_me_outlined, () {
                   setState(() => _currentBottomTab = 1);
+                }),
+                const SizedBox(width: 10),
+                _buildActionCard('Community', Icons.groups_outlined, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CommunityScreen()),
+                  );
                 }),
                 const SizedBox(width: 10),
                 _buildActionCard('Shop Gear', Icons.shopping_bag_outlined, () {

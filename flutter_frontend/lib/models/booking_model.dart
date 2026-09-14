@@ -5,6 +5,7 @@ class BookingModel {
   final dynamic groundId;
   final String groundName;
   final String sportType;
+  final String courtId;
   final String date;
   final String slotTime;
   final double totalPrice;
@@ -22,6 +23,7 @@ class BookingModel {
     required this.groundId,
     required this.groundName,
     required this.sportType,
+    this.courtId = 'Court 1',
     required this.date,
     required this.slotTime,
     required this.totalPrice,
@@ -60,6 +62,10 @@ class BookingModel {
       case 'sportType':
       case 'sport':
         return sportType;
+      case 'court_id':
+      case 'courtId':
+      case 'court':
+        return courtId;
       case 'date':
       case 'booking_date':
         return date;
@@ -128,6 +134,7 @@ class BookingModel {
       groundId: json['ground_id'] ?? (json['ground'] is Map ? json['ground']['_id'] : 0),
       groundName: groundTitle.isNotEmpty ? groundTitle : 'Sports Arena',
       sportType: sport.isNotEmpty ? sport : 'Sports',
+      courtId: json['court_id']?.toString() ?? json['courtId']?.toString() ?? 'Court 1',
       date: json['date']?.toString() ?? '',
       slotTime: json['slot_time']?.toString() ?? '',
       totalPrice: (json['total_price'] is num)

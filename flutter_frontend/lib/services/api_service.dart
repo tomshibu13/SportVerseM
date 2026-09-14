@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/ground_model.dart';
 import '../models/booking_model.dart';
 import '../models/product_model.dart';
+import '../models/post_model.dart';
 import 'auth_service.dart';
 
 class ApiService {
@@ -136,6 +137,7 @@ class ApiService {
     required String date,
     required String slotTime,
     required double totalPrice,
+    String? courtId,
     String? slotId,
   }) async {
     final curUser = AuthService.currentUser;
@@ -152,6 +154,7 @@ class ApiService {
       'ground_id': groundId,
       'ground_name': groundName,
       'sport_type': sportType,
+      'court_id': courtId ?? 'Court 1',
       'date': date,
       'slot_time': slotTime,
       'total_price': totalPrice,
@@ -669,6 +672,300 @@ class ApiService {
     } catch (_) {}
     return [];
   }
+
+  // ══════════════════════════════════════════════════
+  // ── Instagram-Style Sports Community APIs ──
+  // ══════════════════════════════════════════════════
+
+  // Fetch Community Feed Posts
+  static Future<Map<String, dynamic>> fetchCommunityPosts({
+    String? sport,
+    String? search,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      if (sport != null && sport.isNotEmpty && sport != 'All') {
+        queryParams['sport'] = sport;
+      }
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+
+      final uri = Uri.parse('$baseUrl/community/posts').replace(queryParameters: queryParams);
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['posts'] is List) {
+          final posts = (data['posts'] as List).map((p) => PostModel.fromJson(p)).toList();
+          return {
+            'success': true,
+            'posts': posts,
+            'total': data['total'] ?? posts.length,
+            'page': data['page'] ?? page,
+            'totalPages': data['totalPages'] ?? 1,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching community posts: $e');
+    }
+
+    return {
+      'success': false,
+      'posts': <PostModel>[],
+      'total': 0,
+      'page': page,
+      'totalPages': 1,
+    };
+  }
+
+  // Create a New Community Post
+  static Future<Map<String, dynamic>> createCommunityPost({
+    required String caption,
+    required String mediaUrl,
+    String mediaType = 'image',
+    required String sportCategory,
+    String location = '',
+  }) async {
+    try {
+      final payload = {
+        'caption': caption,
+        'media_url': mediaUrl,
+        'media_type': mediaType,
+        'sport_category': sportCategory,
+        'location': location,
+      };
+
+      final res = await http.post(
+        Uri.parse('$baseUrl/community/posts'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 201 && data['success'] == true) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Post published!',
+          'post': PostModel.fromJson(data['post']),
+        };
+      }
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Failed to create post',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Update Existing Community Post
+  static Future<Map<String, dynamic>> updateCommunityPost({
+    required String postId,
+    required String caption,
+    required String sportCategory,
+    String location = '',
+    String? mediaUrl,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'caption': caption,
+        'sport_category': sportCategory,
+        'location': location,
+        if (mediaUrl != null && mediaUrl.isNotEmpty) 'media_url': mediaUrl,
+      };
+
+      final res = await http.put(
+        Uri.parse('$baseUrl/community/posts/$postId'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 8));
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Post updated!',
+          'post': PostModel.fromJson(data['post']),
+        };
+      }
+      return {'success': false, 'message': data['message'] ?? 'Failed to update post'};
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Delete Community Post
+  static Future<Map<String, dynamic>> deleteCommunityPost(String postId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/community/posts/$postId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+
+      final data = jsonDecode(res.body);
+      return {
+        'success': data['success'] == true,
+        'message': data['message'] ?? (res.statusCode == 200 ? 'Post deleted' : 'Failed to delete'),
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Toggle Like / Unlike on Post
+  static Future<Map<String, dynamic>> toggleLikePost(String postId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/community/posts/$postId/like'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return {
+          'success': true,
+          'liked': data['liked'] == true,
+          'like_count': data['like_count'] ?? 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('Error toggling like for post $postId: $e');
+    }
+    return {'success': false, 'liked': false, 'like_count': 0};
+  }
+
+  // Fetch Comments for Post
+  static Future<List<CommentModel>> fetchPostComments(String postId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/community/posts/$postId/comments'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true && data['comments'] is List) {
+          return (data['comments'] as List).map((c) => CommentModel.fromJson(c)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching comments for post $postId: $e');
+    }
+    return [];
+  }
+
+  // Add Comment to Post
+  static Future<Map<String, dynamic>> addPostComment({
+    required String postId,
+    required String commentText,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/community/posts/$postId/comments'),
+        headers: _headers,
+        body: jsonEncode({'comment_text': commentText.trim()}),
+      ).timeout(const Duration(seconds: 8));
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 201 && data['success'] == true) {
+        return {
+          'success': true,
+          'comment': CommentModel.fromJson(data['comment']),
+        };
+      }
+      return {'success': false, 'message': data['message'] ?? 'Unable to post comment'};
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Delete Comment
+  static Future<Map<String, dynamic>> deletePostComment(String commentId) async {
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/community/comments/$commentId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 6));
+
+      final data = jsonDecode(res.body);
+      return {
+        'success': data['success'] == true,
+        'message': data['message'] ?? 'Comment deleted',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Fetch Community User Profile
+  static Future<Map<String, dynamic>> fetchCommunityUserProfile(String userId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/community/users/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['success'] == true) {
+          final userProfile = CommunityProfileModel.fromJson(data['user']);
+          final posts = (data['posts'] as List<dynamic>?)
+                  ?.map((p) => PostModel.fromJson(p))
+                  .toList() ??
+              [];
+          return {
+            'success': true,
+            'user': userProfile,
+            'posts': posts,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching community user profile for $userId: $e');
+    }
+    return {'success': false};
+  }
+
+  // Update Community User Profile
+  static Future<Map<String, dynamic>> updateCommunityUserProfile({
+    String? bio,
+    String? favoriteSport,
+    String? location,
+    String? profileImage,
+    String? fullName,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        if (bio != null) 'bio': bio.trim(),
+        if (favoriteSport != null) 'favoriteSport': favoriteSport.trim(),
+        if (location != null) 'location': location.trim(),
+        if (profileImage != null) 'profileImage': profileImage.trim(),
+        if (fullName != null) 'fullName': fullName.trim(),
+      };
+
+      final res = await http.put(
+        Uri.parse('$baseUrl/community/profile'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 8));
+
+      final data = jsonDecode(res.body);
+      return {
+        'success': data['success'] == true,
+        'message': data['message'] ?? 'Profile updated',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
 }
+
 
 
