@@ -153,8 +153,8 @@ export default function OverviewPage({ currentUser }) {
             <span className="badge badge-green">Live</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-around', padding: '1rem 0' }}>
-            {stats?.courtOccupancy?.length > 0 ? (
-               stats.courtOccupancy.map((court, i) => (
+            {stats?.courtOccupancyArray?.length > 0 ? (
+               stats.courtOccupancyArray.map((court, i) => (
                   <OccupancyRing key={i} percent={court.percent} label={court.label} />
                ))
             ) : (
@@ -163,8 +163,8 @@ export default function OverviewPage({ currentUser }) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
             {(() => {
-                const totalSlots = stats?.courtOccupancy?.reduce((sum, c) => sum + (c.totalSlots || 0), 0) || 0;
-                const bookedSlots = stats?.courtOccupancy?.reduce((sum, c) => sum + (c.booked || 0), 0) || 0;
+                const totalSlots = stats?.courtOccupancyArray?.reduce((sum, c) => sum + (c.totalSlots || 0), 0) || 0;
+                const bookedSlots = stats?.courtOccupancyArray?.reduce((sum, c) => sum + (c.booked || 0), 0) || 0;
                 const availSlots = Math.max(0, totalSlots - bookedSlots);
                 return [
                    { l: 'Total Slots Today', v: totalSlots }, 

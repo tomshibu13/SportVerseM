@@ -8,9 +8,17 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const FALLBACK_MODELS = [
   'gemini-3.5-flash',
   'gemini-3.7-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-2.5-flash'
+  'gemini-3.1-flash-lite'
 ];
+
+const MODEL_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Model request timed out after ${ms}ms`)), ms))
+  ]);
+}
 
 /**
  * Generates text using Gemini with multi-model fallback and error recovery
@@ -30,14 +38,14 @@ async function generateGeminiContent({ systemInstruction = '', prompt = '' }) {
         model: modelName,
         systemInstruction: systemInstruction || undefined
       });
-      const result = await model.generateContent(prompt);
+      const result = await withTimeout(model.generateContent(prompt), MODEL_TIMEOUT_MS);
       const text = result.response.text();
       if (text && text.trim().length > 0) {
         return text.trim();
       }
     } catch (err) {
       lastError = err;
-      // If 404 or 429, try next model in fallback list
+      // If 404 or 429 or timeout, try next model in fallback list
       continue;
     }
   }

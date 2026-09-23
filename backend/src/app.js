@@ -9,6 +9,7 @@ const apiRoutes = require('../routes/api');
 const injuryRoutes = require('../routes/injuryRoutes');
 const paymentRoutes = require('../routes/paymentRoutes');
 const communityRoutes = require('../routes/communityRoutes');
+const fitnessRoutes = require('../routes/fitnessRoutes');
 const { errorHandler, notFound } = require('../middleware/errorMiddleware');
 
 const app = express();
@@ -54,8 +55,9 @@ app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/community', communityRoutes);
-app.use('/api', apiRoutes);
 app.use('/api/injury', injuryRoutes);
+app.use('/api/fitness', fitnessRoutes);
+app.use('/api', apiRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -67,3 +69,4 @@ app.use(notFound);
 app.use(errorHandler);
 
 module.exports = app;
+// Trigger restart

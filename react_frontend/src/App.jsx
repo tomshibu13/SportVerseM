@@ -81,7 +81,7 @@ export default function App() {
   const loadDashboardData = useCallback(async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     try {
-      const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
+      const isAdmin = currentUser?.role === 'Admin';
       const isGroundOwner = currentUser?.role === 'GroundOwner';
 
       // Load live grounds and all live bookings from MongoDB

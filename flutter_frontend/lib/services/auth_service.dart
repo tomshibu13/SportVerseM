@@ -28,7 +28,7 @@ class AuthService {
   // ── Base URL ──────────────────────────────────────────────────────────────
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.21.73.56:5000/api';
     }
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }

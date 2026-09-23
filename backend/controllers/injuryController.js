@@ -1,16 +1,16 @@
 const InjuryReport = require('../models/InjuryReport');
 const { classifyRisk } = require('../utils/safetyEngine');
-const { retrieveRelevantKnowledge } = require('../utils/injuryRag');
+const { searchKnowledgeBase } = require('../utils/vectorRagService');
 const { generateInjuryAssessment } = require('../utils/geminiClient');
+const { generateGroundedInjuryResponse, MANDATORY_DISCLAIMER } = require('../utils/ragGenerator');
 const { checkMedicationSafety } = require('../utils/medicationSafetyService');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 /**
- * Assess Injury Pipeline:
+ * Assess Injury Full Form Pipeline:
  * 1. Input validation
  * 2. Medication safety gate (stops pipeline if medication query)
  * 3. Red-flag safety engine (determines riskLevel & checks for URGENT)
- * 4. RAG retrieval (fetches sports medicine chunks & source metadata)
+ * 4. Vector RAG retrieval (fetches sports medicine chunks & source metadata)
  * 5. Gemini generation (grounded in RAG, cannot override safety/medication rules)
  * 6. Response validation & persistence
  */
@@ -18,7 +18,7 @@ exports.assessInjury = async (req, res) => {
   const startTime = Date.now();
   try {
     const { sport, bodyPart, injuryMechanism, symptoms, painLevel, mobilityStatus, hasSwelling, hasPreviousInjury, painDurationDays, imageBase64 } = req.body;
-    const userId = req.user?.userId || 'guest_user_123';
+    const userId = req.user?.userId || req.user?._id || 'guest_user_123';
 
     // 1. Input validation
     if (!sport || !bodyPart || !injuryMechanism || !symptoms || painLevel === undefined || !mobilityStatus) {
@@ -48,7 +48,7 @@ exports.assessInjury = async (req, res) => {
     }
 
     const assessmentData = { sport, bodyPart, injuryMechanism, symptoms, painLevel, mobilityStatus, hasSwelling, hasPreviousInjury, painDurationDays };
-    
+
     // 3. Red-Flag Safety Engine (Deterministic classification)
     const safetyClassification = classifyRisk(assessmentData);
 
@@ -84,7 +84,7 @@ exports.assessInjury = async (req, res) => {
         professionalCareRecommended: true,
         followUpQuestions: ['Are emergency medical responders on the way?'],
         aiSummary: 'CRITICAL WARNING: Red flags indicate high potential for serious injury. Emergency evaluation is required.',
-        disclaimer: 'SportVerse AI provides general sports-health information and does not provide medical diagnosis or personalized medication advice.',
+        disclaimer: MANDATORY_DISCLAIMER,
         isGeminiUsed: false
       });
 
@@ -99,19 +99,22 @@ exports.assessInjury = async (req, res) => {
       });
     }
 
-    // 4. RAG Retrieval with source tracking
-    const { formattedText: ragContext, sources } = await retrieveRelevantKnowledge({
+    // 4. Vector RAG Retrieval with source tracking
+    const searchQuery = `${sport} ${bodyPart} ${injuryMechanism} ${(Array.isArray(symptoms) ? symptoms : [symptoms]).join(' ')}`;
+    const ragResult = await searchKnowledgeBase({
+      query: searchQuery,
       sport,
       bodyPart,
-      symptoms: Array.isArray(symptoms) ? symptoms : [symptoms]
+      topK: 3,
+      similarityThreshold: 0.40
     });
-    
+
     // 5. Gemini Generation with structured output validation
     const aiResult = await generateInjuryAssessment({
       assessmentData,
-      ragContext,
+      ragContext: ragResult.formattedText,
       safetyClassification,
-      sources
+      sources: ragResult.sources
     });
 
     // 6. Enforce Safety Level (Gemini CANNOT downgrade HIGH or URGENT)
@@ -143,8 +146,8 @@ exports.assessInjury = async (req, res) => {
       professionalCareRecommended: aiResult.professionalCareRecommended || safetyClassification.professionalCareRecommended,
       followUpQuestions: aiResult.followUpQuestions,
       aiSummary: aiResult.aiSummary,
-      sources: sources,
-      disclaimer: 'SportVerse AI provides general sports-health information and does not provide medical diagnosis or personalized medication advice.',
+      sources: ragResult.sources,
+      disclaimer: MANDATORY_DISCLAIMER,
       isGeminiUsed: !aiResult.isFallback,
       geminiError: aiResult.geminiError || ''
     });
@@ -154,9 +157,9 @@ exports.assessInjury = async (req, res) => {
     const reportData = report.toObject();
     reportData.id = report._id.toString();
     reportData.isFallback = aiResult.isFallback || false;
-    reportData.sources = sources;
+    reportData.sources = ragResult.sources;
 
-    console.log(`[Assessment Complete] risk=${finalRiskLevel} responseType=${reportData.responseType} sourcesCount=${sources.length} latency=${Date.now() - startTime}ms`);
+    console.log(`[Assessment Complete] risk=${finalRiskLevel} responseType=${reportData.responseType} sourcesCount=${ragResult.sources.length} latency=${Date.now() - startTime}ms`);
 
     res.status(201).json({
       success: true,
@@ -169,9 +172,241 @@ exports.assessInjury = async (req, res) => {
   }
 };
 
+/**
+ * Dedicated AI Sports Injury Assistant Endpoint
+ * POST /api/ai/injury-assistant
+ * 
+ * Standard Request:
+ * {
+ *   "message": "My knee hurts after playing football",
+ *   "conversationId": "conv_123",
+ *   "history": []
+ * }
+ * 
+ * Standard Response:
+ * {
+ *   "success": true,
+ *   "answer": "...",
+ *   "reply": "...",
+ *   "sources": [ ... ],
+ *   "disclaimer": "...",
+ *   "retrieved": true,
+ *   "riskLevel": "MODERATE",
+ *   "responseType": "NORMAL"
+ * }
+ */
+exports.injuryAssistantEndpoint = async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const { message, conversationId, history = [], sport = '', bodyPart = '' } = req.body;
+    const userMsg = (message || '').trim();
+
+    if (!userMsg) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required',
+        answer: 'Please provide a message describing your injury or symptoms.',
+        sources: [],
+        disclaimer: MANDATORY_DISCLAIMER,
+        retrieved: false
+      });
+    }
+
+    // Extract user-only text for safety triage to avoid false alarms from prior AI warnings
+    const userOnlyHistory = Array.isArray(history)
+      ? history
+          .filter(h => h.sender === 'user' || h.role === 'user')
+          .map(h => (h.text || h.content || ''))
+          .join(' ')
+      : '';
+    const userContextText = `${userOnlyHistory} ${userMsg}`.toLowerCase();
+
+    // 1. Medication Safety Gate (Deterministic refusal before RAG)
+    const medCheck = checkMedicationSafety(userMsg, history);
+    if (medCheck.isMedicationRequest) {
+      console.log(`[Injury Assistant Gate]: Medication request detected -> Safe refusal (${Date.now() - startTime}ms)`);
+      return res.json({
+        success: true,
+        answer: medCheck.refusalResponse.reply,
+        reply: medCheck.refusalResponse.reply,
+        sources: [],
+        disclaimer: MANDATORY_DISCLAIMER,
+        retrieved: false,
+        riskLevel: 'LOW',
+        responseType: 'MEDICATION_REFUSAL',
+        conversationId: conversationId || `conv_${Date.now()}`,
+        suggested_actions: medCheck.refusalResponse.suggested_actions
+      });
+    }
+
+    // 2. Deterministic Red-Flag Emergency Triage (Evaluating USER symptoms only)
+    const inferredPainLevel = userMsg.toLowerCase().includes('severe') || userMsg.toLowerCase().includes('8') || userMsg.toLowerCase().includes('9') || userMsg.toLowerCase().includes('10') || userMsg.toLowerCase().includes('cannot walk') ? 8 : (userMsg.toLowerCase().includes('mild') || userMsg.toLowerCase().includes('1') || userMsg.toLowerCase().includes('2') || userMsg.toLowerCase().includes('3') ? 3 : 5);
+
+    const safetyResult = classifyRisk({
+      symptoms: [userMsg],
+      painLevel: inferredPainLevel,
+      bodyPart: bodyPart || (userContextText.includes('ankle') ? 'Ankle' : (userContextText.includes('knee') ? 'Knee' : (userContextText.includes('shoulder') ? 'Shoulder' : (userContextText.includes('hamstring') ? 'Hamstring' : (userContextText.includes('head') ? 'Head' : 'General'))))),
+      injuryMechanism: userContextText.includes('twist') ? 'Twisting' : (userContextText.includes('fall') ? 'Fall' : 'Direct Impact'),
+      hasSwelling: userContextText.includes('swell') || userContextText.includes('swelling'),
+      mobilityStatus: userContextText.includes("can't walk") || userContextText.includes("cannot bear weight") || userContextText.includes("can't move") ? 'None' : (userContextText.includes('limp') || userContextText.includes('hard to walk') ? 'Partial' : 'Full'),
+      sport: sport || 'Sports',
+      text: userMsg
+    });
+
+    if (safetyResult.riskLevel === 'URGENT') {
+      console.log(`[Injury Assistant Safety]: URGENT red flags detected: ${safetyResult.redFlags.join(', ')}`);
+      const urgentReply = `🚨 **EMERGENCY MEDICAL WARNING**\n\n` +
+        `Critical red-flag symptoms have been detected:\n` +
+        `${safetyResult.redFlags.map(rf => `• ${rf}`).join('\n')}\n\n` +
+        `**Immediate Required Actions:**\n` +
+        `• **Seek emergency medical care immediately** (call emergency services or visit the nearest Emergency Room).\n` +
+        `• Do NOT attempt to move if head, neck, or spine trauma is suspected.\n` +
+        `• Do NOT attempt to bear weight or realign any deformed limb or joint.\n` +
+        `• Keep the injured person calm, warm, and monitored until medical professionals arrive.`;
+
+      return res.json({
+        success: true,
+        answer: urgentReply,
+        reply: urgentReply,
+        sources: [],
+        disclaimer: MANDATORY_DISCLAIMER,
+        retrieved: false,
+        riskLevel: 'URGENT',
+        responseType: 'URGENT_SAFETY',
+        conversationId: conversationId || `conv_${Date.now()}`,
+        suggested_actions: ['🚨 Call Emergency (112 / 911)', 'Find nearest hospital', 'Emergency first aid steps']
+      });
+    }
+
+    // 3. Vector RAG Search over indexed sports-medicine PDFs
+    const ragResult = await searchKnowledgeBase({
+      query: userMsg,
+      history: history,
+      sport: sport,
+      bodyPart: bodyPart,
+      topK: 3,
+      similarityThreshold: 0.45
+    });
+
+    // 4. Grounded Response Generation with LLM
+    const responseResult = await generateGroundedInjuryResponse({
+      userMessage: userMsg,
+      ragContext: ragResult.formattedText,
+      sources: ragResult.sources,
+      noKnowledgeFound: ragResult.noKnowledgeFound,
+      riskLevel: safetyResult.riskLevel,
+      history: history
+    });
+
+    // Suggested contextual actions
+    const suggestedActions = safetyResult.riskLevel === 'HIGH'
+      ? ['How to ice properly?', 'Severe pain signs', 'Cannot bear weight', 'RICE protocol steps']
+      : (ragResult.sources.length > 0
+        ? ['RICE protocol steps', 'When can I play again?', 'When to see a doctor?', 'Show injury prevention']
+        : ['Ask about ankle sprains', 'Ask about knee pain', 'Ask about hamstring strains', '🩺 Take full assessment']);
+
+    console.log(`[Injury Assistant Complete]: Retrieved=${responseResult.retrieved} Sources=${responseResult.sources.length} Risk=${safetyResult.riskLevel} (${Date.now() - startTime}ms)`);
+
+    return res.json({
+      success: true,
+      answer: responseResult.answer,
+      reply: responseResult.answer,
+      sources: responseResult.sources,
+      disclaimer: responseResult.disclaimer,
+      retrieved: responseResult.retrieved,
+      riskLevel: safetyResult.riskLevel,
+      responseType: safetyResult.responseType || 'NORMAL',
+      conversationId: conversationId || `conv_${Date.now()}`,
+      suggested_actions: suggestedActions
+    });
+
+  } catch (error) {
+    console.error('[Injury Assistant Error]:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during injury assessment',
+      answer: 'An unexpected server error occurred while retrieving sports-injury guidance. Please try again.',
+      reply: 'An unexpected server error occurred while retrieving sports-injury guidance. Please try again.',
+      sources: [],
+      disclaimer: MANDATORY_DISCLAIMER,
+      retrieved: false,
+      riskLevel: null
+    });
+  }
+};
+
+/**
+ * Multi-Turn Follow-Up Chat on an existing Injury Assessment Report
+ */
+exports.injuryFollowUpChat = async (req, res) => {
+  try {
+    const report = await InjuryReport.findById(req.params.id);
+    if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
+
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
+
+    // Check Medication Safety Gate
+    const medCheck = checkMedicationSafety(message, report.chatHistory);
+    if (medCheck.isMedicationRequest) {
+      report.chatHistory.push({ role: 'user', content: message, timestamp: new Date() });
+      report.chatHistory.push({ role: 'assistant', content: medCheck.refusalResponse.reply, timestamp: new Date() });
+      await report.save();
+
+      return res.json({
+        success: true,
+        chatHistory: report.chatHistory,
+        responseType: 'MEDICATION_REFUSAL',
+        riskLevel: report.riskLevel,
+        reply: medCheck.refusalResponse.reply,
+        sources: [],
+        disclaimer: MANDATORY_DISCLAIMER
+      });
+    }
+
+    report.chatHistory.push({ role: 'user', content: message, timestamp: new Date() });
+
+    // 1. Contextual RAG search using report context (bodyPart, sport) + user follow-up
+    const ragResult = await searchKnowledgeBase({
+      query: `${message} (Injury: ${report.bodyPart}, Sport: ${report.sport})`,
+      history: report.chatHistory,
+      sport: report.sport,
+      bodyPart: report.bodyPart,
+      topK: 3,
+      similarityThreshold: 0.40
+    });
+
+    // 2. Generate Grounded AI Response
+    const aiResult = await generateGroundedInjuryResponse({
+      userMessage: message,
+      ragContext: ragResult.formattedText,
+      sources: ragResult.sources,
+      noKnowledgeFound: ragResult.noKnowledgeFound,
+      riskLevel: report.riskLevel,
+      history: report.chatHistory
+    });
+
+    report.chatHistory.push({ role: 'assistant', content: aiResult.answer, timestamp: new Date() });
+    await report.save();
+
+    res.json({
+      success: true,
+      chatHistory: report.chatHistory,
+      reply: aiResult.answer,
+      sources: aiResult.sources,
+      riskLevel: report.riskLevel,
+      responseType: 'NORMAL',
+      disclaimer: aiResult.disclaimer
+    });
+  } catch (error) {
+    console.error('[Follow-up Chat Error]:', error);
+    res.status(500).json({ success: false, message: 'Server error during follow-up chat' });
+  }
+};
+
 exports.getInjuryHistory = async (req, res) => {
   try {
-    const userId = req.user?.userId || 'guest_user_123';
+    const userId = req.user?.userId || req.user?._id || 'guest_user_123';
     const reports = await InjuryReport.find({ userId }).sort({ createdAt: -1 }).limit(20);
     res.json({ success: true, reports });
   } catch (error) {
@@ -189,78 +424,13 @@ exports.getInjuryReport = async (req, res) => {
   }
 };
 
-exports.injuryFollowUpChat = async (req, res) => {
-  try {
-    const report = await InjuryReport.findById(req.params.id);
-    if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
-
-    const { message } = req.body;
-    if (!message) return res.status(400).json({ success: false, message: 'Message is required' });
-
-    // Check Medication Safety Gate
-    const medCheck = checkMedicationSafety(message, report.chatHistory);
-    if (medCheck.isMedicationRequest) {
-      report.chatHistory.push({ role: 'user', content: message });
-      report.chatHistory.push({ role: 'assistant', content: medCheck.refusalResponse.reply });
-      await report.save();
-
-      return res.json({
-        success: true,
-        chatHistory: report.chatHistory,
-        responseType: 'MEDICATION_REFUSAL',
-        riskLevel: report.riskLevel,
-        reply: medCheck.refusalResponse.reply
-      });
-    }
-
-    report.chatHistory.push({ role: 'user', content: message });
-    
-    let assistantResponse = "Please remember to rest, apply cold compression wrapped in a cloth, and elevate the injured area. For medication or clinical advice, consult a qualified healthcare professional.";
-    
-    if (process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your_')) {
-      try {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({
-          model: 'gemini-3.5-flash',
-          systemInstruction: `You are SportVerse AI sports-medicine educational assistant.
-STRICT SAFETY RULES:
-1. NEVER prescribe medication, recommend specific drugs, or provide dosage/frequency schedules.
-2. NEVER diagnose an injury.
-3. For medical or medication advice, recommend consulting a doctor or pharmacist.
-4. Keep advice centered on non-medicinal RICE protocol, rest, and when to seek medical evaluation.`
-        });
-        const chat = model.startChat({
-          history: report.chatHistory.slice(0, -1).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
-        });
-        const result = await chat.sendMessage(`Context: Ongoing report for ${report.bodyPart} (${report.sport}). Risk: ${report.riskLevel}. User message: ${message}`);
-        assistantResponse = result.response.text();
-      } catch (e) {
-         console.error('Gemini chat error:', e.message);
-      }
-    }
-
-    report.chatHistory.push({ role: 'assistant', content: assistantResponse });
-    await report.save();
-
-    res.json({
-      success: true,
-      chatHistory: report.chatHistory,
-      reply: assistantResponse,
-      riskLevel: report.riskLevel,
-      responseType: 'NORMAL'
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
 exports.addRecoveryCheckIn = async (req, res) => {
   try {
     const report = await InjuryReport.findById(req.params.id);
     if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
 
     const { painLevel, mobilityStatus, notes } = req.body;
-    report.checkIns.push({ painLevel, mobilityStatus, notes });
+    report.checkIns.push({ painLevel, mobilityStatus, notes, date: new Date() });
     await report.save();
 
     res.json({ success: true, checkIns: report.checkIns });

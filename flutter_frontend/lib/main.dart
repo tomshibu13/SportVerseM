@@ -7,6 +7,7 @@ import 'providers/auth_provider.dart';
 import 'providers/ground_provider.dart';
 import 'providers/booking_provider.dart';
 import 'providers/shop_provider.dart';
+import 'providers/fitness_provider.dart';
 import 'screens/splash_screen.dart';
 
 Future<void> main() async {
@@ -36,6 +37,9 @@ class SportVerseApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => ShopProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => FitnessProvider(),
         ),
       ],
       child: MaterialApp(

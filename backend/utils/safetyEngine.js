@@ -27,25 +27,26 @@ function classifyRisk({
   const reasoning = [];
 
   // 1. URGENT Emergency Triggers (Immediate medical emergency / trauma)
-  const urgentKeywords = [
-    'unconscious', 'passed out', 'blacked out', 'loss of consciousness',
-    "can't breathe", 'cannot breathe', 'difficulty breathing', 'shortness of breath',
-    'chest pain', 'heart palpitations',
-    'severe deformity', 'gross deformity', 'bone exposed', 'bone protruding',
-    'spine injury', 'neck trauma', 'neck pain with numbness',
-    'uncontrolled bleeding', 'profuse bleeding',
-    'pupils unequal', 'seizure', 'slurred speech'
+  const URGENT_PATTERNS = [
+    { pattern: /\b(unconscious|passed\s+out|blacked\s+out|loss\s+of\s+consciousness|lost\s+consciousness)\b/i, label: 'Loss of consciousness' },
+    { pattern: /\b(can'?t|cannot|difficulty|trouble|struggling\s+to|shortness\s+of)\s+(breathe?|breathing)\b/i, label: 'Respiratory distress / Breathing difficulty' },
+    { pattern: /\b(chest\s+pain|heart\s+palpitations|irregular\s+heartbeat)\b/i, label: 'Chest pain or cardiac symptom' },
+    { pattern: /\b(bone\s+(?:is\s+)?(?:protruding|exposed|sticking\s+out)|open\s+fracture|compound\s+fracture)\b/i, label: 'Bone protruding / open fracture' },
+    { pattern: /\b(?:severe|gross|visible|obvious)\s+deform(?:ity|ed)\b/i, label: 'Gross or severe deformity' },
+    { pattern: /\b(?:spine|spinal|neck)\s+(?:injury|trauma|fracture|broken)\b/i, label: 'Spine / neck trauma' },
+    { pattern: /\b(?:uncontrolled|profuse|heavy|severe)\s+bleed(?:ing)?\b|\bbleed(?:ing)?\s+(?:profusely|uncontrollably|heavily)\b/i, label: 'Severe / profuse bleeding' },
+    { pattern: /\b(?:pupils?\s+unequal|seizure|slurred\s+speech|convulsion)\b/i, label: 'Neurological emergency symptom' }
   ];
 
-  for (const kw of urgentKeywords) {
-    if (allText.includes(kw)) {
-      detectedRedFlags.push(`Urgent symptom: ${kw}`);
+  for (const item of URGENT_PATTERNS) {
+    if (item.pattern.test(allText)) {
+      detectedRedFlags.push(item.label);
     }
   }
 
   // Head/Spine injury with severe pain and no mobility
-  const isHeadOrSpine = allText.includes('head') || allText.includes('neck') || allText.includes('spine');
-  if (isHeadOrSpine && (painLevel >= 8 || mobilityStatus === 'None' || allText.includes('concussion') && allText.includes('vomit'))) {
+  const isHeadOrSpine = /\b(head|neck|spine)\b/i.test(allText);
+  if (isHeadOrSpine && (painLevel >= 8 || mobilityStatus === 'None' || (/\bconcussion\b/i.test(allText) && /\bvomit/i.test(allText)))) {
     detectedRedFlags.push('Head/Neck/Spine trauma with severe symptoms');
   }
 
@@ -66,17 +67,17 @@ function classifyRisk({
   }
 
   // 2. HIGH Risk Triggers (Suspected fractures, complete tears, total loss of function)
-  const highKeywords = [
-    'fracture', 'broken', 'dislocation', 'dislocated', 'torn ligament', 'acl tear', 'achilles rupture',
-    "can't bear weight", 'cannot bear weight', 'unable to walk', 'cannot walk',
-    'numbness', 'tingling in fingers', 'tingling in toes', 'loss of sensation',
-    'locked joint', 'knee locked', 'joint locked'
+  const HIGH_PATTERNS = [
+    { pattern: /\b(fracture|broken\s+bone|dislocation|dislocated|torn\s+ligament|complete\s+tear|acl\s+tear|achilles\s+rupture)\b/i, label: 'Suspected fracture or major tear' },
+    { pattern: /\b(can'?t|cannot|unable\s+to)\s+(bear\s+weight|walk|stand|put\s+weight)\b/i, label: 'Inability to bear weight or walk' },
+    { pattern: /\b(numbness|loss\s+of\s+sensation|tingling\s+in\s+(?:fingers|toes|foot|hand|leg))\b/i, label: 'Numbness or nerve symptom' },
+    { pattern: /\b(joint\s+locked|knee\s+locked|elbow\s+locked|locked\s+joint)\b/i, label: 'Locked joint' }
   ];
 
-  for (const kw of highKeywords) {
-    if (allText.includes(kw)) {
-      detectedRedFlags.push(kw);
-      reasoning.push(`High risk indicator: ${kw}`);
+  for (const item of HIGH_PATTERNS) {
+    if (item.pattern.test(allText)) {
+      detectedRedFlags.push(item.label);
+      reasoning.push(`High risk indicator: ${item.label}`);
     }
   }
 

@@ -9,7 +9,7 @@ import '../models/injury_model.dart';
 class InjuryService {
   static String get baseUrl {
     if (!kIsWeb && Platform.isAndroid) {
-      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.244.238.104:5000/api';
+      return dotenv.env['ANDROID_API_URL'] ?? 'http://10.21.73.56:5000/api';
     }
     return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
@@ -20,6 +20,65 @@ class InjuryService {
       'Authorization': 'Bearer ${AuthService.currentToken}',
   };
 
+  /// Sanitize history to prevent DateTime or non-serializable object errors in jsonEncode
+  static List<Map<String, dynamic>> _sanitizeHistory(List<Map<String, dynamic>>? history) {
+    if (history == null || history.isEmpty) return [];
+    return history.map((item) {
+      return {
+        'sender': item['sender']?.toString() ?? 'user',
+        'text': item['text']?.toString() ?? item['content']?.toString() ?? '',
+        'intent': item['intent']?.toString(),
+        'isInjury': item['isInjury'] == true,
+        'riskLevel': item['riskLevel']?.toString(),
+      };
+    }).toList();
+  }
+
+  /// Dedicated RAG-powered Injury Assistant Endpoint
+  static Future<Map<String, dynamic>> askInjuryAssistant({
+    required String message,
+    List<Map<String, dynamic>>? history,
+    String? conversationId,
+    String? sport,
+    String? bodyPart,
+  }) async {
+    try {
+      final sanitizedHistory = _sanitizeHistory(history);
+      final payload = jsonEncode({
+        'message': message,
+        if (sanitizedHistory.isNotEmpty) 'history': sanitizedHistory,
+        if (conversationId != null) 'conversationId': conversationId,
+        if (sport != null) 'sport': sport,
+        if (bodyPart != null) 'bodyPart': bodyPart,
+      }, toEncodable: (nonEncodable) => nonEncodable.toString());
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/ai/injury-assistant'),
+        headers: _headers,
+        body: payload,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        debugPrint('Injury Assistant API HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Injury Assistant API Error: $e');
+    }
+
+    return {
+      'success': false,
+      'answer': 'Unable to connect to the Sports Injury Assistant service. Please verify your internet connection and try again.',
+      'reply': 'Unable to connect to the Sports Injury Assistant service. Please verify your internet connection and try again.',
+      'sources': [],
+      'disclaimer': 'This information is for general guidance and does not replace evaluation by a qualified healthcare professional.',
+      'retrieved': false,
+      'riskLevel': null,
+    };
+  }
+
+  /// Full 8-step clinical assessment submission
   static Future<Map<String, dynamic>> assessInjury({required Map<String, dynamic> data}) async {
     try {
       final url = '$baseUrl/injury/assess';
@@ -27,7 +86,7 @@ class InjuryService {
       final response = await http.post(
         Uri.parse(url),
         headers: _headers,
-        body: jsonEncode(data),
+        body: jsonEncode(data, toEncodable: (e) => e.toString()),
       ).timeout(const Duration(seconds: 30));
 
       debugPrint('Assess response: ${response.statusCode} - ${response.body}');
@@ -39,51 +98,10 @@ class InjuryService {
       debugPrint('Assessment network error: $e');
     }
 
-    // Client-side Fallback Assessment (when offline or backend unreachable)
     return {
-      'success': true,
-      'report': {
-        'id': 'local_${DateTime.now().millisecondsSinceEpoch}',
-        'sport': data['sport'] ?? 'Sport',
-        'bodyPart': data['bodyPart'] ?? 'Area',
-        'injuryMechanism': data['injuryMechanism'] ?? 'Activity',
-        'symptoms': List<String>.from(data['symptoms'] ?? []),
-        'painLevel': data['painLevel'] ?? 3,
-        'hasSwelling': data['hasSwelling'] ?? false,
-        'mobilityStatus': data['mobilityStatus'] ?? 'Full',
-        'riskLevel': (data['painLevel'] ?? 0) >= 8 ? 'HIGH' : ((data['painLevel'] ?? 0) >= 4 ? 'MODERATE' : 'LOW'),
-        'responseType': (data['painLevel'] ?? 0) >= 9 ? 'URGENT_SAFETY' : 'NORMAL',
-        'possibleCategories': ['Soft Tissue Strain / Sprain (Possible Category)'],
-        'generalGuidance': [
-          'Apply the RICE protocol: Rest, Ice (15-20 min), Compression, Elevation',
-          'Avoid putting full weight or stress on the affected area',
-          'Keep the injured joint supported and relaxed',
-          'Monitor symptoms for 24-48 hours'
-        ],
-        'thingsToAvoid': [
-          'Do NOT return to high-intensity sport immediately',
-          'Avoid applying direct heat during the first 48 hours',
-          'Do NOT massage intensely if acute swelling is present',
-          'Do NOT self-medicate without medical consultation'
-        ],
-        'warningSigns': [
-          'Inability to bear any weight on the limb',
-          'Numbness, tingling, or loss of sensation',
-          'Noticeable physical deformity or rapid severe swelling'
-        ],
-        'professionalCareRecommended': (data['painLevel'] ?? 0) >= 6 || (data['hasSwelling'] == true),
-        'followUpQuestions': [
-          'Did you hear or feel a pop at the moment of injury?',
-          'Is the swelling stable or progressively increasing?'
-        ],
-        'aiSummary': 'Based on symptoms in the ${data['bodyPart'] ?? 'area'} during ${data['sport'] ?? 'activity'}, immediate rest and cold compression are recommended.',
-        'sources': [
-          {'title': 'Standard Sports Medicine First Aid Protocol', 'relevance': 'high'}
-        ],
-        'disclaimer': 'SportVerse AI provides general sports-health information and does not provide medical diagnosis or personalized medication advice.',
-        'isFallback': true,
-        'createdAt': DateTime.now().toIso8601String(),
-      }
+      'success': false,
+      'message': 'Failed to connect to assessment server. Please check your network.',
+      'report': null
     };
   }
 
@@ -133,7 +151,7 @@ class InjuryService {
       final response = await http.post(
         Uri.parse('$baseUrl/injury/$reportId/chat'),
         headers: _headers,
-        body: jsonEncode({'message': message}),
+        body: jsonEncode({'message': message}, toEncodable: (e) => e.toString()),
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
@@ -142,13 +160,16 @@ class InjuryService {
     } catch (e) {
       debugPrint('Chat error: $e');
     }
+
     return {
-      'success': true,
+      'success': false,
+      'reply': 'Unable to send message. Please check your connection.',
+      'sources': [],
       'chatHistory': [
         {'role': 'user', 'content': message, 'timestamp': DateTime.now().toIso8601String()},
         {
           'role': 'assistant',
-          'content': 'Please remember to rest and apply cold compression if swelling persists. If your symptoms worsen, consult a doctor.',
+          'content': 'Unable to connect to the live AI server. Please check your connection.',
           'timestamp': DateTime.now().toIso8601String(),
         }
       ]
@@ -160,7 +181,7 @@ class InjuryService {
       final response = await http.post(
         Uri.parse('$baseUrl/injury/$reportId/checkin'),
         headers: _headers,
-        body: jsonEncode(data),
+        body: jsonEncode(data, toEncodable: (e) => e.toString()),
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -169,7 +190,7 @@ class InjuryService {
     } catch (e) {
       debugPrint('Check-in error: $e');
     }
-    return {'success': true};
+    return {'success': false};
   }
 
   static Future<List<Map<String, dynamic>>> getPainChart(String reportId) async {

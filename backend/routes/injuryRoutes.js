@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/authMiddleware');
 const {
   assessInjury,
+  injuryAssistantEndpoint,
   getInjuryHistory,
   getInjuryReport,
   injuryFollowUpChat,
@@ -14,10 +15,12 @@ const {
 
 const injuryLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.INJURY_RATE_LIMIT_MAX || '20'),
+  max: parseInt(process.env.INJURY_RATE_LIMIT_MAX || '60'),
   message: { success: false, message: 'Too many injury assessment requests. Please wait.' }
 });
 
+router.post('/assistant', injuryLimiter, injuryAssistantEndpoint);
+router.post('/injury-assistant', injuryLimiter, injuryAssistantEndpoint);
 router.post('/assess', protect, injuryLimiter, assessInjury);
 router.get('/history', protect, getInjuryHistory);
 router.get('/:id', protect, getInjuryReport);

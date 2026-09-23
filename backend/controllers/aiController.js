@@ -3,7 +3,8 @@ const Ground = require('../models/Ground');
 const User = require('../models/User');
 const { classifyIntent, extractEntities } = require('../utils/intentRouter');
 const { classifyRisk } = require('../utils/safetyEngine');
-const { retrieveRelevantKnowledge } = require('../utils/injuryRag');
+const { searchKnowledgeBase } = require('../utils/vectorRagService');
+const { generateGroundedInjuryResponse, MANDATORY_DISCLAIMER } = require('../utils/ragGenerator');
 const { generateGeminiContent, sanitizeOutputText } = require('../utils/geminiClient');
 const {
   searchVenues,
@@ -134,20 +135,26 @@ exports.aiAssistantChat = async (req, res) => {
     // INTENT 2: INJURY_HEALTH (Safety Engine -> PDF RAG -> Gemini)
     // ─────────────────────────────────────────────────────────────
     if (intent === 'INJURY_HEALTH') {
-      const fullContextText = `${historyText} ${userMsg}`.toLowerCase();
-      const detectedBodyPart = extracted.bodyPart || 'Joint/Muscle';
+      const userOnlyHistory = Array.isArray(history)
+        ? history
+            .filter(h => h.sender === 'user' || h.role === 'user')
+            .map(h => (h.text || h.content || ''))
+            .join(' ')
+        : '';
+      const userContextText = `${userOnlyHistory} ${userMsg}`.toLowerCase();
+      const detectedBodyPart = extracted.bodyPart || (userContextText.includes('ankle') ? 'Ankle' : (userContextText.includes('knee') ? 'Knee' : (userContextText.includes('hamstring') ? 'Hamstring' : 'Joint/Muscle')));
       const detectedSport = extracted.sport || 'Sports';
 
-      // 1. Run Deterministic Red-Flag Safety Engine
+      // 1. Run Deterministic Red-Flag Safety Engine (Evaluating USER symptoms only)
       const safetyResult = classifyRisk({
-        symptoms: [userMsg, historyText],
+        symptoms: [userMsg],
         painLevel: userMsg.toLowerCase().includes('severe') || userMsg.toLowerCase().includes('8') || userMsg.toLowerCase().includes('9') || userMsg.toLowerCase().includes('10') || userMsg.toLowerCase().includes('cannot walk') ? 8 : (userMsg.toLowerCase().includes('mild') || userMsg.toLowerCase().includes('1') || userMsg.toLowerCase().includes('2') || userMsg.toLowerCase().includes('3') ? 3 : 5),
         bodyPart: detectedBodyPart,
-        injuryMechanism: fullContextText.includes('twist') ? 'Twisting' : (fullContextText.includes('fall') ? 'Fall' : 'Direct Impact'),
-        hasSwelling: fullContextText.includes('swell') || fullContextText.includes('swelling'),
-        mobilityStatus: fullContextText.includes("can't walk") || fullContextText.includes("cannot bear weight") || fullContextText.includes("can't move") ? 'None' : (fullContextText.includes('limp') || fullContextText.includes('hard to walk') ? 'Partial' : 'Full'),
+        injuryMechanism: userContextText.includes('twist') ? 'Twisting' : (userContextText.includes('fall') ? 'Fall' : 'Direct Impact'),
+        hasSwelling: userContextText.includes('swell') || userContextText.includes('swelling'),
+        mobilityStatus: userContextText.includes("can't walk") || userContextText.includes("cannot bear weight") || userContextText.includes("can't move") ? 'None' : (userContextText.includes('limp') || userContextText.includes('hard to walk') ? 'Partial' : 'Full'),
         sport: detectedSport,
-        text: fullContextText
+        text: userMsg
       });
 
       console.log(`🛡️ [Safety Engine]: riskLevel="${safetyResult.riskLevel}" redFlags=[${safetyResult.redFlags.join(', ')}]`);
@@ -180,41 +187,32 @@ exports.aiAssistantChat = async (req, res) => {
         });
       }
 
-      // 2. Run Injury RAG over indexed /knowledge PDFs
-      const { formattedText: ragContext, sources } = await retrieveRelevantKnowledge({
+      // 2. Run Vector RAG over indexed knowledge PDFs
+      const ragResult = await searchKnowledgeBase({
         query: userMsg,
+        history: history,
         sport: detectedSport,
         bodyPart: detectedBodyPart,
-        symptoms: [userMsg, historyText]
+        topK: 3,
+        similarityThreshold: 0.45
       });
 
-      // 3. Call Gemini with Clinical Sports-Medicine Safety Instructions
-      const systemInstruction = `You are SportVerse AI, an expert sports-injury and athletic recovery assistant.
-STRICT SAFETY & COMPLIANCE RULES:
-1. NEVER diagnose a medical condition (never say "you have an ACL tear"; use "possible category: ACL sprain/tear").
-2. NEVER prescribe medication, recommend specific drugs, or provide dosage/frequency schedules.
-3. NEVER recommend antibiotics, steroids, or injections.
-4. If asked about medication, state clearly that you cannot recommend medications and advise consulting a healthcare professional or pharmacist.
-5. RECOVERY GUIDELINES:
-   - Provide only knowledge supported by the retrieved sports-medicine knowledge.
-   - Explain the RICE protocol (Rest, Ice 15–20 min, Compression bandage, Elevation).
-   - Safety risk level is ${safetyResult.riskLevel}. If HIGH, advise prompt orthopedic consultation.`;
-
-      let replyText = '';
-      try {
-        const prompt = `Conversation Context:\n${historyText}\n\nUser Message: "${userMsg}"\n\nTrusted Sports Medicine Knowledge (RAG):\n${ragContext || 'General sports first aid principles apply.'}\n\nCurrent Safety Level: ${safetyResult.riskLevel}\nProvide a structured, safe educational response.`;
-        replyText = await generateGeminiContent({ systemInstruction, prompt });
-        replyText = sanitizeOutputText(replyText);
-      } catch (geminiErr) {
-        console.warn('Gemini injury error, using structured fallback:', geminiErr.message);
-        replyText = `🏥 **Sports Injury Guidance (${detectedBodyPart.toUpperCase()})**\n\nFor acute joint sprains or swelling, begin the **RICE protocol**:\n• **Rest**: Protect the injured joint and stop active play.\n• **Ice**: Apply cold packs for 15–20 minutes with a cloth barrier.\n• **Compression**: Use an elastic bandage for mild support.\n• **Elevation**: Keep elevated above heart level when resting.\n\n*Assessed Risk: ${safetyResult.riskLevel}. Please consult a sports physiotherapist or physician for clinical diagnosis.*`;
-      }
+      // 3. Grounded Response Generation
+      const responseResult = await generateGroundedInjuryResponse({
+        userMessage: userMsg,
+        ragContext: ragResult.formattedText,
+        sources: ragResult.sources,
+        noKnowledgeFound: ragResult.noKnowledgeFound,
+        riskLevel: safetyResult.riskLevel,
+        history: history
+      });
 
       return res.json({
         success: true,
         intent: 'INJURY_HEALTH',
-        reply: replyText,
-        message: replyText,
+        reply: responseResult.answer,
+        message: responseResult.answer,
+        answer: responseResult.answer,
         action: null,
         data: {
           bodyPart: detectedBodyPart,
@@ -224,12 +222,15 @@ STRICT SAFETY & COMPLIANCE RULES:
         riskLevel: safetyResult.riskLevel,
         isInjury: true,
         responseType: 'NORMAL',
-        sources: sources,
-        disclaimer: 'SportVerse AI provides general sports-health information and does not provide medical diagnosis or personalized medication advice.',
+        sources: responseResult.sources,
+        disclaimer: responseResult.disclaimer,
+        retrieved: responseResult.retrieved,
         requiresConfirmation: false,
         suggested_actions: safetyResult.riskLevel === 'HIGH'
           ? ['How to ice properly?', 'Severe pain (8-10)', 'Cannot bear weight', 'RICE protocol steps']
-          : ['Pain is mild (1-3/10)', 'Pain is severe (7-10/10)', 'There is swelling', 'RICE protocol steps']
+          : (responseResult.sources.length > 0
+            ? ['RICE protocol steps', 'When can I play again?', 'When to see a doctor?', 'Show injury prevention']
+            : ['Ask about ankle sprains', 'Ask about knee pain', 'Ask about hamstring strains', '🩺 Take full assessment'])
       });
     }
 

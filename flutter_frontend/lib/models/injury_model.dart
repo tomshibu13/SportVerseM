@@ -36,18 +36,23 @@ class ChatMessage {
   final String role;
   final String content;
   final DateTime timestamp;
+  final List<dynamic> sources;
 
   ChatMessage({
     required this.role,
     required this.content,
     required this.timestamp,
+    this.sources = const [],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     return ChatMessage(
-      role: json['role'],
-      content: json['content'],
-      timestamp: DateTime.parse(json['timestamp']),
+      role: json['role'] ?? 'assistant',
+      content: json['content'] ?? json['text'] ?? '',
+      timestamp: json['timestamp'] != null
+          ? (json['timestamp'] is DateTime ? json['timestamp'] : (DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()))
+          : DateTime.now(),
+      sources: (json['sources'] as List<dynamic>?) ?? [],
     );
   }
 
@@ -56,6 +61,7 @@ class ChatMessage {
       'role': role,
       'content': content,
       'timestamp': timestamp.toIso8601String(),
+      'sources': sources,
     };
   }
 }

@@ -62,6 +62,9 @@ exports.getAllGrounds = async (req, res) => {
       ];
     }
 
+    if (req.user?.role !== 'Admin') {
+      query.status = 'Approved';
+    }
     const grounds = await Ground.find(query);
     return res.json({ success: true, grounds: grounds || [] });
   } catch (error) {
@@ -177,7 +180,7 @@ exports.createGround = async (req, res) => {
       facilities: req.body.facilities || ['Floodlights', 'Parking'],
       images: groundImages,
       owner_id: ownerId,
-      status: req.body.status || 'Approved',
+      status: req.user?.role === 'Admin' ? (req.body.status || 'Approved') : 'Pending',
       rating: 4.8,
       review_count: 0,
       available_slots: [
@@ -294,10 +297,11 @@ exports.deleteGround = async (req, res) => {
     }
 
     await Ground.findByIdAndDelete(ground._id);
-    // Delete associated slots
+    // Delete associated slots and bookings
     await Slot.deleteMany({ $or: [{ ground: ground._id }, { ground_id: ground.ground_id }] });
+    await Booking.deleteMany({ $or: [{ ground: ground._id }, { ground_id: ground.ground_id }] });
 
-    return res.status(200).json({ success: true, message: 'Ground and its slots deleted successfully' });
+    return res.status(200).json({ success: true, message: 'Ground, slots, and bookings deleted successfully' });
   } catch (error) {
     console.error('❌ deleteGround error:', error);
     return res.status(500).json({ success: false, message: error.message });
@@ -490,6 +494,7 @@ exports.getOwnerDashboardStats = async (req, res) => {
         avgRating,
         totalReviews,
         courtOccupancy: courtOccupancy.length > 0 ? `${Math.round(courtOccupancy.reduce((acc, c) => acc + c.percent, 0) / courtOccupancy.length)}%` : '0%',
+        courtOccupancyArray: courtOccupancy,
         peakReservationHours,
         recentActivities: recentActivities.slice(0, 6)
       }
@@ -497,5 +502,43 @@ exports.getOwnerDashboardStats = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.seedGroundsIfEmpty = async () => {
+  try {
+    const count = await Ground.countDocuments();
+    if (count === 0) {
+      console.log('Seeding initial grounds to MongoDB...');
+      const initialGrounds = [{
+        ground_id: 101,
+        title: 'Kickoff Arena',
+        sport_type: 'Football',
+        location: 'Malaparamba, Calicut',
+        address: 'Near Bypass Junction, Kozhikode, Kerala',
+        latitude: 11.2480,
+        longitude: 75.7910,
+        distance_km: 1.5,
+        price_per_hour: 800,
+        rating: 4.8,
+        review_count: 98,
+        facilities: ['FIFA-grade Artificial Turf', 'Floodlights', 'Dressing Rooms', 'Parking', 'Mineral Water'],
+        images: [
+          'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=800&q=80'
+        ],
+        owner_id: 1,
+        status: 'Approved',
+        ai_score: 96,
+        available_slots: [
+          { slot_id: 'ka_1', time: '06:00 AM - 07:00 AM', is_booked: false, price: 800 },
+          { slot_id: 'ka_2', time: '07:00 AM - 08:00 AM', is_booked: false, price: 800 }
+        ]
+      }];
+      await Ground.insertMany(initialGrounds);
+      console.log('Grounds seeded successfully.');
+    }
+  } catch (err) {
+    console.error('Error seeding grounds:', err.message);
   }
 };

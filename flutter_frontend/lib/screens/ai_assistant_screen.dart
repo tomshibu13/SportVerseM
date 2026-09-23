@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../services/api_service.dart';
-import '../services/auth_service.dart';
+import '../services/injury_service.dart';
 import 'injury_assistant/injury_assessment_screen.dart';
 import 'injury_assistant/injury_history_screen.dart';
 
@@ -133,22 +132,25 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
     _scrollToBottom();
 
     try {
-      final response = await ApiService.askAiAssistantFull(
-        text,
-        history: _messages,
-        token: AuthService.currentToken,
-        user: AuthService.currentUser,
+      final historyPayload = _messages.map((m) => {
+        'sender': m['sender']?.toString() ?? 'user',
+        'text': m['text']?.toString() ?? '',
+      }).toList();
+
+      final response = await InjuryService.askInjuryAssistant(
+        message: text,
+        history: historyPayload,
       );
 
-      final reply = response['reply'] ??
+      final reply = response['answer'] ??
+          response['reply'] ??
           response['message'] ??
-          'I have received your query. Please follow the R.I.C.E protocol (Rest, Ice, Compression, Elevation) and monitor symptoms closely.';
-      final intent = response['intent'] as String? ?? 'INJURY_HEALTH';
-      const isInjury = true;
+          'I have received your inquiry. Please follow standard R.I.C.E first aid (Rest, Ice, Compression, Elevation) and monitor symptoms.';
       final riskLevel = response['riskLevel'] as String?;
       final suggested = (response['suggested_actions'] as List<dynamic>?)?.map((e) => e.toString()).toList();
       final responseType = response['responseType'] as String? ?? 'NORMAL';
       final sources = (response['sources'] as List<dynamic>? ?? []);
+      final disclaimer = response['disclaimer'] as String? ?? 'This information is for general guidance and does not replace evaluation by a qualified healthcare professional.';
 
       if (mounted) {
         setState(() {
@@ -156,23 +158,17 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
           _messages.add({
             'sender': 'ai',
             'text': reply,
-            'intent': intent,
-            'isInjury': isInjury,
+            'intent': 'INJURY_HEALTH',
+            'isInjury': true,
             'riskLevel': riskLevel,
             'responseType': responseType,
             'sources': sources,
+            'disclaimer': disclaimer,
             'timestamp': DateTime.now(),
           });
 
           if (suggested != null && suggested.isNotEmpty) {
-            final filtered = suggested.where((s) =>
-              !s.contains('Find Courts') &&
-              !s.contains('Book a Turf') &&
-              !s.contains('Sports Gear') &&
-              !s.contains('Tournaments') &&
-              !s.contains('Find Players')
-            ).toList();
-            _quickReplies = filtered.isNotEmpty ? filtered : List.from(_injuryQuickPrompts);
+            _quickReplies = suggested;
           } else {
             _quickReplies = [
               '🧊 Show R.I.C.E Steps',
@@ -190,15 +186,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
           _isTyping = false;
           _messages.add({
             'sender': 'ai',
-            'text': '🏥 **Immediate Sports First Aid (R.I.C.E Protocol)**\n\n'
-                'While connecting to the live assistant server, please follow standard acute injury care:\n\n'
-                '1. **Rest**: Stop all sporting activity immediately and avoid putting weight on the injured area.\n'
-                '2. **Ice**: Apply a cold pack wrapped in a cloth for 15–20 minutes every 2–3 hours.\n'
-                '3. **Compression**: Wrap with a firm elastic bandage to support the joint and minimize swelling.\n'
-                '4. **Elevation**: Prop the injured limb above heart level whenever sitting or lying down.\n\n'
-                '⚠️ *If you heard a loud pop, cannot bear weight, or observe severe deformity, seek emergency medical care immediately.*',
+            'text': '⚠️ **Unable to connect to the Sports Injury Assistant service.**\n\nPlease check your internet connection and verify that the backend server is running.',
             'isInjury': true,
-            'riskLevel': 'MODERATE',
+            'riskLevel': null,
             'sources': [],
             'timestamp': DateTime.now(),
           });
@@ -951,6 +941,63 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                         ),
                       ),
 
+                      // Referenced Knowledge Sources Section (RAG)
+                      if (!isUser && msg['sources'] is List && (msg['sources'] as List).isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.library_books_rounded, size: 13, color: AppColors.warmAccent),
+                                  SizedBox(width: 5),
+                                  Text(
+                                    'Referenced Knowledge Sources:',
+                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: (msg['sources'] as List).map((s) {
+                                  final sourceFile = s is Map ? (s['sourceFile'] ?? s['title'] ?? 'PDF Document') : s.toString();
+                                  final score = s is Map && s['relevancePercentage'] != null ? ' (${s['relevancePercentage']})' : '';
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.picture_as_pdf_outlined, size: 12, color: Color(0xFFEF4444)),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$sourceFile$score',
+                                          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       // In-Message Guided Assessment Button (for relevant medical triage replies)
                       if (!isUser && (text.contains('RICE') || text.contains('protocol') || riskLevel != null)) ...[
                         const SizedBox(height: 12),
@@ -1076,7 +1123,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> with SingleTicker
                 ),
                 SizedBox(width: 10),
                 Text(
-                  'Evaluating symptoms & first-aid guidelines...',
+                  'Searching sports-injury knowledge base & retrieving guidance...',
                   style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontStyle: FontStyle.italic),
                 ),
               ],

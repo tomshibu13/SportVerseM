@@ -16,6 +16,7 @@ import '../models/ground_model.dart';
 import 'ground_booking_screen.dart';
 import 'become_ground_owner_screen.dart';
 import 'community_screen.dart';
+import 'fitness_dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -625,6 +626,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 10),
                 _buildActionCard('Injury AI', Icons.medical_services_outlined, () {
                   _openAIAssistant('I have a sports injury and need advice');
+                }),
+                const SizedBox(width: 10),
+                _buildActionCard('Fitness', Icons.fitness_center, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FitnessDashboardScreen()),
+                  );
                 }),
                 const SizedBox(width: 10),
                 _buildActionCard('Profile', Icons.person_outline, () {

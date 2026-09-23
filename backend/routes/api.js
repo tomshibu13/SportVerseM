@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { protect, authorizeRoles } = require('../middleware/authMiddleware');
+const { protect, authorizeRoles, optionalAuth } = require('../middleware/authMiddleware');
 const {
   validateRegister,
   validateLogin,
@@ -19,6 +19,7 @@ const aiController = require('../controllers/aiController');
 const notificationController = require('../controllers/notificationController');
 const paymentController = require('../controllers/paymentController');
 const slotController = require('../controllers/slotController');
+const injuryController = require('../controllers/injuryController');
 
 // Health Check
 router.get('/health', (req, res) => {
@@ -40,7 +41,7 @@ router.put('/notifications/:id/read', protect, notificationController.markAsRead
 router.get('/owner/dashboard/:ownerId', protect, authorizeRoles('GroundOwner', 'Admin'), groundController.getOwnerDashboardStats);
 
 // Ground Routes
-router.get('/grounds', groundController.getAllGrounds);
+router.get('/grounds', optionalAuth, groundController.getAllGrounds);
 router.get('/grounds/owner/:ownerId', protect, authorizeRoles('GroundOwner', 'Admin'), groundController.getGroundsByOwner);
 router.get('/grounds/:id', groundController.getGroundById);
 router.post('/grounds', protect, validateGround, groundController.createGround);
@@ -87,8 +88,10 @@ router.post('/payment/create-order', protect, paymentController.createRazorpayOr
 router.post('/payment/verify-payment', protect, paymentController.verifyPayment);
 router.get('/payment/history/:userId', protect, paymentController.getUserPaymentHistory);
 
-// AI Recommendation Routes
+// AI Recommendation & Injury Assistant Routes
 router.get('/ai/recommendations', aiController.getRecommendations);
 router.post('/ai/chat', aiController.aiAssistantChat);
+router.post('/ai/injury-assistant', injuryController.injuryAssistantEndpoint);
+router.post('/ai/injury', injuryController.injuryAssistantEndpoint);
 
 module.exports = router;

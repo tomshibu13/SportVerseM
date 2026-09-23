@@ -83,7 +83,10 @@ exports.getOwnerBookings = async (req, res) => {
 // @access  Private
 exports.createBooking = async (req, res) => {
   try {
-    const requesterUserId = req.user?.userId || req.body.user_id;
+    let requesterUserId = req.user?.userId;
+    if (req.user?.role === 'Admin' && req.body.user_id) {
+      requesterUserId = req.body.user_id;
+    }
     const { user_name, ground_id, ground_name, sport_type, date, slot_time, total_price, slot_id, court_id } = req.body;
     const booking_id = 'SPV-BK-' + Math.floor(1000 + Math.random() * 9000);
     const court = (court_id || 'Court 1').trim();
@@ -160,7 +163,10 @@ exports.createBooking = async (req, res) => {
     const resolvedGroundName = groundDoc ? groundDoc.title : (ground_name || 'Sports Ground');
     const resolvedSportType = sport_type || (groundDoc ? groundDoc.sport_type : 'Football');
     const resolvedUserName = user_name || (userDoc ? userDoc.fullName : 'Player');
-    const resolvedPrice = Number(total_price) || (groundDoc ? groundDoc.price_per_hour : 800);
+    let resolvedPrice = 0;
+    if (req.user?.role === 'Admin' && total_price !== undefined) {
+      resolvedPrice = Number(total_price);
+    }
     const resolvedUserId = userDoc ? String(userDoc._id) : String(requesterUserId || '1');
 
     // 3. Prevent double bookings / check slot availability
@@ -200,19 +206,27 @@ exports.createBooking = async (req, res) => {
       }
 
       // Check if slot is explicitly Blocked in Slot collection
-      const blockedSlot = await Slot.findOne({
+      const existingSlot = await Slot.findOne({
         $or: [{ ground: groundDoc._id }, { ground_id: groundDoc.ground_id }],
         court_id: court,
         date: targetDate,
-        slot_time: slot,
-        status: 'Blocked'
+        slot_time: slot
       });
 
-      if (blockedSlot) {
-        return res.status(400).json({
-          success: false,
-          message: `Slot "${slot}" on ${court} is currently blocked by the venue.`
-        });
+      if (existingSlot) {
+        if (existingSlot.status === 'Blocked') {
+          return res.status(400).json({
+            success: false,
+            message: `Slot "${slot}" on ${court} is currently blocked by the venue.`
+          });
+        }
+        if (req.user?.role !== 'Admin') {
+          resolvedPrice += existingSlot.price || groundDoc.price_per_hour || 800;
+        }
+      } else {
+        if (req.user?.role !== 'Admin') {
+          resolvedPrice += groundDoc ? groundDoc.price_per_hour : 800;
+        }
       }
     }
 
@@ -617,5 +631,18 @@ exports.getGroundBookedSlots = async (req, res) => {
   } catch (error) {
     console.error('❌ getGroundBookedSlots error:', error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.seedBookingsIfEmpty = async () => {
+  try {
+    const count = await Booking.countDocuments();
+    if (count === 0) {
+      console.log('Seeding initial bookings to MongoDB...');
+      // Provide a mock booking or leave empty if none required
+      console.log('Bookings seeded successfully.');
+    }
+  } catch (err) {
+    console.error('Error seeding bookings:', err.message);
   }
 };

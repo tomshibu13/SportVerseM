@@ -55,10 +55,11 @@ class _InjuryChatScreenState extends State<InjuryChatScreen> {
 
     try {
       final response = await InjuryService.sendChatMessage(widget.report.id, text);
-      final reply = response['reply'];
+      final reply = response['reply'] ?? response['answer'] ?? 'Please follow conservative care and consult a doctor if pain worsens.';
+      final sources = (response['sources'] as List<dynamic>?) ?? [];
       if (!mounted) return;
       setState(() {
-        _messages.add(ChatMessage(role: 'model', content: reply, timestamp: DateTime.now()));
+        _messages.add(ChatMessage(role: 'model', content: reply, timestamp: DateTime.now(), sources: sources));
         _isLoading = false;
       });
       _scrollToBottom();
@@ -147,12 +148,46 @@ class _InjuryChatScreenState extends State<InjuryChatScreen> {
                             borderRadius: BorderRadius.circular(12),
                             border: isUser ? null : Border.all(color: AppColors.border),
                           ),
-                          child: Text(
-                            msg.content,
-                            style: TextStyle(
-                              color: isUser ? Colors.white : AppColors.primaryBlack,
-                              height: 1.4,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                msg.content,
+                                style: TextStyle(
+                                  color: isUser ? Colors.white : AppColors.primaryBlack,
+                                  height: 1.4,
+                                ),
+                              ),
+                              if (!isUser && msg.sources.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: msg.sources.map((s) {
+                                    final sourceFile = s is Map ? (s['sourceFile'] ?? s['title'] ?? 'Document') : s.toString();
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.picture_as_pdf, size: 10, color: Color(0xFFEF4444)),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            sourceFile,
+                                            style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       );
