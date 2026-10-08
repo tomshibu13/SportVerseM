@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_graphics.dart';
 import '../widgets/feature_highlights_bar.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -20,6 +22,19 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     if (!kIsWeb) {
       SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    }
+    _checkSavedAuth();
+  }
+
+  Future<void> _checkSavedAuth() async {
+    final isLoggedIn = await AuthService.loadSavedAuth();
+    if (isLoggedIn) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     }
   }
 

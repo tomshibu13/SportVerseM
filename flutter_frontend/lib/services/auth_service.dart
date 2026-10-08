@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint, debugPrintStack;
 import 'package:flutter/material.dart';
@@ -150,6 +151,11 @@ class AuthService {
       if (response.statusCode == 201) {
         currentToken = data['token'] as String?;
         currentUser = data['user'] as Map<String, dynamic>?;
+
+        final prefs = await SharedPreferences.getInstance();
+        if (currentToken != null) await prefs.setString('sv_auth_token', currentToken!);
+        if (currentUser != null) await prefs.setString('sv_auth_user', jsonEncode(currentUser));
+
         return {
           'success': true,
           'message': data['message'] ?? 'Registration successful',
@@ -184,6 +190,11 @@ class AuthService {
       if (response.statusCode == 200) {
         currentToken = data['token'] as String?;
         currentUser = data['user'] as Map<String, dynamic>?;
+
+        final prefs = await SharedPreferences.getInstance();
+        if (currentToken != null) await prefs.setString('sv_auth_token', currentToken!);
+        if (currentUser != null) await prefs.setString('sv_auth_user', jsonEncode(currentUser));
+
         return {
           'success': true,
           'message': data['message'] ?? 'Login successful',
@@ -367,6 +378,11 @@ class AuthService {
       if (response.statusCode == 200 && data['success'] == true) {
         currentToken = data['token'] as String?;
         currentUser = data['user'] as Map<String, dynamic>?;
+
+        final prefs = await SharedPreferences.getInstance();
+        if (currentToken != null) await prefs.setString('sv_auth_token', currentToken!);
+        if (currentUser != null) await prefs.setString('sv_auth_user', jsonEncode(currentUser));
+
         return {
           'success': true,
           'message': data['message'] ?? 'Google login successful',
@@ -418,5 +434,27 @@ class AuthService {
   static void logout() {
     currentToken = null;
     currentUser = null;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.remove('sv_auth_token');
+      prefs.remove('sv_auth_user');
+    });
+  }
+
+  // ── Load Saved Auth ───────────────────────────────────────────────────────
+  static Future<bool> loadSavedAuth() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('sv_auth_token');
+      final userStr = prefs.getString('sv_auth_user');
+
+      if (token != null && userStr != null) {
+        currentToken = token;
+        currentUser = jsonDecode(userStr);
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Error loading saved auth: $e');
+    }
+    return false;
   }
 }
