@@ -26,8 +26,8 @@ const startServer = async () => {
 
     // 3. Start Express Server
     const PORT = process.env.PORT || 5000;
-    const server = app.listen(PORT, () => {
-      console.log(`🚀 SportVerse AI Backend Server listening on http://localhost:${PORT}`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 SportVerse AI Backend Server listening on http://0.0.0.0:${PORT} (accessible via local IP)`);
     });
 
     server.on('error', (err) => {

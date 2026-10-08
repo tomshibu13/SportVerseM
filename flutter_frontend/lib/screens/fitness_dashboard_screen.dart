@@ -262,6 +262,7 @@ class _FitnessDashboardScreenState extends State<FitnessDashboardScreen> with Si
     double distance = 0.0;
     int activeMinutes = 0;
     int heartRate = 0;
+    double po2 = 0.0;
 
     if (todayData.isNotEmpty) {
       final record = todayData.first;
@@ -270,6 +271,7 @@ class _FitnessDashboardScreenState extends State<FitnessDashboardScreen> with Si
       distance = record.distance;
       activeMinutes = record.activeMinutes;
       heartRate = record.heartRate ?? 0;
+      po2 = record.bloodOxygen ?? 0.0;
     }
 
     return GridView.count(
@@ -284,8 +286,8 @@ class _FitnessDashboardScreenState extends State<FitnessDashboardScreen> with Si
         _buildGlassStatCard('Calories', '${calories.toStringAsFixed(0)} kcal', Icons.local_fire_department, const [Color(0xFFFF8E53), Color(0xFFFF512F)]),
         _buildGlassStatCard('Distance', '${distance.toStringAsFixed(1)} km', Icons.map, const [Color(0xFF11998E), Color(0xFF38EF7D)]),
         _buildGlassStatCard('Active Mins', '$activeMinutes min', Icons.timer, const [Color(0xFF8E2DE2), Color(0xFF4A00E0)]),
-        if (heartRate > 0)
-          _buildGlassStatCard('Heart Rate', '$heartRate bpm', Icons.favorite, const [Color(0xFFFF0844), Color(0xFFFFB199)]),
+        _buildGlassStatCard('Heart Rate', '$heartRate bpm', Icons.favorite, const [Color(0xFFFF0844), Color(0xFFFFB199)]),
+        _buildGlassStatCard('PO2 Level', '${po2.toStringAsFixed(1)}%', Icons.air, const [Color(0xFF00C9FF), Color(0xFF92FE9D)]),
       ],
     );
   }
@@ -623,7 +625,9 @@ class _FitnessDashboardScreenState extends State<FitnessDashboardScreen> with Si
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      activity.sportId != null ? 'Sport ID: ${activity.sportId}' : 'General Activity',
+                      (activity.sportId != null && activity.sportId != 'Other')
+                          ? activity.sportId!.replaceAll('_', ' ').toUpperCase()
+                          : 'General Activity',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryBlack),
                     ),
                     const SizedBox(height: 4),

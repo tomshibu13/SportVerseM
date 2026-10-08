@@ -96,7 +96,6 @@ class HealthService {
           HealthDataType.DISTANCE_DELTA,
           HealthDataType.ACTIVE_ENERGY_BURNED,
           HealthDataType.HEART_RATE,
-          HealthDataType.WORKOUT,
           HealthDataType.SLEEP_ASLEEP,
           HealthDataType.WATER,
           HealthDataType.BLOOD_PRESSURE_SYSTOLIC,
@@ -106,6 +105,19 @@ class HealthService {
           HealthDataType.RESTING_HEART_RATE,
         ],
       );
+
+      // Fetch WORKOUT separately since it may throw SecurityException on some Android versions
+      // due to implicitly requiring TOTAL_CALORIES_BURNED permission.
+      List<HealthDataPoint> workoutData = [];
+      try {
+        workoutData = await _health.getHealthDataFromTypes(
+          startTime: startOfDay,
+          endTime: now,
+          types: [HealthDataType.WORKOUT],
+        );
+      } catch (e) {
+        debugPrint('Failed to fetch WORKOUT data gracefully: $e');
+      }
 
       // Fetch long-term metrics (latest reading in 30 days)
       final longTermData = await _health.getHealthDataFromTypes(
@@ -119,7 +131,7 @@ class HealthService {
         ],
       );
 
-      final allData = [...dailyData, ...longTermData];
+      final allData = [...dailyData, ...workoutData, ...longTermData];
       final cleanedData = Health().removeDuplicates(allData);
 
       int totalSteps = 0;
@@ -247,6 +259,12 @@ class HealthService {
         avgRestingHeartRate = (restingHeartRates.reduce((a, b) => a + b) / restingHeartRates.length).round();
       }
 
+      // Fallback: If Health Connect doesn't provide Active Energy Burned but we have steps,
+      // calculate an estimated calorie burn (approx 0.045 calories per step)
+      if (totalCalories == 0 && totalSteps > 0) {
+        totalCalories = totalSteps * 0.045;
+      }
+
       result['steps'] = totalSteps;
       result['distance'] = totalDistance;
       result['calories'] = totalCalories;
@@ -291,8 +309,14 @@ class HealthService {
       for (HealthDataPoint point in healthData) {
         final duration = point.dateTo.difference(point.dateFrom).inMinutes;
         if (duration > 0) {
+          String activityName = 'Other';
+          if (point.value is WorkoutHealthValue) {
+            final workout = point.value as WorkoutHealthValue;
+            activityName = workout.workoutActivityType.name;
+          }
+
           workouts.add({
-            'sport_id': 'Other', 
+            'sport_id': activityName, 
             'duration': duration,
             'activity_date': point.dateFrom.toIso8601String(),
             'calories': 0.0, 

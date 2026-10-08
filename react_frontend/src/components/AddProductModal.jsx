@@ -15,6 +15,8 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
   const [price, setPrice] = useState(1499);
   const [stock, setStock] = useState(15);
   const [imageUrl, setImageUrl] = useState(SAMPLE_PROD_IMAGES[0].url);
+  const [description, setDescription] = useState('');
+  const [originalPrice, setOriginalPrice] = useState('');
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -29,14 +31,18 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
         category,
         sport,
         price: Number(price),
+        original_price: Number(originalPrice) || Number(price),
         stock: Number(stock),
+        description: description.trim(),
         image: imageUrl,
       });
       setName('');
       setCategory('Gear');
       setSport('Badminton');
       setPrice(1499);
+      setOriginalPrice('');
       setStock(15);
+      setDescription('');
       onClose();
     } catch (err) {
       console.error('Error in AddProductModal:', err);
@@ -117,6 +123,21 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Original Price (₹)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={originalPrice}
+                onChange={(e) => setOriginalPrice(e.target.value)}
+                min="0"
+                step="any"
+                placeholder="Optional"
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group">
               <label className="form-label">Stock Quantity</label>
               <input
                 type="number"
@@ -125,6 +146,17 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
                 onChange={(e) => setStock(e.target.value)}
                 min="0"
                 required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Description</label>
+              <textarea
+                className="form-input"
+                style={{ height: '42px', resize: 'vertical' }}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief product description..."
               />
             </div>
           </div>
@@ -162,6 +194,21 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="Or enter custom image URL..."
+              style={{ marginBottom: '0.5rem' }}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              className="form-input"
+              style={{ padding: '0.4rem', fontSize: '0.85rem' }}
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setImageUrl(reader.result);
+                  reader.readAsDataURL(file);
+                }
+              }}
             />
           </div>
 

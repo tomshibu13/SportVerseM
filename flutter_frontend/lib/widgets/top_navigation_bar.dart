@@ -134,7 +134,7 @@ class TopNavigationBar extends StatelessWidget implements PreferredSizeWidget {
                   child: SportVerseInlineHeader(),
                 ),
               ),
-            ),
+            ), 
 
             // Right Action Icons Row
             Row(
