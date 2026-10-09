@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/post_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -87,6 +89,73 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     _locationController.dispose();
     _customMediaUrlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        setState(() {
+          _selectedMediaUrl = base64Image;
+          _customMediaUrlController.clear();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to pick image from device.')),
+        );
+      }
+    }
+  }
+
+  Widget _buildSafeImage(String url) {
+    if (url.startsWith('data:image') && url.contains(',')) {
+      try {
+        final base64String = url.split(',').last;
+        final bytes = base64Decode(base64String);
+        return Image.memory(
+          bytes,
+          height: 200,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _errorPlaceholder(),
+        );
+      } catch (_) {
+        return _errorPlaceholder();
+      }
+    }
+    return Image.network(
+      url,
+      height: 200,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _errorPlaceholder(),
+    );
+  }
+
+  Widget _errorPlaceholder() {
+    return Container(
+      height: 160,
+      color: Colors.grey.shade200,
+      alignment: Alignment.center,
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.broken_image_rounded, size: 36, color: AppColors.mutedText),
+          SizedBox(height: 6),
+          Text('Invalid photo. Please pick a preset below.', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
+        ],
+      ),
+    );
   }
 
   Future<void> _handlePublish() async {
@@ -261,11 +330,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           '1. Post Photo / Media',
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
                         ),
-                        Text(
-                          'Select or enter URL',
-                          style: TextStyle(fontSize: 11, color: AppColors.mutedText),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Device Upload Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.photo_library, size: 18),
+                        label: const Text('Upload Photo from Device'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.warmAccent,
+                          side: const BorderSide(color: AppColors.warmAccent),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -275,26 +357,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       child: Stack(
                         alignment: Alignment.bottomRight,
                         children: [
-                          Image.network(
+                          _buildSafeImage(
                             _customMediaUrlController.text.trim().isNotEmpty
                                 ? _customMediaUrlController.text.trim()
                                 : _selectedMediaUrl,
-                            height: 200,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              height: 160,
-                              color: Colors.grey.shade200,
-                              alignment: Alignment.center,
-                              child: const Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.broken_image_rounded, size: 36, color: AppColors.mutedText),
-                                  SizedBox(height: 6),
-                                  Text('Invalid photo link. Please pick a preset below.', style: TextStyle(fontSize: 11, color: AppColors.mutedText)),
-                                ],
-                              ),
-                            ),
                           ),
                           Container(
                             margin: const EdgeInsets.all(10),
