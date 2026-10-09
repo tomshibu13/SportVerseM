@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Star, Users, Plus, Edit3, Trash2, CheckCircle2, XCircle, TrendingUp } from 'lucide-react';
-import { fetchMyGrounds } from '../services/api';
+import { fetchMyGrounds, createGroundApi } from '../services/api';
 
 export default function CourtsPage({ currentUser }) {
   const [grounds, setGrounds] = useState([]);
@@ -20,7 +20,6 @@ export default function CourtsPage({ currentUser }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Assuming backend endpoint for create ground exists and works
     const newGround = { 
       title: form.title, 
       location: form.location, 
@@ -29,14 +28,9 @@ export default function CourtsPage({ currentUser }) {
       owner_id: currentUser._id || currentUser.id 
     };
     try {
-      const res = await fetch('/api/grounds', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(newGround)
-      });
-      if (res.ok) {
-         const data = await res.json();
-         setGrounds([...grounds, data.ground]);
+      const data = await createGroundApi(newGround);
+      if (data && data.success !== false) {
+         setGrounds([...grounds, data.ground || data.data || data]);
       }
     } catch (e) {
       console.error('Failed to add court:', e);

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -734,22 +735,42 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                 final imageUrl = ground.images.isNotEmpty
                     ? ground.images[index]
                     : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80';
+                
+                Widget imageWidget;
+                if (imageUrl.startsWith('data:image')) {
+                  final base64String = imageUrl.split(',').last;
+                  imageWidget = Image.memory(
+                    base64Decode(base64String),
+                    width: 280,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 280,
+                      height: 200,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.sports, color: AppColors.mutedText, size: 40),
+                    ),
+                  );
+                } else {
+                  imageWidget = Image.network(
+                    imageUrl,
+                    width: 280,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 280,
+                      height: 200,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.sports, color: AppColors.mutedText, size: 40),
+                    ),
+                  );
+                }
+
                 return Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: Image.network(
-                      imageUrl,
-                      width: 280,
-                      height: 200,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 280,
-                        height: 200,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.sports, color: AppColors.mutedText, size: 40),
-                      ),
-                    ),
+                    child: imageWidget,
                   ),
                 );
               },

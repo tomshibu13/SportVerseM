@@ -90,8 +90,10 @@ const loginUser = async (req, res, next) => {
       });
     }
 
-    const { email, password } = req.body;
-    const normalizedEmail = (email || '').trim().toLowerCase();
+    const { email, password: rawPassword } = req.body;
+    const emailStr = typeof email === 'string' ? email : (email?.email || '');
+    const normalizedEmail = emailStr.trim().toLowerCase();
+    const password = typeof rawPassword === 'string' ? rawPassword.trim() : rawPassword;
 
     // Find user and explicitly select password & stationPassword
     const user = await User.findOne({ email: normalizedEmail }).select('+password +stationPassword');

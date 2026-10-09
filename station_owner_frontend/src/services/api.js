@@ -39,6 +39,13 @@ export async function fetchMyGrounds(ownerId) {
   return data.grounds || [];
 }
 
+export async function createGroundApi(groundData) {
+  return await request('/grounds', {
+    method: 'POST',
+    body: JSON.stringify(groundData),
+  });
+}
+
 // ── Bookings ──
 export async function fetchMyBookings(ownerId) {
   const data = await request(`/bookings/owner/${ownerId}`);
