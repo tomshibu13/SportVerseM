@@ -36,6 +36,7 @@ class AuthService {
 
   static String? currentToken;
   static Map<String, dynamic>? currentUser;
+  static Set<int> favoriteGroundIds = {};
 
   /// Check whether the user is fully logged in with an active session
   static bool get isLoggedIn => currentToken != null && currentUser != null;

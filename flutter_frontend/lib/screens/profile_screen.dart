@@ -14,6 +14,7 @@ import 'bookings_screen.dart';
 import 'orders_screen.dart';
 import 'inbox_screen.dart';
 import 'find_nearby_screen.dart';
+import 'fitness_dashboard_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -339,24 +340,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showFavoritesModal() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.favorite, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Saved Venues'),
-          ],
-        ),
-        content: const Text(
-          'Quick access to your frequently booked sports turfs and arenas in SportVerse.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-        ],
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const FindNearbyScreen(showFavoritesOnly: true)),
     );
   }
 
@@ -396,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             approvalStatus != 'Pending' &&
             approvalStatus != 'Rejected';
 
-    const stationPortalUrl = 'http://localhost:5174';
+    const stationPortalUrl = 'https://sportverse-stationowner-dash.vercel.app/';
     final rawStationPass = user?['stationPassword']?.toString() ??
         user?['ownerDashboardPassword']?.toString() ??
         user?['stationPasswordDisplay']?.toString();
@@ -991,6 +977,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           MaterialPageRoute(builder: (_) => const BecomeGroundOwnerScreen()),
                         ),
                       ),
+
+                    _buildMenuTile(
+                      Icons.fitness_center_outlined,
+                      'Fitness Dashboard',
+                      'Track your activities, goals & stats',
+                      null,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const FitnessDashboardScreen()),
+                      ),
+                    ),
 
                     const SizedBox(height: 16),
 

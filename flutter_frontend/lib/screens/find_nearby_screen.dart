@@ -10,7 +10,8 @@ import 'ground_booking_screen.dart';
 
 class FindNearbyScreen extends StatefulWidget {
   final VoidCallback? onBack;
-  const FindNearbyScreen({super.key, this.onBack});
+  final bool showFavoritesOnly;
+  const FindNearbyScreen({super.key, this.onBack, this.showFavoritesOnly = false});
 
   @override
   State<FindNearbyScreen> createState() => _FindNearbyScreenState();
@@ -33,7 +34,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
   // Live database grounds loaded from MongoDB
   List<GroundModel> _databaseGrounds = [];
 
-  final Set<int> _favoriteGroundIds = {};
+  Set<int> get _favoriteGroundIds => AuthService.favoriteGroundIds;
 
   // Live user position (Default: Calicut center coordinate)
   LatLng _userLocation = const LatLng(11.2588, 75.7804);
@@ -212,8 +213,10 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
       final matchesQuery = _searchQuery.isEmpty ||
           ground.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           ground.location.toLowerCase().contains(_searchQuery.toLowerCase());
+      
+      final matchesFavorite = !widget.showFavoritesOnly || _favoriteGroundIds.contains(ground.groundId);
 
-      if (matchesSport && matchesQuery) {
+      if (matchesSport && matchesQuery && matchesFavorite) {
         list.add({
           'id': ground.groundId,
           'title': ground.title,
