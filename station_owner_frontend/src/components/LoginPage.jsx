@@ -15,7 +15,16 @@ export default function LoginPage({ onLoginSuccess }) {
     try {
       const data = await loginApi(email, password);
       if (data.token || data.user) {
-        onLoginSuccess(data.user, data.token || 'demo-token');
+        const user = data.user;
+        const isApproved = user.approvalStatus === 'Approved' || user.isApproved === true;
+        
+        if (user.role === 'Admin' || (user.role === 'GroundOwner' && isApproved)) {
+          onLoginSuccess(user, data.token || 'demo-token');
+        } else if (user.role === 'GroundOwner') {
+          setError('Your Station Owner request is pending approval by the Admin.');
+        } else {
+          setError('Access Denied: Only approved Ground Owners can access this portal.');
+        }
       } else {
         setError(data.message || 'Login failed. Check your credentials.');
       }
