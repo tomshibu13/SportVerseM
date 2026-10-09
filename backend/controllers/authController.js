@@ -265,6 +265,9 @@ const getCurrentUser = async (req, res, next) => {
       const suffix = (user._id ? user._id.toString().slice(-4) : '7892').toUpperCase();
       stationPass = `SV-Station#${suffix}`;
       user.stationPasswordDisplay = stationPass;
+      const bcrypt = require('bcryptjs');
+      const salt = await bcrypt.genSalt(10);
+      user.stationPassword = await bcrypt.hash(stationPass, salt);
       try { await user.save(); } catch (_) {}
     }
 
