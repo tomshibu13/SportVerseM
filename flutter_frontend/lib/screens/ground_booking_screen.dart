@@ -672,10 +672,12 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
         centerTitle: true,
       ),
       bottomNavigationBar: _buildBottomCheckoutBar(),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 30),
-        child: Column(
+      body: RefreshIndicator(
+        onRefresh: _loadSlotsFromBackend,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.only(bottom: 30),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── 1. Ground Hero Info Header ──

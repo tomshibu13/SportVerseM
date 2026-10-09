@@ -549,9 +549,12 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                             ),
                           ],
                         ),
-                        child: CustomScrollView(
-                          controller: scrollController,
-                          slivers: [
+                        child: RefreshIndicator(
+                          onRefresh: _fetchDatabaseGrounds,
+                          child: CustomScrollView(
+                            controller: scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                            slivers: [
                             SliverToBoxAdapter(
                               child: Column(
                                 children: [
