@@ -723,7 +723,7 @@ class _ShopScreenState extends State<ShopScreen> {
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.54,
+          childAspectRatio: 0.65,
           crossAxisSpacing: 12,
           mainAxisSpacing: 14,
         ),
@@ -1593,7 +1593,11 @@ class _CheckoutBottomSheetState extends State<_CheckoutBottomSheet> {
       razorpayTxnId = rzpResult.paymentId;
     }
 
+    final currentUser = AuthService.currentUser;
+    final loggedInUserId = currentUser?['userId'] ?? currentUser?['user_id'] ?? currentUser?['_id'] ?? currentUser?['id'] ?? 'guest_user_1';
+
     final result = await shop.checkout(
+      userId: loggedInUserId,
       customerName: _nameController.text.trim(),
       customerPhone: _phoneController.text.trim(),
       deliveryAddress: _addressController.text.trim(),

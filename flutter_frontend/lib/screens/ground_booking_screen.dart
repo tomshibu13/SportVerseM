@@ -720,101 +720,161 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.all(16),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: Image.network(
-              ground.images.isNotEmpty
-                  ? ground.images.first
-                  : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80',
-              width: 100,
-              height: 100,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 100,
-                height: 100,
-                color: Colors.grey.shade200,
-                child: const Icon(Icons.sports, color: AppColors.mutedText),
-              ),
+          // Image Carousel
+          SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: ground.images.isNotEmpty ? ground.images.length : 1,
+              itemBuilder: (context, index) {
+                final imageUrl = ground.images.isNotEmpty
+                    ? ground.images[index]
+                    : 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=800&q=80';
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.network(
+                      imageUrl,
+                      width: 280,
+                      height: 200,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 280,
+                        height: 200,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.sports, color: AppColors.mutedText, size: 40),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.lightDecorAccent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        ground.sportType.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.warmAccent,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB300)),
-                        const SizedBox(width: 2),
-                        Text(
-                          '${ground.rating}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          ' (${ground.reviewCount})',
-                          style: const TextStyle(fontSize: 11, color: AppColors.mutedText),
-                        ),
-                      ],
-                    ),
-                  ],
+          const SizedBox(height: 16),
+          // Info Section
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.lightDecorAccent,
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  ground.title,
+                child: Text(
+                  ground.sportType.toUpperCase(),
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primaryBlack,
+                    color: AppColors.warmAccent,
                   ),
-                  maxLines: 1,
+                ),
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB300)),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${ground.rating}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    ' (${ground.reviewCount})',
+                    style: const TextStyle(fontSize: 11, color: AppColors.mutedText),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () => _showReviewDialog(context),
+                    child: const Text(
+                      'Add Review',
+                      style: TextStyle(fontSize: 12, color: Colors.blue, decoration: TextDecoration.underline),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            ground.title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaryBlack,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 16, color: AppColors.mutedText),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${ground.location} • ${ground.distanceKm} km away',
+                  style: const TextStyle(fontSize: 14, color: AppColors.secondaryText),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: AppColors.mutedText),
-                    const SizedBox(width: 3),
-                    Expanded(
-                      child: Text(
-                        '${ground.location} • ${ground.distanceKm} km away',
-                        style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '₹${ground.pricePerHour.toInt()} / hour',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFC8895B),
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '₹${ground.pricePerHour.toInt()} / hour',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFFC8895B),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReviewDialog(BuildContext context) {
+    if (!AuthService.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to add a review.')));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave a Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        content: const TextField(
+          decoration: InputDecoration(
+            hintText: 'Share your experience playing here...',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Thank you! Your review was submitted successfully.'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlack,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Submit'),
           ),
         ],
       ),
