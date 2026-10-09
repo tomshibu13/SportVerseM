@@ -710,6 +710,7 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
                             ),
                           ],
                         ),
+                        ),
                       );
                     },
                   ),
@@ -1165,7 +1166,6 @@ class _FindNearbyScreenState extends State<FindNearbyScreen>
             ),
           ),
         ],
-      ),
       ),
     );
   }
