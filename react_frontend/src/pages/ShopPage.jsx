@@ -82,7 +82,7 @@ export default function ShopPage({ products = [], onOpenAddProduct, onOpenEditPr
           <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Try changing category filters or add a new equipment item.</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.5rem' }}>
+        <div className="grid-products-auto">
           {filteredProducts.map((p) => (
             <div className="card" key={p.id || p._id} style={{ padding: '0', overflow: 'hidden' }}>
               <div style={{ height: '180px', overflow: 'hidden', position: 'relative' }}>

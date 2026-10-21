@@ -85,7 +85,7 @@ export default function EditGroundModal({ isOpen, onClose, ground, onUpdateGroun
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="modal-grid-2">
             <div className="form-group">
               <label className="form-label">Primary Sport</label>
               <select className="form-select" value={sportType} onChange={(e) => setSportType(e.target.value)}>

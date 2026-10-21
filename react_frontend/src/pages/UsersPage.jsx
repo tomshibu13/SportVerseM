@@ -64,15 +64,15 @@ export default function UsersPage({ users = [], onUserUpdated, onShowCredentials
         </div>
 
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem' }}>
-            <Search size={15} color="#a39c93" />
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flex: '1 1 300px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem', flex: '1 1 180px', minWidth: '150px' }}>
+            <Search size={15} color="#a39c93" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search user, email, phone..."
               value={localSearchTerm}
               onChange={(e) => setLocalSearchTerm(e.target.value)}
-              style={{ background: 'transparent', border: 'none', outline: 'none', color: '#ffffff', fontSize: '0.85rem', width: '180px' }}
+              style={{ background: 'transparent', border: 'none', outline: 'none', color: '#ffffff', fontSize: '0.85rem', width: '100%' }}
             />
           </div>
 
@@ -80,7 +80,7 @@ export default function UsersPage({ users = [], onUserUpdated, onShowCredentials
             className="form-select"
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            style={{ width: '150px' }}
+            style={{ flex: '1 1 130px', minWidth: '120px' }}
           >
             <option value="ALL">All Roles ({users.length})</option>
             <option value="GroundOwner">Ground Owners</option>
@@ -93,7 +93,7 @@ export default function UsersPage({ users = [], onUserUpdated, onShowCredentials
             className="form-select"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ width: '150px' }}
+            style={{ flex: '1 1 130px', minWidth: '120px' }}
           >
             <option value="ALL">All Statuses</option>
             <option value="Pending">Pending ({pendingOwners.length})</option>

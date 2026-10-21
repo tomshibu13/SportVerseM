@@ -3,8 +3,8 @@ import { Sparkles, ShieldCheck, Lock, Mail, ArrowRight, KeyRound, Eye, EyeOff } 
 import { loginApi } from '../services/api';
 
 export default function LoginPage({ onLoginSuccess }) {
-  const [email, setEmail] = useState('tomshibu666@gmail.com');
-  const [password, setPassword] = useState('Admin@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +19,7 @@ export default function LoginPage({ onLoginSuccess }) {
       if (data.token || data.user) {
         onLoginSuccess(
           data.user || { fullName: 'System Administrator', email, role: 'Admin', approvalStatus: 'Approved' },
-          data.token || 'demo-admin-jwt-token'
+          data.token || 'admin-jwt-token-authenticated'
         );
       } else {
         setError(data.message || 'Invalid admin credentials');
@@ -38,8 +38,8 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div style={styles.container} className="login-screen-wrapper">
+      <div style={styles.card} className="login-card-container">
         <div style={styles.header}>
           <div style={styles.logoBadge}>
             <Sparkles size={28} color="#c8895b" />
@@ -54,48 +54,35 @@ export default function LoginPage({ onLoginSuccess }) {
           </div>
         )}
 
-        {/* Quick Credential Presets */}
+        {/* Quick Superadmin Access */}
         <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.7rem', color: '#a39c93', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <KeyRound size={12} color="#c8895b" />
-            <span>Admin & Demo Shortcuts</span>
+            <span>Administrator Quick Fill</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={() => handleSelectPreset('tomshibu666@gmail.com', 'Admin@123')}
-              style={{
-                background: email === 'tomshibu666@gmail.com' ? 'rgba(200, 137, 91, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                border: email === 'tomshibu666@gmail.com' ? '1px solid #c8895b' : '1px solid var(--border-color)',
-                color: email === 'tomshibu666@gmail.com' ? '#ffffff' : '#a39c93',
-                padding: '0.4rem 0.6rem',
-                borderRadius: '6px',
-                fontSize: '0.725rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >
-              Superadmin
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectPreset('admin@sportverse.com', 'admin123')}
-              style={{
-                background: email === 'admin@sportverse.com' ? 'rgba(200, 137, 91, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                border: email === 'admin@sportverse.com' ? '1px solid #c8895b' : '1px solid var(--border-color)',
-                color: email === 'admin@sportverse.com' ? '#ffffff' : '#a39c93',
-                padding: '0.4rem 0.6rem',
-                borderRadius: '6px',
-                fontSize: '0.725rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'center',
-              }}
-            >
-              Demo Admin
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => handleSelectPreset('tomshibu666@gmail.com', 'Admin@123')}
+            style={{
+              width: '100%',
+              background: email === 'tomshibu666@gmail.com' ? 'rgba(200, 137, 91, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+              border: email === 'tomshibu666@gmail.com' ? '1px solid #c8895b' : '1px solid var(--border-color)',
+              color: email === 'tomshibu666@gmail.com' ? '#ffffff' : '#a39c93',
+              padding: '0.45rem 0.65rem',
+              borderRadius: '6px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <span>Fill Superadmin Credentials</span>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
@@ -182,7 +169,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     background: 'radial-gradient(circle at 50% 30%, rgba(200, 137, 91, 0.12) 0%, transparent 60%), #0a0908',
-    padding: '1.5rem',
+    padding: 'clamp(0.75rem, 3vw, 1.5rem)',
   },
   card: {
     width: '100%',
@@ -190,7 +177,7 @@ const styles = {
     background: '#141210',
     border: '1px solid rgba(200, 137, 91, 0.35)',
     borderRadius: '16px',
-    padding: '2.25rem',
+    padding: 'clamp(1.25rem, 4vw, 2.25rem)',
     boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
   },
   header: {
@@ -198,23 +185,23 @@ const styles = {
     marginBottom: '1.5rem',
   },
   logoBadge: {
-    width: '56px',
-    height: '56px',
+    width: '52px',
+    height: '52px',
     borderRadius: '16px',
     background: 'rgba(200, 137, 91, 0.15)',
     border: '1px solid rgba(200, 137, 91, 0.35)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 1rem auto',
+    margin: '0 auto 0.85rem auto',
   },
   title: {
-    fontSize: '1.5rem',
+    fontSize: 'clamp(1.3rem, 4vw, 1.5rem)',
     fontWeight: 800,
     color: '#ffffff',
   },
   subtitle: {
-    fontSize: '0.825rem',
+    fontSize: 'clamp(0.75rem, 2.5vw, 0.825rem)',
     color: '#a39c93',
     marginTop: '0.25rem',
   },
@@ -237,10 +224,11 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.4rem',
-    marginTop: '1.75rem',
+    marginTop: '1.5rem',
     paddingTop: '1rem',
     borderTop: '1px solid rgba(255, 255, 255, 0.08)',
     fontSize: '0.75rem',
     color: '#a39c93',
+    textAlign: 'center',
   },
 };

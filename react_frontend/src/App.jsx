@@ -50,6 +50,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchTerm, setSearchTerm] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Modals state
   const [isQRScanOpen, setIsQRScanOpen] = useState(false);
@@ -415,6 +416,8 @@ export default function App() {
         currentUser={currentUser} 
         pendingOwnersCount={pendingOwnersCount}
         pendingBookingsCount={pendingBookingsCount}
+        isMobileOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -429,6 +432,7 @@ export default function App() {
           pendingOwnersCount={pendingOwnersCount}
           pendingBookingsCount={pendingBookingsCount}
           setActiveTab={setActiveTab}
+          onOpenMobileNav={() => setIsMobileNavOpen(true)}
         />
 
         <main className="page-container">

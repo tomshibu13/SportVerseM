@@ -264,7 +264,7 @@ export default function OverviewPage({
       {/* ─────────────────────────────────────────────────────────────
           SECTION 2: Executive KPI Metrics Cards (6-Stat Grid)
           ───────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.15rem' }}>
+      <div className="grid-cards-auto">
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <span style={{ fontSize: '0.775rem', fontWeight: 600, color: '#a39c93', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -491,7 +491,7 @@ export default function OverviewPage({
             </div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '1rem' }}>
+          <div className="grid-venues-auto">
             {filteredPendingBookings.map((b) => {
               const bookingGround = findGroundForBooking(b) || selectedGroundObj;
               const isOwner = checkIsGroundOwner(bookingGround);
@@ -600,7 +600,7 @@ export default function OverviewPage({
       {/* ─────────────────────────────────────────────────────────────
           SECTION 4: Main Operations Grid (Venues & Recent Bookings)
           ───────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '1.5rem' }}>
+      <div className="grid-split-14-1">
         
         {/* Left Column: Registered Sports Arenas Directory */}
         <div className="card">
@@ -871,7 +871,7 @@ export default function OverviewPage({
       {/* ─────────────────────────────────────────────────────────────
           SECTION 5: Real-time Analytics & Sports Demand Breakdown
           ───────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="grid-split-2">
         {/* Live Sport Demand Distribution */}
         <div className="card">
           <div className="card-header">
@@ -920,7 +920,7 @@ export default function OverviewPage({
             <span className="badge badge-green">Healthy Platform</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1rem' }}>
+          <div className="modal-grid-2" style={{ marginBottom: '1rem' }}>
             <div style={{ background: 'rgba(10, 9, 8, 0.7)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.75rem' }}>
               <div style={{ fontSize: '0.75rem', color: '#a39c93', fontWeight: 600 }}>Completed Bookings</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981', marginTop: '0.2rem' }}>

@@ -96,7 +96,7 @@ export default function AnalyticsPage({ grounds = [], bookings = [], users = [],
       </div>
 
       {/* Analytics Summary KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+      <div className="grid-cards-auto">
         <div className="card">
           <span style={{ fontSize: '0.8rem', color: '#a39c93', fontWeight: 600 }}>Active Platform Revenue</span>
           <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', marginTop: '0.25rem' }}>
@@ -139,7 +139,7 @@ export default function AnalyticsPage({ grounds = [], bookings = [], users = [],
       </div>
 
       {/* Analytics Visual Breakdown Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="grid-split-2">
         
         {/* Dynamic Sport Demand Breakdown */}
         <div className="card">
@@ -190,7 +190,7 @@ export default function AnalyticsPage({ grounds = [], bookings = [], users = [],
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+            <div className="grid-split-3">
               <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Completed</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', marginTop: '0.2rem' }}>{completedCount}</div>
@@ -230,7 +230,7 @@ export default function AnalyticsPage({ grounds = [], bookings = [], users = [],
       </div>
 
       {/* Top Venues by Revenue & User Breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+      <div className="grid-split-12-1">
         
         {/* Top Arenas */}
         <div className="card">

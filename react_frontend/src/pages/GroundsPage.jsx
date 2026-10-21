@@ -132,7 +132,7 @@ export default function GroundsPage({
           <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>Try clearing your search query or add a new sports ground.</div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+        <div className="grid-venues-auto">
           {filteredGrounds.map((g) => {
             const isPending = g.status === 'Pending';
             const groundId = g._id || g.id || g.ground_id;

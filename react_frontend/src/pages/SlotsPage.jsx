@@ -63,8 +63,8 @@ export default function SlotsPage({ grounds = [], onManageSlots }) {
       </div>
 
       {/* Search Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem', width: '280px' }}>
-        <Search size={15} color="#a39c93" />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem', width: '280px', maxWidth: '100%' }}>
+        <Search size={15} color="#a39c93" style={{ flexShrink: 0 }} />
         <input
           type="text"
           placeholder="Filter venues & sports..."

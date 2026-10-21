@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Bell, QrCode, ShieldCheck, RefreshCw, X, UserCheck, CalendarCheck, CheckCircle2 } from 'lucide-react';
+import { Search, Bell, QrCode, ShieldCheck, RefreshCw, X, UserCheck, CalendarCheck, CheckCircle2, Menu } from 'lucide-react';
 import { checkHealthApi } from '../services/api';
 
 export default function Header({ 
@@ -11,7 +11,8 @@ export default function Header({
   refreshing,
   pendingOwnersCount = 0,
   pendingBookingsCount = 0,
-  setActiveTab
+  setActiveTab,
+  onOpenMobileNav
 }) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [healthStatus, setHealthStatus] = useState({ online: true, latency: null });
@@ -35,29 +36,40 @@ export default function Header({
   const totalNotifs = pendingOwnersCount + pendingBookingsCount;
 
   return (
-    <header style={styles.header}>
-      {/* Search Input */}
-      <div style={styles.searchContainer}>
-        <Search size={17} color="#a39c93" />
-        <input
-          type="text"
-          placeholder="Global search venue, user, booking ID, sport, or gear..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          style={styles.searchInput}
-        />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm('')}
-            style={{ background: 'transparent', border: 'none', color: '#a39c93', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          >
-            <X size={14} />
-          </button>
-        )}
+    <header className="app-header" style={styles.header}>
+      {/* Left Area: Mobile Hamburger & Search Input */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flex: 1, minWidth: 0, maxWidth: '520px' }}>
+        <button
+          className="mobile-hamburger-btn"
+          onClick={onOpenMobileNav}
+          aria-label="Open Navigation Menu"
+          title="Open Menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        <div style={styles.searchContainer} className="header-search-container">
+          <Search size={17} color="#a39c93" style={{ flexShrink: 0 }} />
+          <input
+            type="text"
+            placeholder="Search venue, user, booking ID, sport..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              style={{ background: 'transparent', border: 'none', color: '#a39c93', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Action Controls */}
-      <div style={styles.actionGroup}>
+      <div style={styles.actionGroup} className="header-action-group">
         {/* Refresh button */}
         <button
           className="btn btn-secondary btn-sm"
@@ -67,7 +79,7 @@ export default function Header({
           style={{ gap: '0.35rem' }}
         >
           <RefreshCw size={14} className={refreshing ? 'spin-animation' : ''} />
-          <span>{refreshing ? 'Syncing...' : 'Sync DB'}</span>
+          <span className="hide-on-mobile">{refreshing ? 'Syncing...' : 'Sync DB'}</span>
         </button>
 
         {/* Quick QR Check-in */}
@@ -75,9 +87,11 @@ export default function Header({
           className="btn btn-secondary"
           style={{ fontSize: '0.8rem', gap: '0.4rem', border: '1px solid rgba(200, 137, 91, 0.4)', color: '#c8895b' }}
           onClick={onOpenQRScan}
+          title="Quick QR Check-In"
         >
           <QrCode size={16} />
-          <span>Quick QR Check-In</span>
+          <span className="hide-on-mobile">Quick QR Check-In</span>
+          <span className="show-on-mobile">QR</span>
         </button>
 
         {/* Notifications */}
@@ -150,17 +164,19 @@ export default function Header({
         </div>
 
         {/* Admin Badge & Backend Status */}
-        <div style={styles.adminStatusTag}>
+        <div style={styles.adminStatusTag} title={healthStatus.online ? `MongoDB API Online (${healthStatus.latency || 0}ms)` : 'Backend Offline'}>
           <div style={{
             width: '8px',
             height: '8px',
             borderRadius: '50%',
             background: healthStatus.online ? '#10b981' : '#ef4444',
             boxShadow: healthStatus.online ? '0 0 8px #10b981' : '0 0 8px #ef4444',
+            flexShrink: 0,
           }}></div>
-          <span style={{ fontWeight: 700 }}>{currentUser?.role || 'Superadmin'}</span>
+          <span className="hide-on-mobile" style={{ fontWeight: 700 }}>{currentUser?.role || 'Superadmin'}</span>
+          <span className="show-on-mobile" style={{ fontWeight: 700, fontSize: '0.725rem' }}>Admin</span>
           {healthStatus.latency && (
-            <span style={{ fontSize: '0.675rem', opacity: 0.8 }}>({healthStatus.latency}ms)</span>
+            <span className="hide-on-mobile" style={{ fontSize: '0.675rem', opacity: 0.8 }}>({healthStatus.latency}ms)</span>
           )}
         </div>
       </div>
@@ -170,13 +186,11 @@ export default function Header({
 
 const styles = {
   header: {
-    height: '64px',
     backgroundColor: 'var(--bg-header)',
     borderBottom: '1px solid var(--border-color)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '0 2rem',
     position: 'sticky',
     top: 0,
     zIndex: 10,
@@ -190,7 +204,9 @@ const styles = {
     border: '1px solid var(--border-color)',
     borderRadius: '20px',
     padding: '0.45rem 0.9rem',
-    width: '420px',
+    flex: 1,
+    maxWidth: '420px',
+    minWidth: 0,
   },
   searchInput: {
     background: 'transparent',
@@ -204,6 +220,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '0.85rem',
+    flexShrink: 0,
   },
   iconBtn: {
     width: '38px',
@@ -217,6 +234,7 @@ const styles = {
     cursor: 'pointer',
     position: 'relative',
     transition: 'all 0.2s ease',
+    flexShrink: 0,
   },
   notifBadge: {
     position: 'absolute',
@@ -240,6 +258,7 @@ const styles = {
     top: '46px',
     right: 0,
     width: '300px',
+    maxWidth: 'calc(100vw - 1.5rem)',
     background: '#181614',
     border: '1px solid var(--border-highlight)',
     borderRadius: '12px',
@@ -264,6 +283,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   adminStatusTag: {
     display: 'flex',
@@ -275,5 +295,6 @@ const styles = {
     padding: '0.35rem 0.8rem',
     borderRadius: '20px',
     fontSize: '0.75rem',
+    whiteSpace: 'nowrap',
   },
 };

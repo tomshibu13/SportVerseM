@@ -157,15 +157,15 @@ export default function BookingsPage({
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 300px', justifyContent: 'flex-end' }}>
           {/* Ground Selection Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.35rem 0.65rem' }}>
-            <Building2 size={15} color="#c8895b" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.35rem 0.65rem', flex: '1 1 160px', minWidth: '140px' }}>
+            <Building2 size={15} color="#c8895b" style={{ flexShrink: 0 }} />
             <select
               className="form-select"
               value={selectedGroundId}
               onChange={(e) => setSelectedGroundId(e.target.value)}
-              style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '0.825rem', width: '180px', outline: 'none', padding: '0' }}
+              style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '0.825rem', width: '100%', outline: 'none', padding: '0' }}
             >
               <option value="ALL">All Arenas ({grounds.length})</option>
               {grounds.map((g) => (
@@ -176,8 +176,8 @@ export default function BookingsPage({
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem', width: '220px' }}>
-            <Search size={15} color="#a39c93" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(10, 9, 8, 0.8)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.4rem 0.75rem', flex: '1 1 180px', minWidth: '140px' }}>
+            <Search size={15} color="#a39c93" style={{ flexShrink: 0 }} />
             <input
               type="text"
               placeholder="Search ID, player..."

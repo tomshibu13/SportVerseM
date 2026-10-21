@@ -10,7 +10,8 @@ import {
   Settings, 
   Sparkles,
   LogOut,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 
 export default function Sidebar({ 
@@ -20,12 +21,29 @@ export default function Sidebar({
   onOpenAddGround, 
   currentUser,
   pendingOwnersCount = 0,
-  pendingBookingsCount = 0
+  pendingBookingsCount = 0,
+  isMobileOpen = false,
+  onCloseMobile
 }) {
   const userName = currentUser?.fullName || currentUser?.name || 'System Admin';
   const roleTitle = currentUser?.role || 'Super Admin';
   const isAdmin = currentUser?.role === 'Admin' || !currentUser?.role;
   const isGroundOwner = currentUser?.role === 'GroundOwner';
+
+  const handleNavClick = (tabId) => {
+    setActiveTab(tabId);
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const handleAddGroundClick = () => {
+    onOpenAddGround();
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const handleLogoutClick = () => {
+    onLogout();
+    if (onCloseMobile) onCloseMobile();
+  };
 
   const allNavItems = [
     { id: 'overview', label: isGroundOwner ? 'Station Overview' : 'Overview', icon: LayoutDashboard },
@@ -58,112 +76,113 @@ export default function Sidebar({
   });
 
   return (
-    <aside style={styles.sidebar}>
-      {/* Brand Header */}
-      <div style={styles.brandContainer}>
-        <div style={styles.logoIconContainer}>
-          <Sparkles size={22} color="#c8895b" />
-        </div>
-        <div>
-          <h2 style={styles.brandTitle}>SportVerse</h2>
-          <span style={styles.brandSubtitle}>Admin & Control Portal</span>
-        </div>
-      </div>
-
-      {/* Admin Status Banner */}
-      <div style={styles.stationBadgeCard}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <ShieldCheck size={14} color="#10b981" />
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>
-            {isAdmin ? 'Superadmin Mode' : 'Station Control'}
-          </span>
-        </div>
-        <div style={{ fontSize: '0.725rem', color: '#a39c93', marginTop: '0.25rem' }}>
-          MongoDB Synced • REST API Active
-        </div>
-      </div>
-
-      {/* Navigation Menu */}
-      <nav style={styles.navMenu}>
-        <div style={styles.menuGroupHeader}>CONTROL CONSOLE</div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              style={{
-                ...styles.navButton,
-                ...(isActive ? styles.navButtonActive : {}),
-              }}
-            >
-              <Icon size={19} color={isActive ? '#c8895b' : '#a39c93'} />
-              <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
-              {item.badge && (
-                <span style={{
-                  ...styles.navItemBadge,
-                  background: item.badgeColor ? item.badgeColor : 'var(--gold-gradient)',
-                  color: '#ffffff',
-                }}>
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* CTA Button */}
-      <div style={{ padding: '0.5rem 0' }}>
-        <button
-          className="btn btn-primary"
-          style={{ width: '100%', fontSize: '0.8rem', gap: '0.4rem' }}
-          onClick={onOpenAddGround}
-        >
-          <Sparkles size={15} />
-          <span>+ Add Ground / Arena</span>
-        </button>
-      </div>
-
-      {/* Owner Profile Quick Card */}
-      <div style={styles.ownerFooter}>
-        <div style={styles.avatarCircle}>
-          {userName.charAt(0).toUpperCase()}
-        </div>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <div style={{ fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', color: '#ffffff' }}>
-            {userName}
+    <>
+      {isMobileOpen && (
+        <div className="sidebar-backdrop" onClick={onCloseMobile} />
+      )}
+      <aside className={`sidebar-container ${isMobileOpen ? 'mobile-open' : ''}`}>
+        {/* Brand Header */}
+        <div style={styles.brandContainer}>
+          <div style={styles.logoIconContainer}>
+            <Sparkles size={22} color="#c8895b" />
           </div>
-          <div style={{ fontSize: '0.725rem', color: '#c8895b', fontWeight: 600 }}>
-            {roleTitle}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={styles.brandTitle}>SportVerse</h2>
+            <span style={styles.brandSubtitle}>Admin & Control Portal</span>
+          </div>
+          <button 
+            className="sidebar-close-btn"
+            onClick={onCloseMobile}
+            aria-label="Close Navigation"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Admin Status Banner */}
+        <div style={styles.stationBadgeCard}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <ShieldCheck size={14} color="#10b981" />
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#10b981' }}>
+              {isAdmin ? 'Superadmin Mode' : 'Station Control'}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.725rem', color: '#a39c93', marginTop: '0.25rem' }}>
+            MongoDB Synced • REST API Active
           </div>
         </div>
-        <button 
-          style={styles.logoutBtn} 
-          title="Sign Out" 
-          onClick={onLogout}
-        >
-          <LogOut size={16} color="#a39c93" />
-        </button>
-      </div>
-    </aside>
+
+        {/* Navigation Menu */}
+        <nav style={styles.navMenu}>
+          <div style={styles.menuGroupHeader}>CONTROL CONSOLE</div>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavClick(item.id)}
+                style={{
+                  ...styles.navButton,
+                  ...(isActive ? styles.navButtonActive : {}),
+                }}
+              >
+                <Icon size={19} color={isActive ? '#c8895b' : '#a39c93'} />
+                <span style={{ flex: 1, textAlign: 'left' }}>{item.label}</span>
+                {item.badge && (
+                  <span style={{
+                    ...styles.navItemBadge,
+                    background: item.badgeColor ? item.badgeColor : 'var(--gold-gradient)',
+                    color: '#ffffff',
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* CTA Button */}
+        <div style={{ padding: '0.5rem 0' }}>
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', fontSize: '0.8rem', gap: '0.4rem' }}
+            onClick={handleAddGroundClick}
+          >
+            <Sparkles size={15} />
+            <span>+ Add Ground / Arena</span>
+          </button>
+        </div>
+
+        {/* Owner Profile Quick Card */}
+        <div style={styles.ownerFooter}>
+          <div style={styles.avatarCircle}>
+            {userName.charAt(0).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', color: '#ffffff' }}>
+              {userName}
+            </div>
+            <div style={{ fontSize: '0.725rem', color: '#c8895b', fontWeight: 600 }}>
+              {roleTitle}
+            </div>
+          </div>
+          <button 
+            style={styles.logoutBtn} 
+            title="Sign Out" 
+            onClick={handleLogoutClick}
+          >
+            <LogOut size={16} color="#a39c93" />
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 
 const styles = {
-  sidebar: {
-    width: '265px',
-    backgroundColor: 'var(--bg-sidebar)',
-    borderRight: '1px solid var(--border-color)',
-    display: 'flex',
-    flexDirection: 'column',
-    padding: '1.25rem 1rem',
-    height: '100vh',
-    position: 'sticky',
-    top: 0,
-    zIndex: 20,
-  },
   brandContainer: {
     display: 'flex',
     alignItems: 'center',

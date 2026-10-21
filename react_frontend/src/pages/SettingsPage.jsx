@@ -44,7 +44,7 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+      <div className="grid-split-2">
         {/* Diagnostics Card */}
         <div className="card">
           <div className="card-header">

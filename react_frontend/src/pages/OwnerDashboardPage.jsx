@@ -241,7 +241,7 @@ export default function OwnerDashboardPage({
             <span className="badge badge-orange">Owner Authorization Required</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+          <div className="grid-venues-auto">
             {pendingApprovals.map((b) => (
               <div key={b.booking_id || b._id} style={{
                 background: 'rgba(10, 9, 8, 0.85)',
@@ -338,7 +338,7 @@ export default function OwnerDashboardPage({
       </div>
 
       {/* Station KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+      <div className="grid-cards-auto">
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#a39c93' }}>Gross Station Revenue</span>
@@ -394,7 +394,7 @@ export default function OwnerDashboardPage({
       </div>
 
       {/* Main Two-Column Layout: My Courts & Live Player Reservations */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div className="grid-split-12-1" style={{ alignItems: 'start' }}>
         {/* Left Column: My Venues & Facilities */}
         <div className="card">
           <div className="card-header">

@@ -1,3 +1,4 @@
 sportverse-ai-firebase-adminsdk-fbsvc-defc189cf9.json
 node_modules/
+**/node_modules/
 .env

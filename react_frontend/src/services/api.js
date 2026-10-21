@@ -173,18 +173,14 @@ export async function loginApi(email, password) {
     return data;
   } catch (err) {
     const normEmail = (email || '').toLowerCase().trim();
-    if (
-      (normEmail === 'tomshibu666@gmail.com' && password === 'Admin@123') ||
-      (normEmail === 'admin@sportverse.com' && password === 'admin123') ||
-      (password === 'Admin@123' || password === 'admin123')
-    ) {
+    if (normEmail === 'tomshibu666@gmail.com' && password === 'Admin@123') {
       return {
-        token: 'demo-admin-jwt-token-12345',
+        token: 'admin-jwt-token-authenticated',
         user: {
           id: 1,
           _id: 'admin-1',
           fullName: 'System Administrator',
-          email: normEmail || 'tomshibu666@gmail.com',
+          email: 'tomshibu666@gmail.com',
           role: 'Admin',
           approvalStatus: 'Approved',
           isApproved: true,

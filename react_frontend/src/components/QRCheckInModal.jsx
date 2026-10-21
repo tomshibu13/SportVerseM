@@ -359,7 +359,7 @@ export default function QRCheckInModal({ isOpen, onClose, bookings = [], onConfi
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.825rem' }}>
+            <div className="modal-grid-2" style={{ gap: '0.75rem', fontSize: '0.825rem' }}>
               <div>
                 <span style={{ color: '#a39c93', display: 'block', fontSize: '0.7rem' }}>Player Name</span>
                 <strong style={{ color: '#ffffff' }}>{foundBooking.user_name}</strong>

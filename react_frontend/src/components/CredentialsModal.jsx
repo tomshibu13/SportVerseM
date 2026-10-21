@@ -86,7 +86,7 @@ Please sign in to manage your venues, court slots, and player booking check-ins!
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+          <div className="modal-grid-2" style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
             <div>
               <span style={{ fontSize: '0.725rem', color: '#a39c93', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Mail size={13} color="#3b82f6" />

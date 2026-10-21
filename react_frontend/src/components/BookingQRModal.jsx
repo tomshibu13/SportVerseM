@@ -33,7 +33,7 @@ export default function BookingQRModal({ isOpen, onClose, booking }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content" style={{ maxWidth: '440px', padding: '1.75rem', background: '#141210', border: '1px solid rgba(200, 137, 91, 0.4)', borderRadius: '20px' }}>
+      <div className="modal-content" style={{ maxWidth: '440px', padding: 'clamp(1rem, 4vw, 1.75rem)', background: '#141210', border: '1px solid rgba(200, 137, 91, 0.4)', borderRadius: '20px' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>

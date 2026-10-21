@@ -92,7 +92,7 @@ export default function AddGroundModal({ isOpen, onClose, onAddGround }) {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="modal-grid-2">
             <div className="form-group">
               <label className="form-label">Primary Sport</label>
               <select className="form-select" value={sports} onChange={(e) => setSports(e.target.value)}>
@@ -125,7 +125,7 @@ export default function AddGroundModal({ isOpen, onClose, onAddGround }) {
               <ImageIcon size={13} color="#c8895b" />
               <span>Venue Photo Cover</span>
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div className="modal-grid-4" style={{ marginBottom: '0.5rem' }}>
               {SAMPLE_IMAGES.map((img, idx) => (
                 <div
                   key={idx}

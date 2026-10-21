@@ -83,7 +83,7 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="modal-grid-2">
             <div className="form-group">
               <label className="form-label">Category</label>
               <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
@@ -108,7 +108,7 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="modal-grid-2">
             <div className="form-group">
               <label className="form-label">Price (₹)</label>
               <input
@@ -136,7 +136,7 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="modal-grid-2">
             <div className="form-group">
               <label className="form-label">Stock Quantity</label>
               <input
@@ -167,7 +167,7 @@ export default function AddProductModal({ isOpen, onClose, onAddProduct }) {
               <ImageIcon size={13} color="#c8895b" />
               <span>Product Image Cover</span>
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <div className="modal-grid-4" style={{ marginBottom: '0.5rem' }}>
               {SAMPLE_PROD_IMAGES.map((img, idx) => (
                 <div
                   key={idx}
