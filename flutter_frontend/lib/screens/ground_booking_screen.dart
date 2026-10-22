@@ -8,6 +8,8 @@ import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../services/razorpay_service.dart';
 import '../utils/validators.dart';
+import '../utils/map_launcher.dart';
+import '../models/review_model.dart';
 import 'bookings_screen.dart';
 
 class GroundBookingScreen extends StatefulWidget {
@@ -42,11 +44,17 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
   final TextEditingController _notesController = TextEditingController();
 
   List<GroundSlot> _slotsForSelectedDay = [];
+  List<ReviewModel> _reviews = [];
+  bool _isLoadingReviews = false;
+  late double _currentGroundRating;
+  late int _currentReviewCount;
 
   @override
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
+    _currentGroundRating = widget.ground.rating;
+    _currentReviewCount = widget.ground.reviewCount;
     final user = AuthService.currentUser;
     if (user != null) {
       final name = user['full_name'] ?? user['fullName'] ?? user['name'];
@@ -59,6 +67,27 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
       }
     }
     _loadSlotsFromBackend();
+    _loadReviewsFromBackend();
+  }
+
+  Future<void> _loadReviewsFromBackend() async {
+    setState(() => _isLoadingReviews = true);
+    try {
+      final reviews = await ApiService.getGroundReviews(widget.ground.groundId);
+      if (mounted) {
+        setState(() {
+          _reviews = reviews;
+          if (reviews.isNotEmpty) {
+            _currentReviewCount = reviews.length;
+            final sum = reviews.fold<double>(0.0, (acc, r) => acc + r.rating);
+            _currentGroundRating = double.parse((sum / reviews.length).toStringAsFixed(1));
+          }
+          _isLoadingReviews = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingReviews = false);
+    }
   }
 
   int _parseSlotMinutes(GroundSlot slot) {
@@ -673,7 +702,10 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
       ),
       bottomNavigationBar: _buildBottomCheckoutBar(),
       body: RefreshIndicator(
-        onRefresh: _loadSlotsFromBackend,
+        onRefresh: () async {
+          await _loadSlotsFromBackend();
+          await _loadReviewsFromBackend();
+        },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.only(bottom: 30),
@@ -712,6 +744,16 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
             // ── 7. Price Breakdown Summary ──
             _buildPriceSummarySection(),
+
+            const SizedBox(height: 20),
+
+            // ── 8. Venue Location & GPS Directions ──
+            _buildLocationAndDirectionsSection(ground),
+
+            const SizedBox(height: 20),
+
+            // ── 9. Player Reviews & Rating Breakdown ──
+            _buildReviewsSection(ground),
           ],
         ),
       ),
@@ -800,23 +842,57 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
               ),
               const Spacer(),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB300)),
-                  const SizedBox(width: 2),
-                  Text(
-                    '${ground.rating}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    ' (${ground.reviewCount})',
-                    style: const TextStyle(fontSize: 11, color: AppColors.mutedText),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E7),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFFE082)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB300)),
+                        const SizedBox(width: 3),
+                        Text(
+                          '$_currentGroundRating',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
+                        ),
+                        Text(
+                          ' ($_currentReviewCount)',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF8D6E63)),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () => _showReviewDialog(context),
-                    child: const Text(
-                      'Add Review',
-                      style: TextStyle(fontSize: 12, color: Colors.blue, decoration: TextDecoration.underline),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.warmAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.warmAccent.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.rate_review_outlined, size: 13, color: AppColors.warmAccent),
+                          SizedBox(width: 4),
+                          Text(
+                            'Add Review',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warmAccent,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -834,19 +910,65 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.location_on_outlined, size: 16, color: AppColors.mutedText),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  '${ground.location} • ${ground.distanceKm} km away',
-                  style: const TextStyle(fontSize: 14, color: AppColors.secondaryText),
-                  overflow: TextOverflow.ellipsis,
-                ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => MapLauncher.openDirections(
+              latitude: ground.latitude,
+              longitude: ground.longitude,
+              groundName: ground.title,
+              address: ground.address.isNotEmpty ? ground.address : ground.location,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
               ),
-            ],
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on, size: 18, color: AppColors.warmAccent),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ground.address.isNotEmpty ? ground.address : ground.location,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primaryBlack),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${ground.location} • ${ground.distanceKm} km away',
+                          style: const TextStyle(fontSize: 11, color: AppColors.mutedText),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlack,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.directions, size: 14, color: Colors.white),
+                        SizedBox(width: 4),
+                        Text(
+                          'Directions',
+                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           Text(
@@ -864,42 +986,571 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
 
   void _showReviewDialog(BuildContext context) {
     if (!AuthService.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please log in to add a review.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please log in to add a player review.'),
+          action: SnackBarAction(
+            label: 'Login',
+            textColor: AppColors.warmAccent,
+            onPressed: () => AuthService.requireAuth(context),
+          ),
+        ),
+      );
       return;
     }
+
+    double selectedRating = 5.0;
+    final textController = TextEditingController();
+    bool isSubmitting = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Leave a Review', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        content: const TextField(
-          decoration: InputDecoration(
-            hintText: 'Share your experience playing here...',
-            border: OutlineInputBorder(),
-          ),
-          maxLines: 3,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Thank you! Your review was submitted successfully.'),
-                  backgroundColor: Colors.green,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          final ratingLabels = {
+            1: '1.0 - Poor',
+            2: '2.0 - Fair',
+            3: '3.0 - Good',
+            4: '4.0 - Very Good',
+            5: '5.0 - Excellent!',
+          };
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+            contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warmAccent.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.star_rounded, color: AppColors.warmAccent, size: 22),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryBlack,
-              foregroundColor: Colors.white,
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Write a Review',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20),
+                  onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                ),
+              ],
             ),
-            child: const Text('Submit'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.ground.title,
+                    style: const TextStyle(fontSize: 13, color: AppColors.mutedText, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(5, (index) {
+                            final starIndex = index + 1;
+                            final isFilled = starIndex <= selectedRating;
+                            return InkWell(
+                              onTap: isSubmitting
+                                  ? null
+                                  : () => setDialogState(() => selectedRating = starIndex.toDouble()),
+                              borderRadius: BorderRadius.circular(20),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Icon(
+                                  isFilled ? Icons.star_rounded : Icons.star_outline_rounded,
+                                  color: isFilled ? const Color(0xFFFFB300) : Colors.grey.shade400,
+                                  size: 38,
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            ratingLabels[selectedRating.toInt()] ?? '${selectedRating.toInt()} Stars',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFE65100),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Your Feedback',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primaryBlack),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: textController,
+                    maxLines: 4,
+                    enabled: !isSubmitting,
+                    decoration: InputDecoration(
+                      hintText: 'Describe the turf quality, lighting, facilities, amenities, and staff...',
+                      hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.warmAccent, width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final comment = textController.text.trim();
+                        if (comment.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please share a few words about your experience.')),
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+
+                        final res = await ApiService.addGroundReview(
+                          groundId: widget.ground.groundId,
+                          rating: selectedRating,
+                          comment: comment,
+                        );
+
+                        if (!context.mounted) return;
+
+                        if (res['success'] == true) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thank you! Your review has been submitted successfully.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          if (res['review'] is ReviewModel) {
+                            setState(() {
+                              _reviews.insert(0, res['review'] as ReviewModel);
+                              _currentReviewCount = _reviews.length;
+                              final sum = _reviews.fold<double>(0.0, (acc, r) => acc + r.rating);
+                              _currentGroundRating = double.parse((sum / _reviews.length).toStringAsFixed(1));
+                            });
+                          } else {
+                            _loadReviewsFromBackend();
+                          }
+                        } else {
+                          setDialogState(() => isSubmitting = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['message']?.toString() ?? 'Failed to submit review'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlack,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text('Submit Review', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ── 8. Venue Location & GPS Directions ──
+  Widget _buildLocationAndDirectionsSection(GroundModel ground) {
+    final addr = ground.address.isNotEmpty ? ground.address : ground.location;
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.warmAccent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.pin_drop_rounded, size: 18, color: AppColors.warmAccent),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Location & Directions',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.location_on, color: AppColors.warmAccent, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ground.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            addr,
+                            style: const TextStyle(fontSize: 13, color: AppColors.secondaryText),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Approx. ${ground.distanceKm} km away from your area',
+                            style: const TextStyle(fontSize: 12, color: AppColors.mutedText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => MapLauncher.openDirections(
+                      latitude: ground.latitude,
+                      longitude: ground.longitude,
+                      groundName: ground.title,
+                      address: addr,
+                    ),
+                    icon: const Icon(Icons.directions, size: 18),
+                    label: const Text('Open in Google Maps / Get Directions'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlack,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 9. Player Reviews & Rating Breakdown ──
+  Widget _buildReviewsSection(GroundModel ground) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.rate_review_rounded, size: 18, color: Color(0xFFFFA000)),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Player Reviews',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _showReviewDialog(context),
+                icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.primaryBlack),
+                label: const Text('Add Review', style: TextStyle(fontSize: 12, color: AppColors.primaryBlack)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.border),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Rating summary badge
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFFFFF9EE),
+                  Colors.white,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFFECB3)),
+            ),
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '$_currentGroundRating',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF5D4037),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Text(
+                          '/ 5.0',
+                          style: TextStyle(fontSize: 14, color: AppColors.mutedText, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < _currentGroundRating.floor()
+                              ? Icons.star_rounded
+                              : (index < _currentGroundRating ? Icons.star_half_rounded : Icons.star_outline_rounded),
+                          color: const Color(0xFFFFB300),
+                          size: 18,
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Container(width: 1, height: 45, color: Colors.grey.shade300),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$_currentReviewCount Verified Ratings',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryBlack),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'From players who booked & played at this sports arena.',
+                        style: TextStyle(fontSize: 11, color: AppColors.mutedText),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Reviews List
+          if (_isLoadingReviews) ...[
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ] else if (_reviews.isEmpty) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded, size: 36, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'No reviews yet',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryBlack),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Be the first player to share your thoughts on turf quality and facilities!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => _showReviewDialog(context),
+                    icon: const Icon(Icons.star, size: 14),
+                    label: const Text('Leave First Review'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlack,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _reviews.length,
+              separatorBuilder: (_, __) => const Divider(height: 24, thickness: 0.8),
+              itemBuilder: (context, index) {
+                final rev = _reviews[index];
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: AppColors.primaryBlack,
+                          backgroundImage: rev.userAvatar.isNotEmpty
+                              ? NetworkImage(rev.userAvatar)
+                              : null,
+                          child: rev.userAvatar.isEmpty
+                              ? Text(
+                                  rev.initials,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                rev.userName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primaryBlack,
+                                ),
+                              ),
+                              Text(
+                                rev.timeAgo,
+                                style: const TextStyle(fontSize: 11, color: AppColors.mutedText),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF8E7),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFFFE082)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, size: 14, color: Color(0xFFFFB300)),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${rev.rating}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF5D4037),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (rev.reviewText.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 42),
+                        child: Text(
+                          rev.reviewText,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade800,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint, debugPrintStack;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint, debugPrintStack;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -28,10 +28,16 @@ import '../screens/login_screen.dart';
 class AuthService {
   // ── Base URL ──────────────────────────────────────────────────────────────
   static String get baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
+    if (kIsWeb) {
+      if (kDebugMode) {
+        return 'http://localhost:5000/api';
+      }
+      return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
+    }
+    if (Platform.isAndroid) {
       return dotenv.env['ANDROID_API_URL'] ?? 'http://10.59.62.56:5000/api';
     }
-    return dotenv.env['API_URL'] ?? 'http://10.59.62.56:5000/api';
+    return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
   static String? currentToken;

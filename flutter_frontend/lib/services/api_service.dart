@@ -7,14 +7,21 @@ import '../models/ground_model.dart';
 import '../models/booking_model.dart';
 import '../models/product_model.dart';
 import '../models/post_model.dart';
+import '../models/review_model.dart';
 import 'auth_service.dart';
 
 class ApiService {
   static String get baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
+    if (kIsWeb) {
+      if (kDebugMode) {
+        return 'http://localhost:5000/api';
+      }
+      return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
+    }
+    if (Platform.isAndroid) {
       return dotenv.env['ANDROID_API_URL'] ?? 'http://10.59.62.56:5000/api';
     }
-    return dotenv.env['API_URL'] ?? 'http://10.59.62.56:5000/api';
+    return dotenv.env['API_URL'] ?? 'http://localhost:5000/api';
   }
 
   static Map<String, String> get _headers => {
@@ -254,6 +261,63 @@ class ApiService {
     }
 
     return {'success': false, 'message': 'Failed to delete ground'};
+  }
+
+  // Get Ground Reviews
+  static Future<List<ReviewModel>> getGroundReviews(dynamic groundId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/grounds/$groundId/reviews'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['reviews'] is List) {
+          return (data['reviews'] as List)
+              .map((r) => ReviewModel.fromJson(r as Map<String, dynamic>))
+              .toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching reviews for ground $groundId: $e');
+    }
+    return [];
+  }
+
+  // Add Ground Review
+  static Future<Map<String, dynamic>> addGroundReview({
+    required dynamic groundId,
+    required double rating,
+    required String comment,
+    String? bookingId,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/grounds/$groundId/reviews'),
+        headers: _headers,
+        body: jsonEncode({
+          'ground_id': groundId,
+          'rating': rating,
+          'review_text': comment,
+          if (bookingId != null && bookingId.isNotEmpty) 'booking_id': bookingId,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Review submitted successfully!',
+          'review': data['review'] != null ? ReviewModel.fromJson(data['review']) : null,
+          'groundStats': data['groundStats'],
+        };
+      }
+      return {'success': false, 'message': data['message'] ?? 'Failed to submit review'};
+    } catch (e) {
+      debugPrint('Error adding review for ground $groundId: $e');
+      return {'success': false, 'message': 'Network error submitting review'};
+    }
   }
 
   // Check In Booking (Player entry via QR or ID)

@@ -20,6 +20,7 @@ const notificationController = require('../controllers/notificationController');
 const paymentController = require('../controllers/paymentController');
 const slotController = require('../controllers/slotController');
 const injuryController = require('../controllers/injuryController');
+const reviewController = require('../controllers/reviewController');
 
 // Health Check
 router.get('/health', (req, res) => {
@@ -50,6 +51,12 @@ router.put('/grounds/:id', protect, authorizeRoles('GroundOwner', 'Admin'), vali
 router.put('/grounds/:id/approve', protect, authorizeRoles('Admin'), groundController.approveGround);
 router.put('/grounds/:id/status', protect, authorizeRoles('Admin'), groundController.approveGround);
 router.delete('/grounds/:id', protect, authorizeRoles('GroundOwner', 'Admin'), groundController.deleteGround);
+
+// Review Routes
+router.get('/grounds/:groundId/reviews', reviewController.getGroundReviews);
+router.post('/grounds/:groundId/reviews', protect, reviewController.createGroundReview);
+router.get('/reviews', reviewController.getGroundReviews);
+router.post('/reviews', protect, reviewController.createGroundReview);
 
 // Slot Routes
 router.get('/slots', slotController.getSlots);

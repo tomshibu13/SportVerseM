@@ -4,6 +4,7 @@ import '../models/booking_model.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/map_launcher.dart';
 import '../widgets/top_navigation_bar.dart';
 
 class BookingsScreen extends StatefulWidget {
@@ -123,22 +124,29 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Close'),
           ),
-          ElevatedButton(
-            onPressed: () {
+          ElevatedButton.icon(
+            icon: const Icon(Icons.navigation_rounded, size: 16),
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Opening navigation to ${booking.groundName}...'),
-                  backgroundColor: AppColors.primaryBlack,
-                ),
+              final success = await MapLauncher.openDirections(
+                groundName: booking.groundName,
+                address: booking.address.isNotEmpty ? booking.address : booking.location,
               );
+              if (!success && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Could not open map navigation for ${booking.groundName}'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlack,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('Start Navigation'),
+            label: const Text('Start Navigation'),
           ),
         ],
       ),

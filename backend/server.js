@@ -8,6 +8,7 @@ const { seedGroundsIfEmpty } = require('./controllers/groundController');
 const { seedProductsIfEmpty } = require('./controllers/shopController');
 const { seedBookingsIfEmpty } = require('./controllers/bookingController');
 const { seedPostsIfEmpty } = require('./controllers/communityController');
+const { seedReviewsIfEmpty } = require('./controllers/reviewController');
 
 const startServer = async () => {
   try {
@@ -23,6 +24,7 @@ const startServer = async () => {
     await seedProductsIfEmpty();
     await seedBookingsIfEmpty();
     await seedPostsIfEmpty();
+    await seedReviewsIfEmpty();
 
     // 3. Start Express Server
     const PORT = process.env.PORT || 5000;
