@@ -83,7 +83,12 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
       return;
     }
 
-    final res = await ApiService.checkInBooking(query);
+    dynamic activeGroundId;
+    if (_myGrounds.isNotEmpty) {
+      activeGroundId = _myGrounds.first.groundId;
+    }
+
+    final res = await ApiService.checkInBooking(query, groundId: activeGroundId);
     if (res['success'] == true) {
       _checkInInputController.clear();
       await _loadDashboardData();
@@ -102,7 +107,7 @@ class _GroundOwnerDashboardScreenState extends State<GroundOwnerDashboardScreen>
           SnackBar(
             backgroundColor: const Color(0xFFDC2626),
             behavior: SnackBarBehavior.floating,
-            content: Text('✕ ${res['message'] ?? 'Invalid booking ID'}'),
+            content: Text('✕ ${res['message'] ?? 'Check-in failed: QR does not match this ground.'}'),
           ),
         );
       }

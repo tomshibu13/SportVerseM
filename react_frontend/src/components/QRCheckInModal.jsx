@@ -108,9 +108,23 @@ export default function QRCheckInModal({ isOpen, onClose, bookings = [], onConfi
       return;
     }
 
-    const query = raw.toLowerCase();
-    const cleanId = raw.replace(/^SPORTVERSE_QR_/i, '').trim().toUpperCase();
+    // Extract ground ID and candidate booking ID if encoded in QR
+    let qrGroundId = null;
+    let candidateCode = raw;
+
+    const gPrefixMatch = raw.match(/^SPORTVERSE_QR_G([a-zA-Z0-9_-]+)_(SPV-BK-[\w-]+|[\w-]+)$/i);
+    const numPrefixMatch = !gPrefixMatch && raw.match(/^SPORTVERSE_QR_([0-9]{3,})_(SPV-BK-[\w-]+|[\w-]+)$/i);
+    if (gPrefixMatch) {
+      qrGroundId = gPrefixMatch[1];
+      candidateCode = gPrefixMatch[2];
+    } else if (numPrefixMatch) {
+      qrGroundId = numPrefixMatch[1];
+      candidateCode = numPrefixMatch[2];
+    }
+
+    const cleanId = candidateCode.replace(/^SPORTVERSE_QR_/i, '').trim().toUpperCase();
     const cleanIdLower = cleanId.toLowerCase();
+    const query = raw.toLowerCase();
 
     const booking = bookings.find((b) => {
       const bId = String(b.booking_id || '').toLowerCase();
@@ -120,27 +134,26 @@ export default function QRCheckInModal({ isOpen, onClose, bookings = [], onConfi
         bId === query ||
         qr === query ||
         bId === cleanIdLower ||
+        qr === candidateCode.toLowerCase() ||
         qr.includes(cleanIdLower) ||
-        bId.includes(query) ||
         (query.length >= 3 && uName.includes(query))
       );
     });
 
     if (booking) {
+      if (qrGroundId) {
+        const bGId = String(booking.ground_id || (booking.ground && (booking.ground.ground_id || booking.ground._id)) || '').toLowerCase();
+        if (bGId && qrGroundId.toLowerCase() !== bGId) {
+          setFoundBooking(null);
+          setErrorMsg(`❌ Ground ID Mismatch: QR is encoded for Ground #${qrGroundId}, but booking #${booking.booking_id} is for "${booking.ground_name}". Ticket denied.`);
+          return;
+        }
+      }
       setFoundBooking(booking);
       setScannedId(raw);
     } else {
-      setFoundBooking({
-        booking_id: cleanId,
-        user_name: 'Player Ticket',
-        ground_name: 'Venue Reservation',
-        sport_type: 'Sports',
-        date: 'Today',
-        slot_time: 'Booked Slot',
-        total_price: 0,
-        booking_status: 'Upcoming'
-      });
-      setScannedId(raw);
+      setFoundBooking(null);
+      setErrorMsg(`❌ QR Ticket Mismatch: No reservation found for your venue matching "${raw}". This QR ticket belongs to another sports arena or is invalid.`);
     }
   };
 
@@ -160,7 +173,7 @@ export default function QRCheckInModal({ isOpen, onClose, bookings = [], onConfi
       }, 1500);
     } catch (err) {
       setIsCheckingIn(false);
-      setErrorMsg('Could not verify check-in for this ticket.');
+      setErrorMsg(err.message || 'Could not verify check-in for this ticket.');
     }
   };
 

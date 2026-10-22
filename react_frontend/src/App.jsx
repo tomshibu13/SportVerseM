@@ -258,23 +258,26 @@ export default function App() {
     }
   };
 
-  const handleConfirmCheckIn = async (bookingId) => {
+  const handleConfirmCheckIn = async (bookingId, groundId = null) => {
     try {
-      await checkInBookingApi(bookingId);
+      const res = await checkInBookingApi(bookingId, groundId);
+      if (res && res.success === false) {
+        const msg = res.message || `Check-in denied: QR pass does not match this ground venue.`;
+        showToast(msg, 'error');
+        throw new Error(msg);
+      }
       setBookings((prev) =>
         prev.map((b) =>
           b.booking_id === bookingId ? { ...b, booking_status: 'Completed' } : b
         )
       );
-      showToast(`Check-in confirmed for Booking ${bookingId}!`);
+      showToast(res?.message || `Check-in confirmed for Booking ${bookingId}!`);
+      return res;
     } catch (err) {
       console.error('Check-in error:', err);
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.booking_id === bookingId ? { ...b, booking_status: 'Completed' } : b
-        )
-      );
-      showToast(`Check-in confirmed for Booking ${bookingId}!`);
+      const errMsg = err.message || `Check-in failed: QR pass does not match this ground venue.`;
+      showToast(errMsg, 'error');
+      throw err;
     }
   };
 

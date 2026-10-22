@@ -79,7 +79,8 @@ export function normalizeBooking(b) {
   const total_price = Number(b.total_price !== undefined ? b.total_price : (b.price !== undefined ? b.price : 0));
   const booking_status = b.booking_status || 'Upcoming';
   const admin_approval = b.admin_approval || 'Approved';
-  const qr_code = b.qr_code || `SPORTVERSE_QR_${booking_id}`;
+  const gId = b.ground_id || (b.ground && (b.ground.ground_id || b.ground._id)) || '';
+  const qr_code = b.qr_code || (gId ? `SPORTVERSE_QR_G${gId}_${booking_id}` : `SPORTVERSE_QR_${booking_id}`);
 
   return {
     ...b,
@@ -343,23 +344,16 @@ export async function fetchBookings(userId = null) {
   }
 }
 
-export async function checkInBookingApi(bookingId) {
-  try {
-    const data = await request(`/bookings/${bookingId}/checkin`, {
-      method: 'PUT',
-      body: JSON.stringify({ bookingId }),
-    });
-    return data;
-  } catch (err) {
-    try {
-      return await request('/bookings/checkin', {
-        method: 'POST',
-        body: JSON.stringify({ bookingId }),
-      });
-    } catch (_) {
-      return { success: true, message: `Check-in confirmed for ${bookingId}` };
-    }
-  }
+export async function checkInBookingApi(bookingIdOrQr, groundId = null) {
+  const payload = {
+    bookingId: bookingIdOrQr,
+    booking_id: bookingIdOrQr,
+    ...(groundId ? { ground_id: groundId } : {})
+  };
+  return await request('/bookings/checkin', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function approveBookingApi(bookingId, status = 'Approved', rejectReason = '') {

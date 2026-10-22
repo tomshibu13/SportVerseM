@@ -21,12 +21,15 @@ import {
 } from 'lucide-react';
 import { checkInBookingApi, fetchMyBookings } from '../services/api';
 
-export default function CheckInPage() {
+export default function CheckInPage({ currentUser, grounds = [] }) {
   const [inputCode, setInputCode] = useState('');
   const [result, setResult] = useState(null);
   const [log, setLog] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [liveBookings, setLiveBookings] = useState([]);
+  const [selectedGroundId, setSelectedGroundId] = useState(
+    grounds.length > 0 ? (grounds[0].ground_id || grounds[0]._id) : ''
+  );
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' or 'user'
@@ -36,19 +39,28 @@ export default function CheckInPage() {
   const fileInputRef = useRef(null);
   const isScanningLockRef = useRef(false);
 
-  // Load bookings for quick simulations
   useEffect(() => {
-    fetchMyBookings().then(data => {
-      if (Array.isArray(data)) {
-        setLiveBookings(data);
-      }
-    }).catch(() => {});
+    if (grounds.length > 0 && !selectedGroundId) {
+      setSelectedGroundId(grounds[0].ground_id || grounds[0]._id);
+    }
+  }, [grounds]);
+
+  // Load bookings for this owner
+  useEffect(() => {
+    const ownerId = currentUser?._id || currentUser?.id;
+    if (ownerId) {
+      fetchMyBookings(ownerId).then(data => {
+        if (Array.isArray(data)) {
+          setLiveBookings(data);
+        }
+      }).catch(() => {});
+    }
 
     // Cleanup camera when navigating away
     return () => {
       stopCamera();
     };
-  }, []);
+  }, [currentUser]);
 
   const stopCamera = async () => {
     if (html5QrCodeRef.current) {
@@ -152,7 +164,7 @@ export default function CheckInPage() {
     setResult(null);
 
     try {
-      const res = await checkInBookingApi(bk);
+      const res = await checkInBookingApi(bk, selectedGroundId);
       setScanning(false);
       
       const b = res.booking || {};
@@ -165,23 +177,42 @@ export default function CheckInPage() {
         totalPrice: b.total_price || 0,
       };
 
-      if (!res.success || res.expired || res.alreadyCheckedIn) {
-        // EXPIRED OR DUPLICATE SCAN
-        const msg = res.message || `⚠️ QR Pass Expired! Pass #${b.booking_id || bk} has ALREADY been scanned and used.`;
-        setResult({
-          status: 'expired',
-          message: msg,
-          code: b.booking_id || bk,
-          booking: b.booking_id ? bookingDetail : null,
-        });
+      if (!res.success) {
+        if (res.expired || res.alreadyCheckedIn) {
+          // EXPIRED OR DUPLICATE SCAN
+          const msg = res.message || `⚠️ QR Pass Expired! Pass #${b.booking_id || bk} has ALREADY been scanned and used.`;
+          setResult({
+            status: 'expired',
+            message: msg,
+            code: b.booking_id || bk,
+            booking: b.booking_id ? bookingDetail : null,
+          });
 
-        setLog(prev => [{
-          id: b.booking_id || bk,
-          name: b.booking_id ? `${bookingDetail.name} (Expired QR)` : 'Invalid Pass',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'expired',
-          sport: bookingDetail.sport,
-        }, ...prev]);
+          setLog(prev => [{
+            id: b.booking_id || bk,
+            name: b.booking_id ? `${bookingDetail.name} (Expired QR)` : 'Invalid Pass',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'expired',
+            sport: bookingDetail.sport,
+          }, ...prev]);
+        } else {
+          // GROUND MISMATCH OR ACCESS DENIED
+          const msg = res.message || `❌ Ground Mismatch: QR ticket does not match this ground venue!`;
+          setResult({
+            status: 'failed',
+            message: msg,
+            code: b.booking_id || bk,
+            booking: b.booking_id ? bookingDetail : null,
+          });
+
+          setLog(prev => [{
+            id: b.booking_id || bk,
+            name: 'Ground Mismatch',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            status: 'failed',
+            sport: '—',
+          }, ...prev]);
+        }
       } else {
         // FIRST TIME APPROVED ENTRY
         setResult({
@@ -203,11 +234,11 @@ export default function CheckInPage() {
       setInputCode('');
     } catch (err) {
       setScanning(false);
-      const errMsg = err.message || `Booking ID "${bk}" not found in system.`;
+      const errMsg = err.message || `Booking ID "${bk}" not found in system or does not belong to this venue.`;
       setResult({ status: 'failed', message: errMsg, code: bk });
       setLog(prev => [{
         id: bk,
-        name: 'Unknown Player',
+        name: 'Invalid Venue / Pass',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'failed',
         sport: '—',
@@ -242,8 +273,7 @@ export default function CheckInPage() {
     setScanning(true);
     setResult(null);
     try {
-      const data = await fetchMyBookings();
-      const active = Array.isArray(data) ? data.filter(b => b.booking_status !== 'Cancelled') : [];
+      const active = Array.isArray(liveBookings) ? liveBookings.filter(b => b.booking_status !== 'Cancelled') : [];
       if (active.length > 0) {
         const rand = active[Math.floor(Math.random() * active.length)];
         const code = rand.qr_code || rand.booking_id;
@@ -285,7 +315,7 @@ export default function CheckInPage() {
             <span>Live Gate QR Check-In Scanner</span>
           </h2>
           <p style={{ color: '#7fb3a0', fontSize: '0.875rem', marginTop: '0.2rem' }}>
-            Use your device camera or barcode scanner to instantly verify player entry tickets
+            Scan player QR tickets to verify bookings assigned to your sports ground venue
           </p>
         </div>
 
@@ -336,6 +366,53 @@ export default function CheckInPage() {
           </button>
         </div>
       </div>
+
+      {/* Active Venue Gate Indicator */}
+      {grounds.length > 0 && (
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.08)',
+          border: '1px solid rgba(16, 185, 129, 0.25)',
+          borderRadius: '10px',
+          padding: '0.65rem 1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <ShieldCheck size={20} color="#10b981" />
+            <span style={{ fontSize: '0.85rem', color: '#e8f5f1', fontWeight: 600 }}>Active Gate Venue:</span>
+            <span style={{ fontSize: '0.9rem', color: '#10b981', fontWeight: 800 }}>
+              {grounds.find(g => String(g.ground_id || g._id) === String(selectedGroundId))?.title || grounds[0]?.title || 'Sports Arena'}
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#7fb3a0', background: 'rgba(0,0,0,0.3)', padding: '2px 8px', borderRadius: '4px' }}>
+              Ground ID: #{selectedGroundId || grounds[0]?.ground_id || grounds[0]?._id}
+            </span>
+          </div>
+          {grounds.length > 1 && (
+            <select
+              value={selectedGroundId}
+              onChange={(e) => setSelectedGroundId(e.target.value)}
+              style={{
+                background: '#0a1612',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: '#e8f5f1',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
+                cursor: 'pointer'
+              }}
+            >
+              {grounds.map(g => (
+                <option key={g.ground_id || g._id} value={g.ground_id || g._id}>
+                  {g.title} (#{g.ground_id || g._id})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       {/* Main Scanner Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>

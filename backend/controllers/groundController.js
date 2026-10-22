@@ -96,6 +96,15 @@ exports.getGroundsByOwner = async (req, res) => {
     if (!isNaN(numOwnerId)) {
       queryOr.push({ owner_id: numOwnerId });
     }
+    if (req.user?.email) {
+      queryOr.push({ owner_id: req.user.email }, { owner_id: req.user.email.toLowerCase() }, { owner_email: req.user.email.toLowerCase() });
+    }
+    if (req.user?.userId) {
+      queryOr.push({ owner_id: req.user.userId }, { owner_id: req.user.userId.toString() });
+      if (mongoose.Types.ObjectId.isValid(req.user.userId)) {
+        queryOr.push({ owner_id: new mongoose.Types.ObjectId(req.user.userId) });
+      }
+    }
 
     const grounds = await Ground.find({ $or: queryOr });
     return res.json({ success: true, grounds: grounds || [] });
@@ -332,7 +341,10 @@ exports.updateGround = async (req, res) => {
     // Verify ownership
     const requesterId = req.user?.userId?.toString();
     const requesterRole = req.user?.role;
-    const isOwner = ground.owner_id && ground.owner_id.toString() === requesterId;
+    const isOwner = ground.owner_id && (
+      ground.owner_id.toString() === requesterId ||
+      (req.user?.email && (String(ground.owner_id).toLowerCase() === req.user.email.toLowerCase() || String(ground.owner_email).toLowerCase() === req.user.email.toLowerCase()))
+    );
 
     if (requesterRole !== 'Admin' && !isOwner) {
       return res.status(403).json({
@@ -341,16 +353,29 @@ exports.updateGround = async (req, res) => {
       });
     }
 
-    if (req.body.title) ground.title = req.body.title;
+    const oldTitle = ground.title;
+    if (req.body.title) ground.title = req.body.title.trim();
     if (req.body.sport_type) ground.sport_type = req.body.sport_type;
-    if (req.body.location) ground.location = req.body.location;
-    if (req.body.address) ground.address = req.body.address;
+    if (req.body.location) ground.location = req.body.location.trim();
+    if (req.body.address) ground.address = req.body.address.trim();
+    if (req.body.phone) ground.phone = req.body.phone.trim();
+    if (req.body.opening_time) ground.opening_time = req.body.opening_time.trim();
+    if (req.body.closing_time) ground.closing_time = req.body.closing_time.trim();
     if (req.body.price_per_hour != null) ground.price_per_hour = Number(req.body.price_per_hour);
     if (req.body.facilities) ground.facilities = req.body.facilities;
     if (req.body.images) ground.images = req.body.images;
-    if (req.body.status && requesterRole === 'Admin') ground.status = req.body.status;
+    if (req.body.status) {
+      ground.status = req.body.status;
+    }
 
     await ground.save();
+
+    if (req.body.title && req.body.title !== oldTitle) {
+      await Booking.updateMany(
+        { $or: [{ ground: ground._id }, { ground_id: ground.ground_id }] },
+        { $set: { ground_name: ground.title } }
+      ).catch(() => {});
+    }
 
     return res.status(200).json({
       success: true,
@@ -391,6 +416,15 @@ exports.getOwnerDashboardStats = async (req, res) => {
     if (!isNaN(numOwnerId)) {
       queryOr.push({ owner_id: numOwnerId });
     }
+    if (req.user?.email) {
+      queryOr.push({ owner_id: req.user.email }, { owner_id: req.user.email.toLowerCase() }, { owner_email: req.user.email.toLowerCase() });
+    }
+    if (req.user?.userId) {
+      queryOr.push({ owner_id: req.user.userId }, { owner_id: req.user.userId.toString() });
+      if (mongoose.Types.ObjectId.isValid(req.user.userId)) {
+        queryOr.push({ owner_id: new mongoose.Types.ObjectId(req.user.userId) });
+      }
+    }
 
     const grounds = await Ground.find({ $or: queryOr });
     const activeVenuesCount = grounds.length;
@@ -422,11 +456,12 @@ exports.getOwnerDashboardStats = async (req, res) => {
     let checkedInCount = 0;
     confirmedBookings.forEach(b => {
       if (b.user_id) playersSet.add(b.user_id.toString());
+      else if (b.user_name) playersSet.add(b.user_name);
       if (b.booking_status === 'Completed' || b.qr_scanned) {
         checkedInCount++;
       }
     });
-    const playersTodayCount = todayBookings.map(b => b.user_id?.toString()).filter(Boolean).length;
+    const playersTodayCount = todayBookings.map(b => (b.user_id?.toString() || b.user_name)).filter(Boolean).length;
 
     // Average rating
     const totalRating = grounds.reduce((sum, g) => sum + (g.rating || 0), 0);
@@ -435,9 +470,15 @@ exports.getOwnerDashboardStats = async (req, res) => {
 
     // Court occupancy calculation
     const courtOccupancy = grounds.map(g => {
-      const gBookings = todayBookings.filter(b => (b.ground && b.ground._id.toString() === g._id.toString()) || b.ground_name === g.title);
+      const gBookings = confirmedBookings.filter(b => 
+        (b.ground && b.ground._id && b.ground._id.toString() === g._id.toString()) ||
+        (b.ground && b.ground.toString() === g._id.toString()) ||
+        (b.ground_id && g.ground_id && String(b.ground_id) === String(g.ground_id)) ||
+        b.ground_name === g.title
+      );
       const totalSlots = 12;
-      const booked = gBookings.length;
+      const todayGBookings = gBookings.filter(b => b.date === todayStr);
+      const booked = todayGBookings.length > 0 ? todayGBookings.length : Math.min(totalSlots, gBookings.length);
       const percent = totalSlots > 0 ? Math.min(100, Math.round((booked / totalSlots) * 100)) : 0;
       return { label: g.title, percent, totalSlots, booked };
     });
@@ -461,24 +502,52 @@ exports.getOwnerDashboardStats = async (req, res) => {
 
     // Activity Feed from real bookings & check-ins
     const recentActivities = [];
-    bookings.slice(0, 8).forEach(b => {
+    bookings.slice(0, 10).forEach(b => {
       if (b.qr_scanned && b.scanned_at) {
         recentActivities.push({
           title: 'Check-In Confirmed',
+          event: `${b.user_name || 'Player'} checked in at ${b.ground?.title || b.ground_name} (${b.court_id || 'Court 1'})`,
           description: `${b.user_name || 'Player'} checked in at ${b.ground?.title || b.ground_name} (${b.court_id || 'Court 1'})`,
           time: new Date(b.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'checkin',
           rawTime: new Date(b.scanned_at)
         });
       }
       recentActivities.push({
         title: b.booking_status === 'Completed' ? 'Completed Reservation' : (b.booking_status === 'Cancelled' ? 'Cancelled Booking' : 'New Reservation Confirmed'),
-        description: `${b.user_name || 'Player'} reserved ${b.ground?.title || b.ground_name} for ${b.slot_time} (${b.date})`,
+        event: `${b.user_name || 'Player'} reserved ${b.ground?.title || b.ground_name} for ${b.slot_time} (${b.date}) — ₹${b.total_price || 0}`,
+        description: `${b.user_name || 'Player'} reserved ${b.ground?.title || b.ground_name} for ${b.slot_time} (${b.date}) — ₹${b.total_price || 0}`,
         time: b.created_at ? new Date(b.created_at).toLocaleDateString() : 'Recent',
+        type: b.booking_status === 'Cancelled' ? 'rating' : 'booking',
         rawTime: b.created_at ? new Date(b.created_at) : new Date()
       });
     });
 
     recentActivities.sort((a, b) => b.rawTime - a.rawTime);
+
+    // Build upcoming slots preview
+    const upcomingSlots = [];
+    const upcomingBookings = confirmedBookings.filter(b => b.date >= todayStr).slice(0, 8);
+    upcomingBookings.forEach(b => {
+      upcomingSlots.push({
+        time: b.slot_time || '10:00 AM - 11:00 AM',
+        court: b.court_id || (b.ground?.title ? `${b.ground.title}` : 'Court 1'),
+        player: b.user_name || 'Booked Player',
+        status: 'peak'
+      });
+    });
+    if (upcomingSlots.length < 4) {
+      grounds.forEach(g => {
+        (g.available_slots || []).slice(0, 4 - upcomingSlots.length).forEach(s => {
+          upcomingSlots.push({
+            time: s.time || '06:00 PM - 07:00 PM',
+            court: g.title || 'Court 1',
+            player: 'Available (₹' + (s.price || g.price_per_hour || 500) + ')',
+            status: 'free'
+          });
+        });
+      });
+    }
 
     return res.json({
       success: true,
@@ -491,12 +560,15 @@ exports.getOwnerDashboardStats = async (req, res) => {
         activeBookingsCount,
         playersTodayCount,
         checkedInCount,
+        uniquePlayersCount: playersSet.size,
         avgRating,
         totalReviews,
         courtOccupancy: courtOccupancy.length > 0 ? `${Math.round(courtOccupancy.reduce((acc, c) => acc + c.percent, 0) / courtOccupancy.length)}%` : '0%',
         courtOccupancyArray: courtOccupancy,
         peakReservationHours,
-        recentActivities: recentActivities.slice(0, 6)
+        recentActivities: recentActivities.slice(0, 8),
+        recentActivity: recentActivities.slice(0, 8),
+        upcomingSlots: upcomingSlots.slice(0, 8)
       }
     });
 

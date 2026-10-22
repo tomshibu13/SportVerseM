@@ -117,16 +117,25 @@ export default function OwnerDashboardPage({
       return bId === qLower || qr === qLower || bId === cleanQ || qr.includes(cleanQ) || bId.includes(qLower) || (qLower.length >= 3 && uName.includes(qLower));
     });
 
+    if (!matched) {
+      setCheckInNotice({
+        type: 'error',
+        msg: `❌ QR Mismatch: No reservation for this ground matches "${query}". Ticket belongs to another venue or is invalid.`
+      });
+      setTimeout(() => setCheckInNotice(null), 4000);
+      return;
+    }
+
     try {
-      const targetId = matched ? matched.booking_id : query.replace(/^SPORTVERSE_QR_/i, '').trim();
+      const targetId = matched.booking_id;
       await onConfirmCheckIn(targetId);
       setCheckInNotice({
         type: 'success',
-        msg: `✓ Check-in confirmed for ${matched?.user_name || 'Player'} (${targetId})!`
+        msg: `✓ Check-in confirmed for ${matched.user_name || 'Player'} (${targetId})!`
       });
       setQuickCheckInInput('');
     } catch (err) {
-      setCheckInNotice({ type: 'error', msg: `Could not verify check-in for "${query}".` });
+      setCheckInNotice({ type: 'error', msg: err.message || `Could not verify check-in for "${query}".` });
     }
 
     setTimeout(() => setCheckInNotice(null), 4000);

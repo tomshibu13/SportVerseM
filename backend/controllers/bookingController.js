@@ -55,6 +55,15 @@ exports.getOwnerBookings = async (req, res) => {
     if (!isNaN(numOwnerId)) {
       queryOr.push({ owner_id: numOwnerId });
     }
+    if (req.user?.email) {
+      queryOr.push({ owner_id: req.user.email }, { owner_id: req.user.email.toLowerCase() }, { owner_email: req.user.email.toLowerCase() });
+    }
+    if (req.user?.userId) {
+      queryOr.push({ owner_id: req.user.userId }, { owner_id: req.user.userId.toString() });
+      if (mongoose.Types.ObjectId.isValid(req.user.userId)) {
+        queryOr.push({ owner_id: new mongoose.Types.ObjectId(req.user.userId) });
+      }
+    }
 
     const grounds = await Ground.find({ $or: queryOr });
     const groundIds = grounds.map(g => g._id);
@@ -249,7 +258,7 @@ exports.createBooking = async (req, res) => {
       booking_status: 'Upcoming',
       admin_approval: 'Approved',
       approved_at: new Date(),
-      qr_code: `SPORTVERSE_QR_${booking_id}`,
+      qr_code: `SPORTVERSE_QR_G${groundDoc.ground_id || groundDoc._id}_${booking_id}`,
       is_qr_expired: false,
       qr_scanned: false,
       created_at: new Date()
@@ -474,14 +483,32 @@ exports.checkInBooking = async (req, res) => {
     }
     let trimmedId = String(rawId).trim().replace(/^["']|["']$/g, '');
 
+    let qrEncodedGroundId = null;
     if (trimmedId.startsWith('{') && trimmedId.endsWith('}')) {
       try {
         const parsed = JSON.parse(trimmedId);
+        if (parsed.ground_id || parsed.groundId) {
+          qrEncodedGroundId = String(parsed.ground_id || parsed.groundId).trim();
+        }
         trimmedId = parsed.booking_id || parsed.bookingId || parsed.qr_code || trimmedId;
       } catch (_) {}
     }
 
-    const extractedId = trimmedId.replace(/^SPORTVERSE_QR_/i, '').trim();
+    // Check if QR code encodes ground ID:
+    // Formats: SPORTVERSE_QR_G<groundId>_<bookingId> or SPORTVERSE_QR_<groundId>_<bookingId>
+    let candidateBookingId = trimmedId;
+    const gPrefixMatch = trimmedId.match(/^SPORTVERSE_QR_G([a-zA-Z0-9_-]+)_(SPV-BK-[\w-]+|[\w-]+)$/i);
+    const numPrefixMatch = !gPrefixMatch && trimmedId.match(/^SPORTVERSE_QR_([0-9]{3,})_(SPV-BK-[\w-]+|[\w-]+)$/i);
+
+    if (gPrefixMatch) {
+      qrEncodedGroundId = gPrefixMatch[1];
+      candidateBookingId = gPrefixMatch[2];
+    } else if (numPrefixMatch) {
+      qrEncodedGroundId = numPrefixMatch[1];
+      candidateBookingId = numPrefixMatch[2];
+    }
+
+    const extractedId = candidateBookingId.replace(/^SPORTVERSE_QR_/i, '').trim();
     const cleanNumericOrCode = extractedId.replace(/^SPV-/i, '').trim();
     const spvPrefixed = cleanNumericOrCode.startsWith('SPV-') ? cleanNumericOrCode : `SPV-${cleanNumericOrCode}`;
     const qrPrefixed = `SPORTVERSE_QR_${extractedId}`;
@@ -490,16 +517,21 @@ exports.checkInBooking = async (req, res) => {
     const query = {
       $or: [
         { booking_id: trimmedId },
-        { booking_id: { $regex: new RegExp(`^${trimmedId}$`, 'i') } },
+        { booking_id: candidateBookingId },
         { booking_id: extractedId },
-        { booking_id: { $regex: new RegExp(`^${extractedId}$`, 'i') } },
         { booking_id: spvPrefixed },
+        { booking_id: { $regex: new RegExp(`^${extractedId}$`, 'i') } },
         { booking_id: { $regex: new RegExp(`^${spvPrefixed}$`, 'i') } },
         { qr_code: trimmedId },
         { qr_code: { $regex: new RegExp(`^${trimmedId}$`, 'i') } },
         { qr_code: qrPrefixed },
-        { qr_code: { $regex: new RegExp(`^${qrPrefixed}$`, 'i') } },
         { qr_code: qrPrefixedSpv },
+        ...(qrEncodedGroundId ? [
+          { qr_code: `SPORTVERSE_QR_G${qrEncodedGroundId}_${spvPrefixed}` },
+          { qr_code: `SPORTVERSE_QR_G${qrEncodedGroundId}_${extractedId}` },
+          { qr_code: `SPORTVERSE_QR_${qrEncodedGroundId}_${spvPrefixed}` },
+          { qr_code: { $regex: new RegExp(`SPORTVERSE_QR_G?${qrEncodedGroundId}_${spvPrefixed}`, 'i') } }
+        ] : []),
         ...(isObjectIdString(trimmedId) ? [{ _id: trimmedId }] : []),
         ...(isObjectIdString(extractedId) ? [{ _id: extractedId }] : [])
       ]
@@ -507,10 +539,93 @@ exports.checkInBooking = async (req, res) => {
 
     const booking = await Booking.findOne(query)
       .populate('user', 'fullName email phone')
-      .populate('ground', 'title sport_type location owner_id');
+      .populate('ground', 'title sport_type location owner_id ground_id');
 
     if (!booking) {
-      return res.status(404).json({ success: false, message: `Booking not found for ID: ${trimmedId}` });
+      return res.status(404).json({ success: false, message: `Booking ticket not found for ID: ${trimmedId}` });
+    }
+
+    // 1. Verify Ground ID match if encoded in the scanned QR string
+    if (qrEncodedGroundId) {
+      const bGroundIdStr = String(booking.ground_id || '').trim().toLowerCase();
+      const bGroundDocIdStr = String(booking.ground?._id || '').trim().toLowerCase();
+      const bGroundNumIdStr = String(booking.ground?.ground_id || '').trim().toLowerCase();
+      const qrGIdStr = String(qrEncodedGroundId).trim().toLowerCase();
+
+      const matchesGround = qrGIdStr === bGroundIdStr || qrGIdStr === bGroundDocIdStr || qrGIdStr === bGroundNumIdStr;
+      if (!matchesGround) {
+        return res.status(400).json({
+          success: false,
+          groundMismatch: true,
+          message: `❌ QR Ground Mismatch: This QR ticket is for Ground #${qrEncodedGroundId}, but booking #${booking.booking_id} is registered for "${booking.ground_name}" (Ground #${booking.ground_id}). Ticket is invalid for this venue.`
+        });
+      }
+    }
+
+    // 2. Check if a specific ground was requested by the caller (active venue filter)
+    const requestedGroundId = req.body?.ground_id || req.body?.groundId || req.query?.ground_id;
+    if (requestedGroundId) {
+      const reqGStr = String(requestedGroundId).trim().toLowerCase();
+      const bGroundIdStr = String(booking.ground_id || '').trim().toLowerCase();
+      const bGroundDocIdStr = String(booking.ground?._id || '').trim().toLowerCase();
+      const bGroundNumIdStr = String(booking.ground?.ground_id || '').trim().toLowerCase();
+
+      const matchesReqGround = reqGStr === bGroundIdStr || reqGStr === bGroundDocIdStr || reqGStr === bGroundNumIdStr;
+      if (!matchesReqGround) {
+        return res.status(403).json({
+          success: false,
+          groundMismatch: true,
+          message: `❌ Ground Mismatch: This QR pass was booked for "${booking.ground_name}" (Ground #${booking.ground_id}), not for this venue.`
+        });
+      }
+    }
+
+    // 3. Ground Owner authorization: ensure booking belongs to this owner's ground!
+    const requesterRole = req.user?.role;
+    const requesterUserId = req.user?.userId ? String(req.user.userId).trim() : null;
+    const requesterEmail = req.user?.email ? String(req.user.email).trim().toLowerCase() : null;
+
+    if (requesterRole === 'GroundOwner' && requesterUserId) {
+      const queryOwner = [
+        { owner_id: requesterUserId },
+        { owner_id: String(requesterUserId) }
+      ];
+      if (mongoose.Types.ObjectId.isValid(requesterUserId)) {
+        queryOwner.push({ owner_id: new mongoose.Types.ObjectId(requesterUserId) });
+      }
+      const numUserId = parseInt(requesterUserId, 10);
+      if (!isNaN(numUserId)) {
+        queryOwner.push({ owner_id: numUserId });
+      }
+      if (requesterEmail) {
+        queryOwner.push({ owner_email: requesterEmail });
+      }
+
+      const ownerGrounds = await Ground.find({ $or: queryOwner });
+      const ownerGroundIdSet = new Set(
+        ownerGrounds.flatMap(g => [
+          String(g._id).toLowerCase(),
+          String(g.ground_id).toLowerCase(),
+          String(g.title).trim().toLowerCase()
+        ])
+      );
+
+      const groundOwnerId = booking.ground?.owner_id ? String(booking.ground.owner_id).toLowerCase() : null;
+      const isDirectOwnerMatch = groundOwnerId && (groundOwnerId === requesterUserId.toLowerCase() || (requesterEmail && groundOwnerId === requesterEmail));
+
+      const isBookingGroundInOwnerGrounds =
+        ownerGroundIdSet.has(String(booking.ground?._id || '').toLowerCase()) ||
+        ownerGroundIdSet.has(String(booking.ground_id || '').toLowerCase()) ||
+        ownerGroundIdSet.has(String(booking.ground_name || '').trim().toLowerCase()) ||
+        isDirectOwnerMatch;
+
+      if (!isBookingGroundInOwnerGrounds) {
+        return res.status(403).json({
+          success: false,
+          groundMismatch: true,
+          message: `❌ Access Denied: This QR pass is for "${booking.ground_name}" (Ground #${booking.ground_id}). It does NOT match your ground venue and cannot be verified in your dashboard.`
+        });
+      }
     }
 
     // Check if QR pass is ALREADY SCANNED / COMPLETED
@@ -544,13 +659,13 @@ exports.checkInBooking = async (req, res) => {
     booking.scanned_at = new Date();
     await booking.save();
 
-    console.log(`🎟️ Check-in confirmed for Booking ${booking.booking_id} (${booking.user_name || 'Player'})`);
+    console.log(`🎟️ Check-in confirmed for Booking ${booking.booking_id} (${booking.user_name || 'Player'}) at ${booking.ground_name}`);
 
     return res.status(200).json({
       success: true,
       expired: false,
       alreadyCheckedIn: false,
-      message: `✅ Entry Approved! Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id}). Ticket is verified.`,
+      message: `✅ Entry Approved! Check-in confirmed for ${booking.user_name || 'Player'} (${booking.booking_id}) at ${booking.ground_name}. Ticket verified.`,
       booking: {
         booking_id: booking.booking_id,
         user_name: booking.user_name || (booking.user ? booking.user.fullName : 'Player'),

@@ -257,16 +257,29 @@ class ApiService {
   }
 
   // Check In Booking (Player entry via QR or ID)
-  static Future<Map<String, dynamic>> checkInBooking(String bookingIdOrQr) async {
+  static Future<Map<String, dynamic>> checkInBooking(String bookingIdOrQr, {dynamic groundId}) async {
     try {
+      final body = <String, dynamic>{'booking_id': bookingIdOrQr};
+      if (groundId != null) {
+        body['ground_id'] = groundId;
+      }
       final res = await http.post(
         Uri.parse('$baseUrl/bookings/checkin'),
         headers: _headers,
-        body: jsonEncode({'booking_id': bookingIdOrQr}),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 6));
 
+      if (res.body.isNotEmpty) {
+        try {
+          final data = jsonDecode(res.body);
+          if (data is Map<String, dynamic>) {
+            return data;
+          }
+        } catch (_) {}
+      }
+
       if (res.statusCode == 200) {
-        return jsonDecode(res.body);
+        return {'success': true, 'message': 'Check-in confirmed successfully!'};
       }
     } catch (e) {
       debugPrint('Error checking in booking $bookingIdOrQr: $e');

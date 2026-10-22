@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ShoppingBag, Plus, Edit3, TrendingUp, Package, AlertCircle } from 'lucide-react';
-import { fetchMyProducts, updateProductApi } from '../services/api';
+import { fetchMyProducts, updateProductApi, createProductApi } from '../services/api';
 
 export default function ProShopPage({ currentUser }) {
   const [products, setProducts] = useState([]);
@@ -9,50 +9,59 @@ export default function ProShopPage({ currentUser }) {
   const [editProductId, setEditProductId] = useState(null);
   const [form, setForm] = useState({ name: '', category: 'Gear', sport: 'Football', price: '', stock: '' });
 
-  useEffect(() => {
+  const loadProducts = async () => {
     if (currentUser) {
-      fetchMyProducts().then(d => { 
-          const ownerId = currentUser._id || currentUser.id;
-          // Local filter since backend doesn't filter by owner
-          setProducts(d.filter(p => String(p.shop_owner_id) === String(ownerId) || String(p.shop_owner_id) === '3')); // keeping 3 for demo products to show up for testing if needed, though strictly it should be just ownerId. Let's strictly use ownerId.
-          setProducts(d.filter(p => String(p.shop_owner_id) === String(ownerId)));
-          setLoading(false); 
-      });
+      setLoading(true);
+      try {
+        const d = await fetchMyProducts();
+        const ownerId = currentUser._id || currentUser.id;
+        const ownerProducts = d.filter(p => 
+          String(p.shop_owner_id) === String(ownerId) ||
+          p.shop_owner_id === ownerId ||
+          (currentUser.email && String(p.shop_owner_id) === currentUser.email)
+        );
+        // If owner has custom products, show them; otherwise show catalog equipment
+        setProducts(ownerProducts.length > 0 ? ownerProducts : d);
+      } catch (err) {
+        console.error('Failed to load products:', err);
+      } finally {
+        setLoading(false);
+      }
     }
+  };
+
+  useEffect(() => {
+    loadProducts();
   }, [currentUser]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const p = { 
         ...form, 
+        title: form.name,
         price: Number(form.price), 
         stock: Number(form.stock),
         shop_owner_id: currentUser._id || currentUser.id
     };
     
-    if (editProductId) {
-      // Edit Product
-      const product = products.find(prod => prod.id === editProductId || prod._id === editProductId || prod.product_id === editProductId);
-      const targetId = (product && (product._id || product.product_id || product.id)) || editProductId;
-      const updated = await updateProductApi(targetId, p);
-      if (updated && updated.success) {
-        setProducts(products.map(prod => (prod.id === editProductId || prod._id === editProductId || prod.product_id === editProductId) ? { ...prod, ...p } : prod));
+    try {
+      if (editProductId) {
+        // Edit Product
+        const product = products.find(prod => prod.id === editProductId || prod._id === editProductId || prod.product_id === editProductId);
+        const targetId = (product && (product._id || product.product_id || product.id)) || editProductId;
+        const updated = await updateProductApi(targetId, p);
+        if (updated && updated.success) {
+          setProducts(products.map(prod => (prod.id === editProductId || prod._id === editProductId || prod.product_id === editProductId) ? { ...prod, ...p } : prod));
+        }
+      } else {
+        // Add Product
+        const data = await createProductApi(p);
+        if (data && data.success) {
+          setProducts([data.product || p, ...products]);
+        }
       }
-    } else {
-      // Add Product
-      try {
-          const res = await fetch('/api/products', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(p)
-          });
-          if (res.ok) {
-             const data = await res.json();
-             setProducts([...products, data.product || p]);
-          }
-      } catch (e) {
-          console.error("Failed to add product", e);
-      }
+    } catch (e) {
+      console.error("Failed to save product:", e);
     }
     
     setShowModal(false);

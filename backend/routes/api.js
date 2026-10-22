@@ -31,6 +31,7 @@ router.post('/auth/register', validateRegister, authController.registerUser);
 router.post('/auth/login', validateLogin, authController.loginUser);
 router.get('/auth/users', protect, authorizeRoles('Admin'), authController.getAllUsers);
 router.put('/auth/users/:id/approve', protect, authorizeRoles('Admin'), authController.approveUser);
+router.put('/auth/me', protect, authController.updateUserProfile);
 
 // Notification Routes
 router.get('/notifications', protect, notificationController.getUserNotifications);
@@ -76,9 +77,9 @@ router.get('/grounds/owner/:ownerId/stats', protect, authorizeRoles('GroundOwner
 // Shop Routes
 router.get('/products', shopController.getAllProducts);
 router.get('/products/:id', shopController.getProductById);
-router.post('/products', protect, authorizeRoles('ShopOwner', 'Admin'), validateProduct, shopController.createProduct);
-router.put('/products/:id', protect, authorizeRoles('ShopOwner', 'Admin'), validateProduct, shopController.updateProduct);
-router.get('/orders', protect, authorizeRoles('Admin', 'ShopOwner'), shopController.getAllOrders);
+router.post('/products', protect, authorizeRoles('ShopOwner', 'GroundOwner', 'Admin'), validateProduct, shopController.createProduct);
+router.put('/products/:id', protect, authorizeRoles('ShopOwner', 'GroundOwner', 'Admin'), validateProduct, shopController.updateProduct);
+router.get('/orders', protect, authorizeRoles('Admin', 'ShopOwner', 'GroundOwner'), shopController.getAllOrders);
 router.post('/orders', protect, shopController.createOrder);
 router.get('/orders/user/:userId', protect, shopController.getUserOrders);
 

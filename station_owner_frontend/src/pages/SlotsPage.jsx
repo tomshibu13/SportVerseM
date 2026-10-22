@@ -46,21 +46,28 @@ function hourToTimeRange(h) {
   };
 }
 
-export default function SlotsPage({ currentUser }) {
+export default function SlotsPage({ currentUser, grounds: propGrounds = [] }) {
   const [selectedDay, setSelectedDay] = useState('Mon');
-  const [grounds, setGrounds] = useState([]);
+  const [grounds, setGrounds] = useState(propGrounds);
   const [selectedGroundIndex, setSelectedGroundIndex] = useState(0);
   const [selectedCourt, setSelectedCourt] = useState('Court 1');
   const [availableCourts, setAvailableCourts] = useState(['Court 1']);
   const [slotMap, setSlotMap] = useState({}); // { [h]: { status, price, slotId, rawSlot } }
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(propGrounds.length === 0);
   const [actionLoading, setActionLoading] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiDone, setAiDone] = useState(false);
 
   // 1. Fetch initial grounds
   useEffect(() => {
-    if (currentUser) {
+    if (propGrounds && propGrounds.length > 0) {
+      setGrounds(propGrounds);
+      const cCount = parseInt(propGrounds[0].court_count || 1, 10) || 1;
+      const courts = Array.from({ length: cCount }, (_, i) => `Court ${i + 1}`);
+      setAvailableCourts(courts);
+      setSelectedCourt(courts[0]);
+      setLoading(false);
+    } else if (currentUser) {
       const ownerId = currentUser._id || currentUser.id || currentUser.userId;
       fetchMyGrounds(ownerId).then(g => {
         setGrounds(g);
@@ -73,7 +80,7 @@ export default function SlotsPage({ currentUser }) {
         setLoading(false);
       }).catch(() => setLoading(false));
     }
-  }, [currentUser]);
+  }, [currentUser, propGrounds]);
 
   const currentGround = grounds[selectedGroundIndex];
   const groundId = currentGround ? (currentGround.ground_id || currentGround._id || currentGround.id) : null;

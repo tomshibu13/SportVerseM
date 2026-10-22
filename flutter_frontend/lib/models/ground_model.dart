@@ -150,6 +150,8 @@ class GroundModel {
     required this.availableSlots,
   });
 
+  dynamic get id => groundId;
+
   dynamic operator [](String key) {
     switch (key) {
       case 'ground_id':

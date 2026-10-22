@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui';
-import 'dart:math' as math;
 
 import '../providers/fitness_provider.dart';
 import '../models/fitness_model.dart';
@@ -789,7 +787,7 @@ class _FitnessDashboardScreenState extends State<FitnessDashboardScreen> with Si
 
     addTile('Weight', record.weight != null ? '${record.weight!.toStringAsFixed(1)} kg' : null, Icons.monitor_weight, Colors.teal);
     addTile('Height', record.height != null ? '${(record.height! * 100).toStringAsFixed(0)} cm' : null, Icons.height, Colors.indigo);
-    addTile('BMI', record.bmi != null ? record.bmi!.toStringAsFixed(1) : null, Icons.calculate, Colors.blueGrey);
+    addTile('BMI', record.bmi?.toStringAsFixed(1), Icons.calculate, Colors.blueGrey);
     addTile('Body Fat', record.bodyFat != null ? '${record.bodyFat!.toStringAsFixed(1)}%' : null, Icons.accessibility, Colors.brown);
     
     String? sleepStr;

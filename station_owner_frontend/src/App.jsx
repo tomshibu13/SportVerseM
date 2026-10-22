@@ -55,16 +55,22 @@ export default function App() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    async function loadGrounds() {
-      if (currentUser && (currentUser._id || currentUser.id)) {
-        setLoading(true);
+  const loadGrounds = async () => {
+    if (currentUser && (currentUser._id || currentUser.id)) {
+      setLoading(true);
+      try {
         const g = await fetchMyGrounds(currentUser._id || currentUser.id);
-        setGrounds(g);
+        setGrounds(g || []);
+      } catch (err) {
+        console.error("Failed to load grounds:", err);
+      } finally {
         setGroundsLoaded(true);
         setLoading(false);
       }
     }
+  };
+
+  useEffect(() => {
     loadGrounds();
   }, [currentUser]);
 
@@ -81,9 +87,10 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    await loadGrounds();
+    setTimeout(() => setLoading(false), 500);
   };
 
   const handleOpenQRScan = () => setActiveTab('checkin');
@@ -143,7 +150,12 @@ export default function App() {
             <span style={{ color: '#4a7a6a' }}>›</span>
             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>{pageTitles[activeTab]}</span>
           </div>
-          <PageComponent currentUser={currentUser} />
+          <PageComponent
+            currentUser={currentUser}
+            grounds={grounds}
+            onGroundsUpdated={loadGrounds}
+            onUserUpdated={setCurrentUser}
+          />
         </div>
       </div>
     </div>

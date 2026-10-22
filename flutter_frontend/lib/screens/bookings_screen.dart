@@ -146,7 +146,7 @@ class _BookingsScreenState extends State<BookingsScreen> with SingleTickerProvid
   }
 
   void _showQRCodeTicketModal(BookingModel booking) {
-    final qrString = booking.qrCode.isNotEmpty ? booking.qrCode : 'SPORTVERSE_QR_${booking.bookingId}';
+    final qrString = booking.qrCode.isNotEmpty ? booking.qrCode : 'SPORTVERSE_QR_G${booking.groundId}_${booking.bookingId}';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

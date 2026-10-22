@@ -1,41 +1,88 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Star, Users, Plus, Edit3, Trash2, CheckCircle2, XCircle, TrendingUp } from 'lucide-react';
-import { fetchMyGrounds, createGroundApi } from '../services/api';
+import { fetchMyGrounds, createGroundApi, updateGroundApi } from '../services/api';
 
-export default function CourtsPage({ currentUser }) {
-  const [grounds, setGrounds] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function CourtsPage({ currentUser, grounds: initialGrounds = [], onGroundsUpdated }) {
+  const [grounds, setGrounds] = useState(initialGrounds);
+  const [loading, setLoading] = useState(initialGrounds.length === 0);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: '', location: '', sport: 'Football', pricePerHour: '', capacity: '' });
 
-  useEffect(() => {
+  const loadCourts = async () => {
     if (currentUser) {
-       fetchMyGrounds(currentUser._id || currentUser.id).then(d => { setGrounds(d); setLoading(false); });
+      setLoading(true);
+      try {
+        const d = await fetchMyGrounds(currentUser._id || currentUser.id);
+        setGrounds(d || []);
+      } catch (e) {
+        console.error('Failed to load courts:', e);
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [currentUser]);
+  };
 
-  const handleToggle = (id) => {
-    setGrounds(grounds.map(g => g.id === id ? { ...g, status: g.status === 'Active' ? 'Inactive' : 'Active' } : g));
+  useEffect(() => {
+    if (initialGrounds && initialGrounds.length > 0) {
+      setGrounds(initialGrounds);
+      setLoading(false);
+    } else {
+      loadCourts();
+    }
+  }, [currentUser, initialGrounds]);
+
+  const handleToggle = async (g) => {
+    const targetId = g._id || g.ground_id || g.id;
+    const currentStatus = g.status;
+    const nextStatus = (currentStatus === 'Active' || currentStatus === 'Approved') ? 'Inactive' : 'Approved';
+
+    setGrounds(prev => prev.map(item => (item._id === targetId || item.ground_id === targetId || item.id === targetId) ? { ...item, status: nextStatus } : item));
+
+    try {
+      await updateGroundApi(targetId, { status: nextStatus });
+      if (onGroundsUpdated) onGroundsUpdated();
+    } catch (e) {
+      console.error('Failed to toggle status:', e);
+      setGrounds(prev => prev.map(item => (item._id === targetId || item.ground_id === targetId || item.id === targetId) ? { ...item, status: currentStatus } : item));
+    }
+  };
+
+  const handleOpenEdit = (g) => {
+    setEditingId(g._id || g.ground_id || g.id);
+    setForm({
+      title: g.title || '',
+      location: g.location || g.address || '',
+      sport: g.sport_type || (g.sports && g.sports[0]) || 'Football',
+      pricePerHour: g.price_per_hour || g.pricePerHour || 700,
+      capacity: g.capacity || ''
+    });
+    setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newGround = { 
+    const payload = { 
       title: form.title, 
       location: form.location, 
       sport_type: form.sport, 
       price_per_hour: Number(form.pricePerHour), 
       owner_id: currentUser._id || currentUser.id 
     };
+
     try {
-      const data = await createGroundApi(newGround);
-      if (data && data.success !== false) {
-         setGrounds([...grounds, data.ground || data.data || data]);
+      if (editingId) {
+        await updateGroundApi(editingId, payload);
+      } else {
+        await createGroundApi(payload);
       }
+      await loadCourts();
+      if (onGroundsUpdated) onGroundsUpdated();
     } catch (e) {
-      console.error('Failed to add court:', e);
+      console.error('Failed to save court:', e);
     }
     setShowModal(false);
+    setEditingId(null);
     setForm({ title: '', location: '', sport: 'Football', pricePerHour: '', capacity: '' });
   };
 
@@ -108,10 +155,10 @@ export default function CourtsPage({ currentUser }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => handleToggle(g.id)}>
-                    {g.status === 'Active' ? <><XCircle size={13} /> Deactivate</> : <><CheckCircle2 size={13} /> Activate</>}
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => handleToggle(g)}>
+                    {(g.status === 'Active' || g.status === 'Approved') ? <><XCircle size={13} /> Deactivate</> : <><CheckCircle2 size={13} /> Activate</>}
                   </button>
-                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }}>
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => handleOpenEdit(g)}>
                     <Edit3 size={13} /> Edit Details
                   </button>
                 </div>
@@ -121,12 +168,12 @@ export default function CourtsPage({ currentUser }) {
         </div>
       )}
 
-      {/* Add Court Modal */}
+      {/* Add / Edit Court Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => { setShowModal(false); setEditingId(null); }}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#e8f5f1', marginBottom: '1.25rem' }}>
-              ➕ Register New Court
+              {editingId ? '✏️ Edit Court / Venue Details' : '➕ Register New Court'}
             </h3>
             <form onSubmit={handleSubmit}>
               <div className="form-group">
@@ -134,7 +181,7 @@ export default function CourtsPage({ currentUser }) {
                 <input className="form-input" required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g., Main Football Turf A" />
               </div>
               <div className="form-group">
-                <label className="form-label">Location</label>
+                <label className="form-label">Location / Address</label>
                 <input className="form-input" required value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g., Sector 5, Kochi" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
@@ -150,8 +197,8 @@ export default function CourtsPage({ currentUser }) {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Register Court</button>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowModal(false); setEditingId(null); }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>{editingId ? 'Save Changes' : 'Register Court'}</button>
               </div>
             </form>
           </div>

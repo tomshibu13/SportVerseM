@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Lock, Globe, Clock, User, CheckCircle2 } from 'lucide-react';
-import { fetchMyGrounds } from '../services/api';
+import { Settings, Bell, Lock, Globe, Clock, User, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { fetchMyGrounds, updateGroundApi, updateProfileApi } from '../services/api';
 
-export default function SettingsPage({ currentUser }) {
+export default function SettingsPage({ currentUser, grounds = [], onGroundsUpdated, onUserUpdated }) {
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [currentGround, setCurrentGround] = useState(grounds[0] || null);
+
   const [form, setForm] = useState({
     stationName: '',
     address: '',
@@ -20,26 +24,99 @@ export default function SettingsPage({ currentUser }) {
   });
   const [pw, setPw] = useState({ current: '', new: '', confirm: '' });
 
+  // Sync initial state from currentGround and currentUser
   useEffect(() => {
-    if (currentUser) {
-      fetchMyGrounds(currentUser._id || currentUser.id).then(g => {
-        if (g && g.length > 0) {
-          setForm(prev => ({
-            ...prev,
-            stationName: g[0].title || '',
-            address: g[0].address || g[0].location || '',
-            phone: currentUser?.phone || '',
-          }));
-        }
-      });
+    let savedPrefs = {};
+    try {
+      const stored = localStorage.getItem('sv_station_settings');
+      if (stored) savedPrefs = JSON.parse(stored);
+    } catch (_) {}
+
+    const targetGround = grounds.length > 0 ? grounds[0] : null;
+    if (targetGround) {
+      setCurrentGround(targetGround);
     }
-  }, [currentUser]);
+
+    setForm(prev => ({
+      ...prev,
+      stationName: targetGround?.title || prev.stationName,
+      address: targetGround?.address || targetGround?.location || prev.address,
+      phone: targetGround?.phone || currentUser?.phone || prev.phone,
+      email: currentUser?.email || prev.email,
+      openTime: targetGround?.opening_time || prev.openTime,
+      closeTime: targetGround?.closing_time || prev.closeTime,
+      ...savedPrefs,
+    }));
+  }, [grounds, currentUser]);
 
   const handleSave = async (e) => {
     e.preventDefault();
-    // Simulate save to DB for settings (mocked since no settings API exists yet)
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaving(true);
+    setError('');
+    setSaved(false);
+
+    try {
+      // 1. Password validation if updating password
+      if (pw.new) {
+        if (pw.new.length < 6) {
+          throw new Error('New password must be at least 6 characters long.');
+        }
+        if (pw.new !== pw.confirm) {
+          throw new Error('New password and confirm password do not match.');
+        }
+      }
+
+      // 2. Update Ground if ground exists
+      const targetGround = currentGround || (grounds.length > 0 ? grounds[0] : null);
+      if (targetGround) {
+        const groundId = targetGround._id || targetGround.ground_id || targetGround.id;
+        await updateGroundApi(groundId, {
+          title: form.stationName,
+          address: form.address,
+          location: form.address,
+          phone: form.phone,
+          opening_time: form.openTime,
+          closing_time: form.closeTime,
+        });
+      }
+
+      // 3. Update User Profile & Password
+      const profileData = {
+        phone: form.phone,
+        ...(pw.new ? { currentPassword: pw.current, newPassword: pw.new } : {})
+      };
+      const profileRes = await updateProfileApi(profileData);
+
+      if (profileRes && profileRes.user) {
+        localStorage.setItem('sv_station_user', JSON.stringify({ ...currentUser, ...profileRes.user }));
+        if (onUserUpdated) onUserUpdated({ ...currentUser, ...profileRes.user });
+      }
+
+      // 4. Save local preferences
+      const prefsToStore = {
+        notifyBookings: form.notifyBookings,
+        notifyPayments: form.notifyPayments,
+        notifyLowStock: form.notifyLowStock,
+        currency: form.currency,
+        language: form.language,
+        timezone: form.timezone,
+      };
+      localStorage.setItem('sv_station_settings', JSON.stringify(prefsToStore));
+
+      // 5. Trigger ground refresh in App
+      if (onGroundsUpdated) {
+        await onGroundsUpdated();
+      }
+
+      setSaved(true);
+      setPw({ current: '', new: '', confirm: '' });
+      setTimeout(() => setSaved(false), 3500);
+    } catch (err) {
+      console.error('Save settings error:', err);
+      setError(err.message || 'Failed to save settings. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -52,7 +129,14 @@ export default function SettingsPage({ currentUser }) {
       {saved && (
         <div style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <CheckCircle2 size={18} color="#10b981" />
-          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#10b981' }}>Settings saved successfully!</span>
+          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#10b981' }}>Station profile & settings saved successfully to MongoDB!</span>
+        </div>
+      )}
+
+      {error && (
+        <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <AlertCircle size={18} color="#ef4444" />
+          <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ef4444' }}>{error}</span>
         </div>
       )}
 
@@ -184,9 +268,26 @@ export default function SettingsPage({ currentUser }) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', paddingBottom: '1rem' }}>
-          <button type="button" className="btn btn-secondary" style={{ flex: 1 }}>Reset to Defaults</button>
-          <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
-            <CheckCircle2 size={16} /> Save All Settings
+          <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => {
+            const targetGround = currentGround || (grounds.length > 0 ? grounds[0] : null);
+            setForm({
+              stationName: targetGround?.title || '',
+              address: targetGround?.address || targetGround?.location || '',
+              phone: targetGround?.phone || currentUser?.phone || '',
+              email: currentUser?.email || '',
+              openTime: targetGround?.opening_time || '06:00',
+              closeTime: targetGround?.closing_time || '22:00',
+              notifyBookings: true,
+              notifyPayments: true,
+              notifyLowStock: true,
+              currency: 'INR',
+              language: 'English',
+              timezone: 'Asia/Kolkata',
+            });
+            setPw({ current: '', new: '', confirm: '' });
+          }}>Reset to Defaults</button>
+          <button type="submit" className="btn btn-primary" disabled={saving} style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+            {saving ? <><RefreshCw size={16} className="spin" /> Saving Changes...</> : <><CheckCircle2 size={16} /> Save All Settings</>}
           </button>
         </div>
       </form>

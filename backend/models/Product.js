@@ -13,7 +13,7 @@ const productSchema = new mongoose.Schema({
   image: { type: String, required: true },
   description: { type: String },
   stock: { type: Number, default: 25 },
-  shop_owner_id: { type: Number, default: 3 },
+  shop_owner_id: { type: mongoose.Schema.Types.Mixed, default: 3 },
   created_at: { type: Date, default: Date.now }
 }, { strict: false });
 

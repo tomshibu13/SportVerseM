@@ -46,6 +46,20 @@ export async function createGroundApi(groundData) {
   });
 }
 
+export async function updateGroundApi(groundId, groundData) {
+  return await request(`/grounds/${groundId}`, {
+    method: 'PUT',
+    body: JSON.stringify(groundData),
+  });
+}
+
+export async function updateProfileApi(profileData) {
+  return await request('/auth/me', {
+    method: 'PUT',
+    body: JSON.stringify(profileData),
+  });
+}
+
 // ── Bookings ──
 export async function fetchMyBookings(ownerId) {
   const data = await request(`/bookings/owner/${ownerId}`);
@@ -56,10 +70,10 @@ export async function cancelBookingApi(bookingId) {
   return await request(`/bookings/cancel/${bookingId}`, { method: 'PUT' });
 }
 
-export async function checkInBookingApi(bookingIdOrQr) {
+export async function checkInBookingApi(bookingIdOrQr, groundId = null) {
   return await request('/bookings/checkin', {
     method: 'POST',
-    body: JSON.stringify({ booking_id: bookingIdOrQr }),
+    body: JSON.stringify({ booking_id: bookingIdOrQr, ...(groundId ? { ground_id: groundId } : {}) }),
   });
 }
 
@@ -69,10 +83,23 @@ export async function fetchMyProducts() {
   return data.products || [];
 }
 
+export async function createProductApi(data) {
+  return await request('/products', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function updateProductApi(productId, data) {
   return await request(`/products/${productId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProductApi(productId) {
+  return await request(`/products/${productId}`, {
+    method: 'DELETE',
   });
 }
 

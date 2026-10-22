@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarCheck, Search, Filter, CheckCircle2, XCircle, Clock } from 'lucide-react';
-import { fetchMyBookings } from '../services/api';
+import { fetchMyBookings, cancelBookingApi } from '../services/api';
 
 const statusConfig = {
   Confirmed:  { class: 'badge-blue',   icon: <Clock size={11} /> },
@@ -24,7 +24,7 @@ export default function BookingsPage({ currentUser }) {
   const handleCancel = async (id) => {
     if (!window.confirm(`Cancel booking ${id}?`)) return;
     try {
-        await fetch(`/api/bookings/cancel/${id}`, { method: 'PUT' });
+        await cancelBookingApi(id);
         setBookings(prev => prev.map(b => (b.booking_id === id || b._id === id) ? { ...b, booking_status: 'Cancelled' } : b));
     } catch (e) {
         console.error('Failed to cancel:', e);

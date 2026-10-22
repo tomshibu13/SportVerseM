@@ -23,6 +23,9 @@ const groundSchema = new mongoose.Schema({
     is_booked: { type: Boolean, default: false },
     price: Number
   }],
+  phone: { type: String, default: '' },
+  opening_time: { type: String, default: '06:00' },
+  closing_time: { type: String, default: '22:00' },
   created_at: { type: Date, default: Date.now }
 });
 

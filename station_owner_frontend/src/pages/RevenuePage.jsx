@@ -26,13 +26,16 @@ export default function RevenuePage({ currentUser }) {
   for(let i=6; i>=0; i--) {
      const d = new Date();
      d.setDate(now.getDate() - i);
-     const key = d.toISOString().split('T')[0]; // YYYY-MM-DD
+     const yyyy = d.getFullYear();
+     const mm = String(d.getMonth() + 1).padStart(2, '0');
+     const dd = String(d.getDate()).padStart(2, '0');
+     const key = `${yyyy}-${mm}-${dd}`;
      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
      weeklyMap[key] = { day: dayName, revenue: 0, bookings: 0, playersSet: new Set() };
   }
   
   bookings.forEach(b => {
-     const key = b.date || b.booking_date; // assuming YYYY-MM-DD
+     const key = b.date || b.booking_date; // YYYY-MM-DD
      if(weeklyMap[key]) {
         weeklyMap[key].revenue += (b.total_price || 0);
         weeklyMap[key].bookings += 1;
@@ -67,7 +70,6 @@ export default function RevenuePage({ currentUser }) {
   const totalRevThisWeek = weeklyData.reduce((s, d) => s + d.revenue, 0);
   const totalBookings = bookings.length;
   const uniquePlayers = new Set(bookings.map(b => b.user?._id || b.user_name)).size;
-  const avgRev = totalBookings > 0 ? totalRevThisWeek / totalBookings : 0; // rough average
 
   // Sport Breakdown
   const sportMap = {};
@@ -82,6 +84,8 @@ export default function RevenuePage({ currentUser }) {
      const pct = totalAllTimeRev > 0 ? Math.round((sportMap[k] / totalAllTimeRev) * 100) : 0;
      return { sport: k, pct, color: '#10b981', rev: `₹${sportMap[k].toLocaleString()}` };
   });
+
+  const avgRev = totalBookings > 0 ? totalAllTimeRev / totalBookings : 0;
 
   // Top Players
   const playerMap = {};
@@ -121,10 +125,10 @@ export default function RevenuePage({ currentUser }) {
       {/* Summary KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
         {[
-          { l: 'This Week', v: `₹${totalRevThisWeek.toLocaleString()}`, delta: 'Live Data', icon: <IndianRupee size={20} />, color: '#10b981' },
-          { l: 'Total Bookings', v: totalBookings, delta: 'All time', icon: <Calendar size={20} />, color: '#3b82f6' },
-          { l: 'Unique Players', v: uniquePlayers, delta: 'All time', icon: <Users size={20} />, color: '#a855f7' },
-          { l: 'Avg Per Booking', v: `₹${Math.round(avgRev).toLocaleString()}`, delta: 'Overall', icon: <TrendingUp size={20} />, color: '#f59e0b' },
+          { l: 'Total Revenue', v: `₹${totalAllTimeRev.toLocaleString()}`, delta: `This week: ₹${totalRevThisWeek.toLocaleString()}`, icon: <IndianRupee size={20} />, color: '#10b981' },
+          { l: 'Total Bookings', v: totalBookings, delta: 'All time confirmed', icon: <Calendar size={20} />, color: '#3b82f6' },
+          { l: 'Unique Players', v: uniquePlayers, delta: 'Player visits', icon: <Users size={20} />, color: '#a855f7' },
+          { l: 'Avg Per Booking', v: `₹${Math.round(avgRev).toLocaleString()}`, delta: 'Overall ticket size', icon: <TrendingUp size={20} />, color: '#f59e0b' },
         ].map(s => (
           <div key={s.l} className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -156,7 +160,7 @@ export default function RevenuePage({ currentUser }) {
             return (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
                 <div style={{ fontSize: '0.7rem', color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  ₹{(rev / 1000).toFixed(0)}k
+                  {rev >= 1000 ? `₹${(rev / 1000).toFixed(1)}k` : `₹${rev}`}
                 </div>
                 <div style={{
                   width: '100%', height: `${h}%`, borderRadius: '6px 6px 0 0',

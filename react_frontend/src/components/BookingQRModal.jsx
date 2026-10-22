@@ -5,7 +5,8 @@ import { X, Calendar, Clock, MapPin, CheckCircle2, Ticket, Download, ShieldCheck
 export default function BookingQRModal({ isOpen, onClose, booking }) {
   if (!isOpen || !booking) return null;
 
-  const qrString = booking.qr_code || `SPORTVERSE_QR_${booking.booking_id}`;
+  const gId = booking.ground_id || (booking.ground && (booking.ground.ground_id || booking.ground._id)) || '';
+  const qrString = booking.qr_code || (gId ? `SPORTVERSE_QR_G${gId}_${booking.booking_id}` : `SPORTVERSE_QR_${booking.booking_id}`);
   const isCompleted = booking.booking_status === 'Completed';
   const isCancelled = booking.booking_status === 'Cancelled';
 

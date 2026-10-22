@@ -153,7 +153,7 @@ async function createBookingDirect({ userId, userName, groundId, groundName, spo
       total_price: resolvedPrice,
       payment_status: 'Paid',
       booking_status: 'Upcoming',
-      qr_code: `SPORTVERSE_QR_${booking_id}`,
+      qr_code: `SPORTVERSE_QR_G${groundDoc ? (groundDoc.ground_id || groundDoc._id) : (groundId || 101)}_${booking_id}`,
       created_at: new Date()
     };
 

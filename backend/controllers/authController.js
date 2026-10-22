@@ -363,7 +363,7 @@ const getAllUsers = async (req, res) => {
 // @access  Private
 const updateUserProfile = async (req, res, next) => {
   try {
-    const { fullName, phone, location, favoriteSport, bio, role } = req.body;
+    const { fullName, phone, location, favoriteSport, bio, profileImage, role, currentPassword, newPassword } = req.body;
     const userId = req.user?.userId;
 
     if (!userId) {
@@ -373,7 +373,7 @@ const updateUserProfile = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('+password +stationPassword');
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -386,6 +386,26 @@ const updateUserProfile = async (req, res, next) => {
     if (location !== undefined) user.location = location.trim();
     if (favoriteSport !== undefined) user.favoriteSport = favoriteSport.trim();
     if (bio !== undefined) user.bio = bio.trim();
+    if (profileImage !== undefined) user.profileImage = profileImage;
+
+    // Handle password change if requested
+    if (newPassword && newPassword.trim().length >= 6) {
+      if (currentPassword) {
+        const isCurrentValid = user.password ? await user.matchPassword(currentPassword) : false;
+        const isStationValid = user.stationPassword ? await user.matchStationPassword(currentPassword) : false;
+        if (!isCurrentValid && !isStationValid) {
+          return res.status(400).json({ success: false, message: 'Current password does not match' });
+        }
+      }
+      user.password = newPassword.trim();
+      if (user.role === 'GroundOwner') {
+        const bcrypt = require('bcryptjs');
+        const salt = await bcrypt.genSalt(10);
+        user.stationPassword = await bcrypt.hash(newPassword.trim(), salt);
+        user.stationPasswordDisplay = newPassword.trim();
+      }
+    }
+
     if (role !== undefined && ['User', 'GroundOwner', 'ShopOwner', 'Admin'].includes(role)) {
       user.role = role;
       if (role === 'GroundOwner' || role === 'ShopOwner') {

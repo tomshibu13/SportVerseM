@@ -579,7 +579,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                         child: Column(
                           children: [
                             QrImageView(
-                              data: 'SPORTVERSE_QR_$bookingId',
+                              data: 'SPORTVERSE_QR_G${widget.ground.groundId}_$bookingId',
                               version: QrVersions.auto,
                               size: 110.0,
                               backgroundColor: Colors.white,
@@ -594,7 +594,7 @@ class _GroundBookingScreenState extends State<GroundBookingScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'SPORTVERSE_QR_$bookingId',
+                              'SPORTVERSE_QR_G${widget.ground.groundId}_$bookingId',
                               style: TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 10,
